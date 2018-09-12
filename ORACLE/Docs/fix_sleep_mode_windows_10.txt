@@ -1,0 +1,36 @@
+Go Settings, System and then Power and Sleep, then Additional Power Settings. Will probably show Balanced, click on change plan settings. Assume we've all opted for computer never turning off the display and never going to sleep. Now click on Change Advanced Power Settings, click on Hard Disk. My computer had been set, by default, to turn the Hard Disk off after 20 minutes. Now changed it to 180 minutes.
+
+Press Windows key + X on the keyboard.                                                                                    
+Click on Control panel.                                                                                                   
+Type “Troubleshooting” without quotes in the Control panel search box.                                                    
+Click on Troubleshooting and click on View all.  
+- system and security : Power                                                                          
+Click on Power troubleshooter and follow the on-screen instructions.                                                      
+Also try to run the “System maintenance troubleshooter” from “Troubleshooting” lists after running “Power Troubleshooter“.
+                                                                                                                          
+Also turn off “Fast Restart” in the power settings.   
+
+
+times before display dims is too long 
+times before display goes to sleep is too long
+time before computer goes to sleep is too long 
+
+
+powercfg a
+
+
+powercfg /h off   
+
+powercfg –devicequery 
+powercfg –devicequery query_flags
+query_flags
+Specifies one of the following criteria:
+wake_from_S1_supported – Returns all devices that support waking the computer from a light sleep state.
+wake_from_S2_supported – Returns all devices that support waking the computer from a deeper sleep state.
+wake_from_S3_supported – Returns all devices that support waking the computer from the deepest sleep state.                                                               
+                      
+                      
+                      
+                      
+                      
+                      

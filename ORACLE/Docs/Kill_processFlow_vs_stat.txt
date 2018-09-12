@@ -1,0 +1,29 @@
+FYI :
+
+select * from dba_users where username like 'OWF%'; -- used below for &&workflow_manager (multiple possibilities)
+
+-- check if the active process flows:
+		
+alter session set nls_date_format='DD/MM/YYYY HH24:MI:SS';
+
+alter session set current_schema=&&workflow_manager;	
+
+select  item_type, item_key, activity_status,  begin_date 
+from  wf_item_activity_statuses 
+where 
+activity_status ='ACTIVE';
+ 
+-- kill process flow:
+exec &&workflow_manager.wf_engine.AbortProcess(item_type,item_key); -- get arguments from previous query
+commit;
+				
+-- recalculate stats:
+
+exec dbms_stats.gather_table_stats(ownname => 'STGM',tabname => 'FAFM_MS_YCON_CAGGID',estimate_percent => 20,degree => 16); -- degree = parallel processes
+		
+-- in case of locked statistics
+	
+exec dbms_stats.unlock_table_stats('STGM','FAFM_MS_YCON');
+
+exec dbms_stats.lock_table_stats('STGM','FAFM_MS_YCON');
+

@@ -1,0 +1,240 @@
+DBMS_SNAPSHOT.REFRESH( 'MV_EMP','f');
+	
+
+
+select owner,MVIEW_NAME ,LAST_REFRESH_DATE from DBA_MVIEWS order by MVIEW_NAME;
+
+
+
+You can specify how you want your materialized views to be refreshed from the detail tables by selecting one of four options: FORCE, COMPLETE, FAST, and NEVER.
+
+Refresh Option       Description  
+COMPLETE C              Refreshes by recalculating the materialized view's defining query when ATOMIC REFRESH=TRUE and COMPLETE is the same as FORCE if ATOMIC REFRESH=FALSE.  
+
+FAST      F            Refreshes by incrementally adding the new data that has been inserted into the tables using direct path or from the materialized view log.  
+
+FORCE     F           First determines if fast refresh is possible and applies it if it is; otherwise, it applies COMPLETE refresh.  
+
+NEVER     N            Suppresses refresh of the materialized view.  
+FAST_PCT  P partition
+
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_ATTRIBUTE_PERM_R_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_AV_PERM_R_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_CI_FD_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_FD_SV_AP_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_OBJECT_ANCESTORS_VERS_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_OP_PROC_ANCES_ALL_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_ROLEDEF_HIERARCHY_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_SERV_CHARS_ANCES_ALL_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+BEGIN
+  DBMS_SNAPSHOT.REFRESH(
+    LIST                 => 'SMK.SMK_VIEWHIERARCHY_MAT'
+   ,METHOD               => 'C'
+   ,PUSH_DEFERRED_RPC    => TRUE
+   ,REFRESH_AFTER_ERRORS => FALSE
+   ,PURGE_OPTION         => 1
+   ,PARALLELISM          => 0
+   ,ATOMIC_REFRESH       => TRUE
+   ,NESTED               => FALSE);
+END;
+/
+
+
+
+=====================
+Syntax
+
+DBMS_MVIEW.REFRESH_ALL_MVIEWS (
+   number_of_failures     OUT   BINARY_INTEGER,
+   method                 IN    VARCHAR2         := NULL,
+   rollback_seg           IN    VARCHAR2         := NULL,
+   refresh_after_errors   IN    BOOLEAN          := false,
+   atomic_refresh         IN    BOOLEAN          := true);
+   
+   DBMS_MVIEW.REFRESH (
+   { list                 IN     VARCHAR2,
+   | tab                  IN     DBMS_UTILITY.UNCL_ARRAY,}
+   method                 IN     VARCHAR2       := NULL,
+   rollback_seg           IN     VARCHAR2       := NULL,
+   push_deferred_rpc      IN     BOOLEAN        := true,
+   refresh_after_errors   IN     BOOLEAN        := false,
+   purge_option           IN     BINARY_INTEGER := 1,
+   parallelism            IN     BINARY_INTEGER := 0,
+   heap_size              IN     BINARY_INTEGER := 0,
+   atomic_refresh         IN     BOOLEAN        := true,
+   nested                 IN     BOOLEAN        := false);
+   
+   
+   CREATE MATERIALIZED VIEW products_mv 
+   REFRESH FAST ON COMMIT
+   AS SELECT SUM(list_price - min_price), category_id
+         FROM product_information 
+         GROUP BY category_id;
+         
+ ==============================
+  TEST MVIEWS CAPABILITIES
+         
+  CREATE TABLE MV_CAPABILITIES_TABLE 
+(STATEMENT_ID      VARCHAR(30),   -- Client-supplied unique statement identifier
+ MVOWNER           VARCHAR(30),   -- NULL for SELECT based EXPLAIN_MVIEW
+ MVNAME            VARCHAR(30),   -- NULL for SELECT based EXPLAIN_MVIEW
+ CAPABILITY_NAME   VARCHAR(30),   -- A descriptive name of the particular
+                                  -- capability:
+                                  -- REWRITE
+                                  --   Can do at least full text match
+                                  --   rewrite
+                                  -- REWRITE_PARTIAL_TEXT_MATCH
+                                  --   Can do at leat full and partial
+                                  --   text match rewrite
+                                  -- REWRITE_GENERAL
+                                  --   Can do all forms of rewrite
+                                  -- REFRESH
+                                  --   Can do at least complete refresh
+                                  -- REFRESH_FROM_LOG_AFTER_INSERT
+                                  --   Can do fast refresh from an mv log
+                                  --   or change capture table at least
+                                  --   when update operations are
+                                  --   restricted to INSERT
+                                  -- REFRESH_FROM_LOG_AFTER_ANY
+                                  --   can do fast refresh from an mv log
+                                  --   or change capture table after any
+                                  --   combination of updates
+                                  -- PCT
+                                  --   Can do Enhanced Update Tracking on
+                                  --   the table named in the RELATED_NAME
+                                  --   column.  EUT is needed for fast
+                                  --   refresh after partitioned
+                                  --   maintenance operations on the table
+                                  --   named in the RELATED_NAME column
+                                  --   and to do non-stale tolerated
+                                  --   rewrite when the mv is partially
+                                  --   stale with respect to the table
+                                  --   named in the RELATED_NAME column.
+                                  --   EUT can also sometimes enable fast
+                                  --   refresh of updates to the table
+                                  --   named in the RELATED_NAME column
+                                  --   when fast refresh from an mv log
+                                  --   or change capture table is not
+                                  --   possible.
+                                  -- See Table 8-7
+ POSSIBLE          CHARACTER(1),  -- T = capability is possible
+                                  -- F = capability is not possible
+ RELATED_TEXT      VARCHAR(2000), -- Owner.table.column, alias name, and so on
+                                  -- related to this message. The specific 
+                                  -- meaning of this column depends on the 
+                                  -- NSGNO column. See the documentation for
+                                  -- DBMS_MVIEW.EXPLAIN_MVIEW() for details.
+ RELATED_NUM       NUMBER,        -- When there is a numeric value 
+                                  -- associated with a row, it goes here.
+ MSGNO             INTEGER,       -- When available, QSM message # explaining
+                                  -- why disabled or more details when
+                                  -- enabled.
+ MSGTXT            VARCHAR(2000), -- Text associated with MSGNO.
+ SEQ               NUMBER);       -- Useful in ORDER BY clause when 
+                                  -- selecting from this table.
+2. RUN                                 
+EXECUTE DBMS_MVIEW.EXPLAIN_MVIEW ('SH.CAL_MONTH_SALES_MV');
+3. CHECK
+SELECT capability_name,  possible, SUBSTR(related_text,1,8)
+  AS rel_text, SUBSTR(msgtxt,1,60) AS msgtxt
+FROM MV_CAPABILITIES_TABLE
+ORDER BY seq;                                  
+                                         
+         

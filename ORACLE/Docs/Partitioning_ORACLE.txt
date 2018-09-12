@@ -1,0 +1,413 @@
+If you a import a dump on a database without partitioning enabled  you get the error
+
+ORA-00439: feature not enabled: Partitioning
+
+To enable Partitioning shutdown everything in your home and do this.
+
+$ cd $ORACLE_HOME/rdbms/lib
+$ make -f ins_rdbms.mk part_on
+$ make -f ins_rdbms.mk ioracle
+
+Check it with 
+ select * from v$option where parameter = 'Partitioning';
+
+
+*************************************************************
+ Partitioning : Improving performance, manageability, and availability  
+*************************************************************
+
+It is a tool to make things easier to admin, more available, more concurrent, faster in warehouses with lots of smaller full scans due to partition 
+elimination and partition wise joins
+
+
+1-Partitioning Key
+----------------
+Each row in a partitioned table is unambiguously assigned to a single partition. The partitioning key consists of one or more columns that determine the 
+partition where each row is stored. Oracle automatically directs insert,update, and delete operations to the appropriate partition with the partitioning key.
+
+2-Partitioned Tables
+-------------------
+Any table can be partitioned into a million separate partitions except tables containing LONG or LONG RAW columns.You can,use tables containing CLOB/BLOB 
+columns.
+Note:
+To reduce disk usage and memory usage (the buffer cache), you can store tables and partitions of a partitioned table in a compressed format inside the 
+database. Often leads to a better scaleup for read-only operations.Table compression can also speed up query execution But implies a slight cost CPU overhead.
+
+3-When to Partition a Table
+---------------------------
+-Tables greater than 2 GB should always be considered as candidates for partitioning.
+-Tables containing historical data, in which new data is added into the newest partition.example: historical table where only the current month's data is 
+updatable and the other 11 months are read only.
+-When the contents of a table must be distributed across different types of storage devices (#hash Part).
+
+3.1-When to Partition an Index
+------------------------------
+-Avoid rebuilding the entire index when data is removed.
+-Perform maintenance on parts of the data without invalidating the entire index.
+-Reduce the impact of index skew caused by an index on a column with a monotonically increasing value.
+
+*PERFORMANCE BENEFITS include:
+
+A-Partition Pruning: Can often improve query performance by several orders of magnitude. Example, suppose Orders table containing a historical record orders,
+and is partitioned by week. A query requesting orders for a single week would only access a single partition of Orders table. If the Orders table had 2years
+of historical data, then this query would access one partition instead of 104 partitions. This query could potentially execute 100 times faster because of 
+partition pruning.Partition pruning works with all of Oracle's other performance features. Oracle uses partition pruning with any indexing technique, 
+join technique, or parallel access method.
+
+B-Partition-Wise Joins:
+Improve the performance of multi-table joins by using a technique known as partition-wise joins. Partition-wise joins can be applied when two tables are 
+being joined and both tables are partitioned on the join key, or when a reference partitioned table is joined with its parent table.
+Partition-wise joins break a large join into smaller joins that occur between each of the partitions, completing the overall join in less time.
+This offers significant performance benefits both for serial and parallel execution.
+
+----------------------------------
+5.3.	Partitioned indexes
+----------------------------------
+
+Overview of Partitioned Indexes (From original Oracle 10g documentation)
+
+Just like partitioned tables, partitioned indexes improve manageability, availability, performance, and scalability. They can either be partitioned 
+independently (global indexes) or automatically linked to a table's partitioning method (local indexes). In general, you should use global indexes for OLTP 
+applications and local indexes for data warehousing or DSS applications. Also, whenever possible, you should try to use local indexes because they are 
+easier to manage. When deciding what kind of partitioned index to use, you should consider the following guidelines in order:
+
+1.	If the table partitioning column is a subset of the index keys, use a local index. If this is the case, you are finished. If this is not the case, continue to guideline 2.
+2.	If the index is unique, use a global index. If this is the case, you are finished. If this is not the case, continue to guideline 3.
+3.	If your priority is manageability, use a local index. If this is the case, you are finished. If this is not the case, continue to guideline 4.
+4.	If the application is an OLTP one and users need quick response times, use a global index. If the application is a DSS one and users are more interested in throughput, use a local index.
+
+The rules for partitioning indexes are similar to those for tables:
+"	An index can be partitioned unless:
+o	The index is a cluster index
+o	The index is defined on a clustered table.
+"	You can mix partitioned and nonpartitioned indexes with partitioned and nonpartitioned tables:
+o	A partitioned table can have partitioned or nonpartitioned indexes.
+o	A nonpartitioned table can have partitioned or nonpartitioned B-tree indexes.
+o	Bitmap indexes on nonpartitioned tables cannot be partitioned.
+o	A bitmap index on a partitioned table must be a local index.
+
+-Oracle Database also maintains the index partitioning automatically when partitions in the underlying table are added, dropped, merged, or split, 
+or when hash partitions or subpartitions are added or coalesced. This ensures that the index remains equipartitioned with the table.
+
+-Bitmap indexes use a very efficient storage mechanism for low cardinality columns(0.2%). Bitmap indexes are commonly used in data warehouses, especially 
+in data warehouses that implement star schemas. A single star schema consists of a central large fact table and multiple smaller dimension tables that 
+describe the data in the fact table.For example, the sales table in the sample sh schema in Oracle Database is a fact table, that is described by dimension tables customers, products, promotions, times, and channels. 
+Bitmap indexes enable the star transformation, an optimization for fast query retrieval against star or star look-a-like schemas.
+-Fact table foreign key columns are ideal candidates for bitmap indexes, because generally there are few distinct values relative to the total number of rows. Fact tables are often range or range-* partitioned, in which case you must create local bitmap indexes. Global bitmap indexes on partitioned tables are not supported.
+
+4- Partitioning Strategies
+---------------------------
+
+Oracle Partitioning offers three fundamental data distribution methods as basic partitioning strategies that control how data is placed into individual 
+partitions:
+
+I-RANGE:
+--------
+Used when there are logical ranges of data nto which it can be distributed. Possible usage: dates, part numbers, and serial numbers.Performance is
+ best when the data evenly distributes across the range
+You must specify:
+-Partitioning method: range
+-Partitioning column(s)
+-Partition descriptions identifying partition bounds
+
+II-HASH
+--------
+Hash Partitioning - Used to spread data evenly over partitions. If your data does not easily lend itself to range partitioning ; Possible usage: data has no logical groupings.
+ for performance and manageability reasons. Rows are mapped into partitions based on a hash value of the partitioning key. influence availability and performance by spreading these evenly sized partitions across I/O devices (striping).
+
+CREATE TABLE scubagear
+     (id NUMBER,
+      name VARCHAR2 (60))
+   PARTITION BY HASH (id)
+   PARTITIONS 4 
+   STORE IN (gear1, gear2, gear3, gear4);
+
+
+III-LIST
+--------
+Used to list together unrelated data into partitions. Possible usage: a number of states list partitioned into a region.
+
+IV-COMPOSITE PARTITIONING:
+--------------------------
+1-Composite Range-Hash Partitioning:
+------------------------------------
+Used to range partition first, then spreads data into hash partitions. Possible usage: range partition by date of birth then hash partition by name; 
+store the results into the hash partitions.
+
+2-Composite Range-List Partitioning:
+------------------------------------
+Used to range partition first, then spreads data into list partitions.  Possible usage: range partition by date of birth 
+then list partition by state, then store the results into the list partitions.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+***********************************************************************************************************
+Analytic functions by Example 
+**********************************************************************************************************
+
+create table tbl(hi varchar2 (10), ho varchar2(10),num number);
+
+insert into tbl values ('A','X',1);
+insert into tbl values ('A','X',1);
+insert into tbl values ('A','X',1);
+insert into tbl values ('B','Y',1);
+insert into tbl values ('B','Y',1);
+insert into tbl values ('C','Z',1);
+insert into tbl values ('C','Z',1);
+insert into tbl values ('A','A',1);
+insert into tbl values ('M','X',1,to_date('01-Feb','dd-mon'));
+insert into tbl values ('M','R',1,to_date('02-Mar','dd-mon'));
+insert into tbl values ('M',''V',1,to_date('03-fev-13','dd-mon-yy'));                      
+update tbl set DAT=to_date(-jan                        
+                       
+select                 
+   hi,ho,              
+   row_number() over(partition by hi,ho order by hi,ho) as nr
+from tbl;              
+                      
+select hi,ho,
+sum(num) over (partition by hi,ho order by hi,ho) as sum
+from tbl;
+
+HI         HO                SUM
+---------- ---------- ----------
+A          X                   3
+A          X                   3
+A          X                   3
+B          Y                   2
+B          Y                   2
+C          Z                   2
+C          Z                   2
+
+select hi,ho,                                               
+sum(num) over (partition by hi order by hi,ho) as sum    
+from tbl;  
+HI         HO                SUM
+---------- ---------- ----------
+A          A                   1
+A          X                   4
+A          X                   4
+A          X                   4
+B          Y                   2
+B          Y                   2
+C          Z                   2
+C          Z                   2
+
+   
+
+select HI,HO,dat,SUM(NUM) OVER (ORDER BY dat ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) from tbl;  
+
+HI HO DAT    SUM(NUM)OVER(ORDERBYDATROWSBETWEEN1PRECEDINGAND1FOLLOWING)
+-- -- ------ ----------------------------------------------------------
+C  Z  01-jan                                                          2
+C  Z  01-jan                                                          3
+A  X  02-jan                                                          3
+A  X  02-jan                                                          3
+A  X  02-jan                                                          3
+B  Y  03-jan                                                          3
+A  A  03-jan                                                          3
+B  Y  03-jan                                                          2
+
+select HI,HO,dat,SUM(NUM) OVER (ORDER BY dat ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) from tbl; (example curent =1 + preced 1 +folowing 1= 3
+
+HI HO DAT    SUM(NUM)OVER(ORDERBYDATROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)
+-- -- ------ ------------------------------------------------------------------
+C  Z  01-jan                                                                  1
+C  Z  01-jan                                                                  2
+A  X  02-jan                                                                  3
+A  X  02-jan                                                                  4
+A  X  02-jan                                                                  5
+B  Y  03-jan                                                                  6
+A  A  03-jan                                                                  7
+B  Y  03-jan                                                                  8   
+
+
+select HI,HO,dat,COUNT(*) OVER ( ) SM   from tbl  
+where dat between '01-jan' and '02-jan'     (Sum of count where condition is met)
+order by 3 ;           
+
+HI HO DAT            SM
+-- -- ------ ----------
+C  Z  01-jan          5
+C  Z  01-jan          5
+A  X  02-jan          5
+A  X  02-jan          5
+A  X  02-jan          5
+
+
+- for each , the total salary of employees hired in the past one year from his or her hire date
+
+select HI,HO,dat,COUNT(*) OVER (ORDER BY dat 
+   RANGE NUMTOYMINTERVAL(1,'YEAR') PRECEDING) AS t_sal
+from tbl ;
+
+
+***********************************************
+Partition Exchange Load
+***********************************************
+
+Partitions can be added using partition exchange load (PEL). 
+When you use PEL, you create a separate table that looks exactly like a single partition,including the same indexes/constraints, if any. If you use a 
+composite partitioned table, then your separate table must use a partitioning strategy that matches the subpartitioning strategy of your composite 
+partitioned table. You can then exchange an existing table partition with this separate table. In a data load scenario, data can be loaded into the 
+separate table. Build indexes and implement constraints on the separate table, without impacting the table users query. Then perform the PEL, which is 
+a very low-impact transaction compared to the data load. Daily loads, with a range partition strategy by day, are common in data warehouse environments.
+
+
+The following example shows a partition exchange load for the sales table:
+1-Add table partition
+ALTER TABLE sales ADD PARTITION p_sales_jun_2007
+VALUES LESS THAN (TO_DATE('01-FEB-2007','dd-MON-yyyy'));
+2-Create copy table 
+CREATE TABLE sales_jun_2007 COMPRESS FOR OLTP
+AS SELECT * FROM sales WHERE 1=0;
+Next, populate table sales_jun_2007 with sales numbers for June 2007, and create the equivalent bitmap indexes and constraints that have been implemented on the sales table:
+3-Create identical indexes/Foreign Keys 
+   CREATE BITMAP INDEX time_id_jun_2007_bix ON sales_jun_2007(time_id) NOLOGGING;
+   CREATE BITMAP INDEX cust_id_jun_2007_bix ON sales_jun_2007(cust_id) NOLOGGING;
+   CREATE BITMAP INDEX prod_id_jun_2007_bix ON sales_jun_2007(prod_id) NOLOGGING;
+   CREATE BITMAP INDEX promo_id_jun_2007_bix ON sales_jun_2007(promo_id) NOLOGGING;
+   CREATE BITMAP INDEX channel_id_jun_2007_bix ON sales_jun_2007(channel_id) NOLOGGING;
+
+   ALTER TABLE sales_jun_2007 ADD CONSTRAINT prod_id_fk FOREIGN KEY (prod_id) REFERENCES products(prod_id);
+   ALTER TABLE sales_jun_2007 ADD CONSTRAINT cust_id_fk FOREIGN KEY (cust_id) REFERENCES customers(cust_id);
+   ALTER TABLE sales_jun_2007 ADD CONSTRAINT promo_id_fk FOREIGN KEY (promo_id) REFERENCES promotions(promo_id);
+   ALTER TABLE sales_jun_2007 ADD CONSTRAINT time_id_fk FOREIGN KEY (time_id) REFERENCES times(time_id);
+   ALTER TABLE sales_jun_2007 ADD CONSTRAINT channel_id_fk FOREIGN KEY (channel_id) REFERENCES channels(channel_id);
+
+4-Next, exchange the partition:
+  ALTER TABLE sales EXCHANGE PARTITION p_sales_jun_2007 WITH TABLE sales_jun_2007 INCLUDING INDEXES;
+
+
+
+*************************************
+Interval Partitioning for Oracle 11g:
+*************************************
+Interval partitions build upon the range partitioning for Oracle 11g. Interval partitioning resolves the limitations built into range partitioning when 
+a specific range is unknown by developer/DBA creating the partitions for the table. It tells Oracle to automatically setup new  partitions for a
+particular interval when data inserted to tables are greater than the range partitions. The requirement=at least one range partition is specified. 
+Once range partitioning key is given for the high value of the range partitions, this transition point is used  as the baseline to create interval 
+partitions beyond this point.
+
+Restrictions on  Interval Partitioning:
+---------------------------------------
+-Cannot be used for index organized tables
+-Must use only one partitioning key column and it must be a DATE or NUMBER
+-Cannot create domain indexes on interval partitioned tables Are not supported at the sub-partition level
+
+
+DEMO:
+1- First we will create a new table to use for interval partitioning:
+
+Create table 
+pos_data ( 
+   start_date        DATE,
+   store_id          NUMBER,
+   inventory_id      NUMBER(6),
+   qty_sold          NUMBER(3),
+amt_sold                   NUMBER(10,2)) 
+PARTITION BY RANGE (start_date) INTERVAL(NUMTOYMINTERVAL(1, 'MONTH')) 
+(  
+   PARTITION pos_data_p2 VALUES LESS THAN (TO_DATE('1-7-2007', 'DD-MM-YYYY')),
+   PARTITION pos_data_p3 VALUES LESS THAN (TO_DATE('1-8-2007', 'DD-MM-YYYY')) 
+); 
+
+2- Add value higher than last partition bound:
+
+Insert into pos_data (start_date, store_id, inventory_id, qty_sold) 
+values ( '15-AUG-07', 1, 1, 1);
+
+
+PARTITION_NAME    HIGH_VALUE 
+----------------- ------------------------------------------------------------------------------------
+POS_DATA_P0       TO_DATE(' 2007-07-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=GREGORIAN')
+
+POS_DATA_P1       TO_DATE(' 2007-08-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=GREGORIAN')
+
+SYS_P81           TO_DATE(' 2007-09-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=GREGORIAN')
+
+3-Oracle will manage the creation of new partitions (and related local indexes)for any value beyond the high value.  Therefore, the values do not need to
+be inserted in sequence.
+4-The new syntax to specify a partition is by using the partition for (DATE) clause in the query:
+
+Select * from  pos_data partition for (to_date('15-AUG-2007','dd-mon-yyyy')); 
+
+5-Cross tablepsace distribution at Creation => "INTERVAL(NUMTOYMINTERVAL(1, 'MONTH')) STORE IN (tablespaceA, tablespaceB, tablespaceC)".
+    or later using:  Alter table pos_data set STORE IN(tablespace1, tablespace2, tablespace3);
+
+6-Simple range partitioned table can easily be converted to use interval partitioning by using the following command:
+alter table pos_data_range set INTERVAL(NUMTOYMINTERVAL(1, 'MONTH'));
+7-To convert the table back to only range partitioning, use the following command:
+alter table pos_data_range set INTERVAL();
+8-change the value of Partition interval
+alter table pos_data set INTERVAL(NUMTOYMINTERVAL(3, 'MONTH'));
+
+Remark: the indexes are also created each time a new partition is 
+
+
+****************************************************************
+select owner,segment_name,sum_size "max_size" from
+(select s.*,rank() over (order by sum_size desc) r from
+(select owner,segment_name,sum(bytes)/1024/1024 as sum_size from dba_segments where segment_name in (select table_name from dba_tables where owner like 'CMC%') 
+group by segment_name,owner) s
+)where sum_size>50;       
+
+****************************************11g Features
+Reference Partitioning
+Here is a typical problem in designing partitioning schemes: not all the tables have the same columns on which you need to partition. 
+Suppose you are creating a sales system with two simple tables, sales and customers:
+
+Create table customers
+(cust_id   number primary key, cust_name varchar2(200),rating    varchar2(1) not null)
+partition by list (rating)
+(partition pA values ('A'),partition pB values ('B'));
+
+The table sales is created as shown below. This is a child table of the customers table.
+Create table sales
+( sales_id number primary key,cust_id number not null,sales_amt   number,constraint  fk_sales_01  foreign key (cust_id) references customers);
+
+In Oracle 11g you can partition the table sales in the same manner as table customers: list partitioned on the column rating,using Reference Partitioning. 
+example to apply on sales table:
+
+Create table sales
+(sales_id    number primary key,   cust_id     number not null,sales_amt   number,
+   constraint  fk_sales_01    foreign key (cust_id)  references customers)
+   partition by reference (fk_sales_01);
+
+This creates partitions identical to those in the parent table, customers.Though there is no column called rating, yet the table has been partitioned on 
+that column. The clause partition by reference (fk_sales_01) has the name of the foreign key in the partition definition. 
+This instructs Database to confirm the partitioning is done per the patern used in the parent table—(customers).
+Note the NOT NULL constraint for column cust_id.; this is required for reference partitioning.
+If you check the partition high value it is null, meaning that the boundaries are derived from the Customers.The partitions have same names as in Customers:
+
+SQL> select partition_name, high_value
+from user_tab_partitions  where table_name = 'SALES';
+
+PARTITION_NAME    HIGH_VALUE
+---------------   -------------------------------
+PA
+PB
+
+> A special column called ref_ptn_constraint_name in user_part_tables shows the foreign key constraint name.partition type will be REFERENCE
+
+SQL> select table_name, partitioning_type, ref_ptn_constraint_name  from user_part_tables
+   where table_name in ('CUSTOMERS','SALES');
+
+TABLE_NAME                     PARTITION REF_PTN_CONSTRAINT_NAME
+----------------------------- ---------- --------------------------
+CUSTOMERS                      LIST
+SALES                          REFERENCE       FK_SALES_01
+
+Reference partitions is handy when to partition a child table in the same fashion as in the parent table but do not have the same columns.plus, you don't
+need to declare a long partitioning clause for each child table. 

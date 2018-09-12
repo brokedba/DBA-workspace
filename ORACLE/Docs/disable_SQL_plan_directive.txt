@@ -1,0 +1,2 @@
+SQL> exec dbms_spd.alter_sql_plan_directive(14130932452940503769,'ENABLED','NO');
+SQL> exec dbms_spd.alter_sql_plan_directive(14130932452940503769,'AUTO_DROP','NO');

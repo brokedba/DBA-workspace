@@ -1,0 +1,2 @@
+
+ alter table  STO_DWHODS2.ALM2_CAL_DEA add partition  P201208 values less than (TO_DATE(' 2012-09-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=GREGORIAN'));

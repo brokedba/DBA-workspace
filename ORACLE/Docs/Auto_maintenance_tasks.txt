@@ -1,0 +1,89 @@
+10g 
+
+Select Owner, job_name, program_name, schedule_name, schedule_type,failure_count, last_start_date , comments
+from dba_scheduler_jobs;
+
+select window_name, repeat_interval,duration, window_priority,
+next_start_date, last_start_date, Comments
+from dba_scheduler_windows;
+
+
+ col LAST_RUN_DURATION for a30
+ col SCHEDULE_NAME for a15
+ col START_DATE for a25
+ col JOB_NAME for a25
+SQL> select JOB_NAME,TRUNC(start_date,'MI') ,SCHEDULE_NAME,JOB_ACTION,REPEAT_INTERVAL,ENABLED,FAILURE_COUNT,TRUNC(LAST_START_DATE,'MI'), LAST_RUN_DURATION,trunc(NEXT_RUN_DATE,'MI') from DBA_SCHEDULER_JOBS where OWNER ='GRH1';
+
+JOB_NAME                  TRUNC(START_DATE,'M SCHEDULE_NAME   REPEAT_INTERVAL                          ENABL FAILURE_COUNT TRUNC(LAST_START_DA LAST_RUN_DURATION              TRUNC(NEXT_RUN_DATE
+------------------------- ------------------- --------------- ---------------------------------------- ----- ------------- ------------------- ------------------------------ -------------------
+CALCULER_STATISTIQUE      09-10-2014 10:44:00                 FREQ = DAILY; BYHOUR = 4; BYMINUTE = 0   TRUE              0 07-01-2016 04:00:00 +000000000 00:07:59.481000     08-01-2016 04:00:00
+
+
+select JOB_NAME,TRUNC(start_date,'MI') ,SCHEDULE_NAME,REPEAT_INTERVAL,ENABLED,FAILURE_COUNT,TRUNC(LAST_START_DATE,'MI'), LAST_RUN_DURATION ,trunc(NEXT_RUN_DATE,'MI') from DBA_SCHEDULER_JOBS where SCHEDULE_NAME='MAINTENANCE_WINDOW_GROUP' and owner='SYS';
+JOB_NAME                  START_DATE          SCHEDULE_NAME            REPEAT_INTERVAL                         ENABL FAILURE_COUNT LAST_START          LAST_RUN_DURATION
+------------------------- ------------------ ------------------------- -------------------------------------- ------ ------------- ------------------- -------------------------
+GATHER_STATS_JOB                              MAINTENANCE_WINDOW_GROUP                                        TRUE              0  06-01-2016 21:00:00 00:02:00.882000
+AUTO_SPACE_ADVISOR_JOB                        MAINTENANCE_WINDOW_GROUP                                        TRUE              0  06-01-2016 21:00:00 00:03:03.819000
+
+
+
+DBA_SCHEDULER_PROGRAMS
+DBA_SCHEDULER_PROGRAMS
+DBA_SCHEDULER_JOBS
+DBA_SCHEDULER_JOBS
+DBA_SCHEDULER_JOB_CLASSES
+DBA_SCHEDULER_JOB_CLASSES
+DBA_SCHEDULER_WINDOWS
+DBA_SCHEDULER_WINDOWS
+DBA_SCHEDULER_PROGRAM_ARGS
+DBA_SCHEDULER_PROGRAM_ARGS
+DBA_SCHEDULER_JOB_ARGS
+DBA_SCHEDULER_JOB_ARGS
+DBA_SCHEDULER_JOB_LOG
+DBA_SCHEDULER_JOB_RUN_DETAILS
+DBA_SCHEDULER_JOB_LOG
+DBA_SCHEDULER_JOB_RUN_DETAILS
+DBA_SCHEDULER_WINDOW_LOG
+DBA_SCHEDULER_WINDOW_DETAILS
+DBA_SCHEDULER_WINDOW_LOG
+DBA_SCHEDULER_WINDOW_DETAILS
+DBA_SCHEDULER_WINDOW_GROUPS
+DBA_SCHEDULER_WINDOW_GROUPS
+DBA_SCHEDULER_WINGROUP_MEMBER
+DBA_SCHEDULER_WINGROUP_MEMBER
+DBA_SCHEDULER_SCHEDULES
+DBA_SCHEDULER_SCHEDULES
+DBA_SCHEDULER_RUNNING_JOBS
+DBA_SCHEDULER_RUNNING_JOBS
+DBA_SCHEDULER_GLOBAL_ATTRIBUT
+DBA_SCHEDULER_GLOBAL_ATTRIBUT
+DBA_SCHEDULER_CHAINS
+DBA_SCHEDULER_CHAINS
+DBA_SCHEDULER_CHAIN_RULES
+DBA_SCHEDULER_CHAIN_RULES
+DBA_SCHEDULER_CHAIN_STEPS
+DBA_SCHEDULER_CHAIN_STEPS
+DBA_SCHEDULER_RUNNING_CHAINS
+DBA_SCHEDULER_RUNNING_CHAINS
+
+====== 11g ===================
+- DBA_AUTOTASK_CLIENT_JOB :
+
+Contains information about currently running Scheduler jobs created for automated maintenance tasks. It provides information about some objects targeted by those jobs, 
+as well as some additional statistics from previous instantiations of the same task. Some of this additional data is taken from generic Scheduler views.
+
+- DBA_AUTOTASK_CLIENT :
+
+Provides statistical data for each automated maintenance task over 7-day and 30-day periods.
+
+- DBA_AUTOTASK_JOB_HISTORY :
+
+Lists the history of automated maintenance task job runs. Jobs are added to this view after they finish executing.
+
+- DBA_AUTOTASK_WINDOW_CLIENTS :
+
+Lists the windows that belong to MAINTENANCE_WINDOW_GROUP, along with the Enabled or Disabled status for the window for each maintenance task. Primarily used by Enterprise Manager.
+
+- DBA_AUTOTASK_CLIENT_HISTORY :
+
+Provides per-window history of job execution counts for each automated maintenance task. This information is viewable in the Job History page of Enterprise Manager.Automated Maintenance Tasks 

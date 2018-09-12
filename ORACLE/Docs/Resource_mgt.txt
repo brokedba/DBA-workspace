@@ -1,0 +1,83 @@
+
+
+Monitoring Results                                                                
+                                                                                  
+Use these views to help you monitor the results of your Resource Manager settings.
+                                                                                  
+V$RSRC_CONSUMER_GROUP                                                             
+                                                                                  
+V$RSRC_SESSION_INFO                                                               
+                                                                                  
+V$RSRC_PLAN_HISTORY 
+
+V$RSRC_CONSUMER_GROUP Use the V$RSRC_CONSUMER_GROUP view to monitor CPU usage. It provides the cumulative amount of CPU time consumed by all sessions in each consumer group. It also provides a number of other measures helpful for tuning.                                                       
+                                                                                                                                                                                                                                             
+SQL> SELECT NAME, CONSUMED_CPU_TIME FROM V$RSRC_CONSUMER_GROUP;                                                                                                                                                                              
+                                                                                                                                                                                                                                             
+NAME                             CONSUMED_CPU_TIME                                                                                                                                                                                           
+-------------------------------- -----------------                                                                                                                                                                                           
+OTHER_GROUPS                                 14301                                                                                                                                                                                           
+TEST_GROUP                                    8802                                                                                                                                                                                           
+TEST_GROUP2                                      0                                                                                                                                                                                           
+                                                                                                                                                                                                                                             
+3 rows selected.                                                                                                                                                                                                                             
+V$RSRC_SESSION_INFO Use this view to monitor the status of a particular session. The view shows how the session has been affected by the Resource Manager. It provides information such as:                                                  
+                                                                                                                                                                                                                                             
+The consumer group that the session currently belongs to                                                                                                                                                                                     
+                                                                                                                                                                                                                                             
+The consumer group that the session originally belonged to                                                                                                                                                                                   
+                                                                                                                                                                                                                                             
+The session attribute that was used to map the session to the consumer group                                                                                                                                                                 
+                                                                                                                                                                                                                                             
+Session state (RUNNING, WAIT_FOR_CPU, QUEUED, and so on)                                                                                                                                                                                     
+                                                                                                                                                                                                                                             
+Current and cumulative statistics for metrics, such as CPU consumed, wait times, and queued time                                                                                                                                             
+                                                                                                                                                                                                                                             
+SQL> 
+SELECT se.sid sess_id, co.name consumer_group,                                                                                                                                                                                          
+ se.state, se.consumed_cpu_time cpu_time, se.cpu_wait_time, se.queued_time                                                                                                                                                                   
+ FROM v$rsrc_session_info se, v$rsrc_consumer_group co                                                                                                                                                                                       
+ WHERE se.current_consumer_group_id = co.id                                                                                                                                                                                                  
+                                                                                                                                                                                                                                             
+SESS_ID CONSUMER_GROUP  STATE      CPU_TIME CPU_WAIT_TIME QUEUED_TIME                                                                                                                                                                        
+------- --------------- -------- ---------- ------------- -----------                                                                                                                                                                        
+    145 SYS_GROUP       RUNNING      572217             0           0                                                                                                                                                                        
+    158 OTHER_GROUPS    WAITING         220             0           0                                                                                                                                                                        
+    142 OTHER_GROUPS    WAITING      146453             0           0                                                                                                                                                                        
+    141 OTHER_GROUPS    WAITING      148228             0           0    
+    
+    
+    
+    SELECT NAME, IS_TOP_PLAN FROM V$RSRC_PLAN;
+    
+    Viewing Database Resource Manager Information
+
+The following table lists views that are associated with Database Resource Manager:
+
+View	Description
+DBA_RSRC_CONSUMER_GROUP_PRIVS
+USER_RSRC_CONSUMER_GROUP_PRIVS
+DBA view lists all resource consumer groups and the users and roles to which they have been granted. USER view lists all resource consumer groups granted to the user.
+DBA_RSRC_CONSUMER_GROUPS	Lists all resource consumer groups that exist in the database.
+DBA_RSRC_MANAGER_SYSTEM_PRIVS
+USER_RSRC_MANAGER_SYSTEM_PRIVS
+DBA view lists all users and roles that have been granted Database Resource Manager system privileges. USER view lists all the users that are granted system privileges for the DBMS_RESOURCE_MANAGER package.
+DBA_RSRC_PLAN_DIRECTIVES	Lists all resource plan directives that exist in the database.
+DBA_RSRC_PLANS	Lists all resource plans that exist in the database.
+DBA_RSRC_GROUP_MAPPINGS	Lists all of the various mapping pairs for all of the session attributes
+DBA_RSRC_MAPPING_PRIORITY	Lists the current mapping priority of each attribute
+DBA_USERS
+USERS_USERS
+DBA view contains information about all users of the database. Specifically, for the Database Resource Manager, it contains the initial resource consumer group for the user. USER view contains information about the current user, and specifically, for the Database Resource Manager, it contains the current user's initial resource consumer group.
+V$ACTIVE_SESS_POOL_MTH	Displays all available active session pool resource allocation methods.
+V$BLOCKING_QUIESCE	Lists all sessions that could potentially block a quiesce operation. Includes sessions that are active and not in the SYS_GROUP consumer group.
+V$PARALLEL_DEGREE_LIMIT_MTH	Displays all available parallel degree limit resource allocation methods.
+V$QUEUEING_MTH	Displays all available queuing resource allocation methods.
+V$RSRC_CONS_GROUP_HISTORY	For each entry in the view V$RSRC_PLAN_HISTORY, contains an entry for each consumer group in the plan showing the cumulative statistics for the consumer group.
+V$RSRC_CONSUMER_GROUP	Displays information about active resource consumer groups. This view can be used for tuning.
+V$RSRC_CONSUMER_GROUP_CPU_MTH	Displays all available CPU resource allocation methods for resource consumer groups.
+V$RSRC_PLAN	Displays the names of all currently active resource plans.
+V$RSRC_PLAN_CPU_MTH	Displays all available CPU resource allocation methods for resource plans.
+V$RSRC_PLAN_HISTORY	Shows when Resource Manager plans were enabled or disabled on the instance. It helps you understand how resources were shared among the consumer groups over time.
+V$RSRC_SESSION_INFO	Displays Resource Manager statistics for each session. Shows how the session has been affected by the Resource Manager. Can be used for tuning.
+V$SESSION	Lists session information for each current session. Specifically, lists the name of the resource consumer group of each current session.                                                                                                                                                                    

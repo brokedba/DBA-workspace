@@ -1,0 +1,29 @@
+OMBCONNECT controlcenter/password@host:port:service_name USE REPOSITORY 'respository'
+OMBREGISTER USER 'USERNAME’
+OMBCOMMIT
+OMBDISCONNECT
+
+user roles
+GRANTEE 	     GRANTED_ROLE		    ADM DEF
+-------------------- ------------------------------ --- ---
+U_810412162	     ARCH_OWB_EXPORT_RO 	    NO	YES
+U_810412162	     OWBR_**OWBDCC_DWH**            NO	YES   OWBDCC_DWH is the user D is for designer repository
+U_810412162	     OWB_D_OWBDCC_DWH		    NO	YES
+U_810412162	     OWB_OWBDCC_DWH		    NO	YES
+U_810412162	     OWB_O_OWBDCC_DWH		    NO	YES
+
+check the password of the user OWBDCC_DWH in OAD (in any dwh db) http://apex.oracle.be.intranet/OAD/f?p=104:11:3748039468426006:::::
+password are changing the last 3 leteres between dev acc and prod
+
+/ING/ORACLE/product/owb10204/owb/bin/unix#./OMBPlus.sh
+OMBCONNECT owbdcc_dwh/design8dev@localhost:1521:saowbb.ing.be
+OMB+> OMBREGISTER USER 'HF53ES'
+User U880203056 registered.
+OMB+> OMBCOMMIT
+Commit complete.
+
+OMB+> OMBGRANT SYS_PRIV ACCESS_PUBLICVIEW_BROWSER TO USER 'U880203056'
+OMB+> OMBDISCONNECT
+
+OWB AUDIT BROWSER:
+https://127.0.0.1:8999/owbb/RABLogin.uix?event=logout&mode=runtime&schema=HF53ES&host=sbepadhr.srv.be.europe.intranet&port=1530&service=AGMDPA.ING.BE&role_choice=ADMINISTRATOR&db_type=0&net_service=

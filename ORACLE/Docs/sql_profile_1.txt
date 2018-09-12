@@ -1,0 +1,34 @@
+desc v$sql_plan => find PLAN_HASH_VALUE
+desc v$sql => find sql_id 
+
+DECLARE 
+   ar_profile_hints   sys.sqlprof_attr; 
+   cl_sql_text        CLOB; 
+BEGIN 
+   SELECT   EXTRACTVALUE (VALUE (d), '/hint') AS outline_hints 
+     BULK   COLLECT 
+     INTO   ar_profile_hints 
+     FROM   XMLTABLE ('/*/outline_data/hint' PASSING (SELECT   xmltype ( 
+                      other_xml) 
+                         AS xmlval 
+                                                        FROM 
+                      v$sql_plan
+                                                       WHERE       sql_id = 'f4x3uhgz9b2ap'
+                      AND plan_hash_value = 761325077
+                      AND other_xml IS NOT NULL)) d; 
+
+
+   SELECT   sql_fulltext 
+     INTO   cl_sql_text 
+     FROM   v$sql 
+    WHERE   sql_id = 'f4x3uhgz9b2ap'
+    and rownum=1; 
+
+
+
+   DBMS_SQLTUNE.import_sql_profile (sql_text      => cl_sql_text, 
+                                    profile       => ar_profile_hints, 
+                                    category      => 'DEFAULT', 
+                                    name          => 'PROFILE_f4x3uhgz9b2ap', 
+                                    force_match   => TRUE); 
+END;

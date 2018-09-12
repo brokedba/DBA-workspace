@@ -1,0 +1,260 @@
+Redo Byte Address (RBA)
+
+Recent entries in the redo thread of an Oracle instance are addressed using a 3-part redo byte address, or RBA. An RBA is comprised of
+the log file sequence number (4 bytes)
+the log file block number (4 bytes)
+the byte offset into the block at which the redo record starts (2 bytes)
+RBAs are not necessarily unique within their thread, because the log file sequence number may be reset to 1 in all threads if a database is opened with the RESETLOGS option.
+RBAs are used in the following important ways.
+
+With respect to a dirty block in the buffer cache, the low RBA is the address of the redo for the first change that was applied to the block since it was last clean, and the high RBA is the address of the redo for the most recent change to have been applied to the block.
+Dirty buffers are maintained on the buffer cache checkpoint queues in low RBA order. The checkpoint RBA is the point up to which DBWn has written buffers from the checkpoint queues if incremental checkpointing is enabled -- otherwise it is the RBA of last full thread checkpoint. The checkpoint RBA is copied into the checkpoint progress record of the controlfile by the checkpoint heartbeat once every 3 seconds. Instance recovery, when needed, begins from the checkpoint RBA recorded in the controlfile. The target RBA is the point up to which DBWn should seek to advance the checkpoint RBA to satisfy instance recovery objectives.
+
+The on-disk RBA is the point up to which LGWR has flushed the redo thread to the online log files. DBWn may not write a block for which the high RBA is beyond the on-disk RBA. Otherwise transaction recovery (rollback) would not be possible, because the redo needed to undo a change is always in the same redo record as the redo for the change itself.
+
+The term sync RBA is sometimes used to refer to the point up to which LGWR is required to sync the thread. However, this is not a full RBA -- only a redo block number is used at this point.
+
+The low and high RBAs for dirty buffers can be seen in X$BH. (There is also a recovery RBA which is used to record the progress of partial block recovery by PMON.) The incremental checkpoint RBA, the target RBA and the on-disk RBA can all be seen in X$TARGETRBA. The incremental checkpoint RBA and the on-disk RBA can also be seen in X$KCCCP. The full thread checkpoint RBA can be seen in X$KCCRT.
+===========================================
+    CHECKPOINT
+===========================================
+A checkpoint occurs on five types of events:
+
+  - At each switch of the redo log files. 
+  - When the delay for LOG_CHECKPOINT_TIMEOUT is reached. 
+  - When the size in bytes corresponding to : 
+     (LOG_CHECKPOINT_INTERVAL* size of IO OS blocks) 
+     is written on the current redo log file. 
+  - Directly by the ALTER SYSTEM SWITCH LOGFILE command. 
+  - Directly with the ALTER SYSTEM CHECKPOINT command. 
+
+During a checkpoint the following occurs: 
+ -  The database writer (DBWR) writes all modified database blocks in the buffer cache back to datafiles, 
+ -  Checkpoint process (ckpt) updates the headers of all the datafiles to indicate when the last checkpoint occurred (SCN)
+
+
+-------------------------------------
+Checkpoints and Performance
+-------------------------------------
+
+Checkpoints present a tuning dilemma for the Database Administrator.  Frequent checkpoints will enable faster recovery, but can cause performance 
+degradation. How then should the DBA address this? 
+Depending on the number of datafiles in a database, a checkpoint can be a highly resource intensive operation, since all datafile headers are frozen 
+during the checkpoint.  There is a performance trade-off regarding frequency of checkpoints.  More frequent checkpoints enable faster database recovery 
+after a crash.  This is why some customer sites which have a very low tolerance for unscheduled system downtime will often choose this option. 
+However, the performance degradation of frequent checkpoints may not justify this philosophy in many cases. 
+Let's assume the database is up and running 95% of the time, and unavailable 5% of the time from infrequent instance crashes 
+or hardware failures requiring database recovery.  For most customer sites, it makes more sense to tune for the 95% case rather than the rare 5% downtime.
+
+Due to the performance reasons If your goal is to minimize the frequency of checkpoints through tuning.
+
+Tuning checkpoints involves four key initialization parameters
+
+           -  FAST_START_MTTR_TARGET  : enables you  to specify the number of seconds the database takes to perform crash recovery of a single instance. 
+           -  LOG_CHECKPOINT_INTERVAL :parameter specifies the maximum number of redo blocks the incremental checkpoint target should lag the current log tail (0 if mttr not specified). 90%
+           -  LOG_CHECKPOINT_TIMEOUT : parameter specifies the maximum number of seconds the incremental checkpoint target should lag the current log tail.
+           -  LOG_CHECKPOINTS_TO_ALERT :  lets you log your checkpoints to the alert file.
+           
+           Caution
+============ 
+In the case when one or more of the below wait events is repeated frequently with considerable values then you need to take an action like adding More online redo log files or increasing their sizes and/or modifying checkpointing parameters.
+
+log file switch (checkpoint incomplete) 
+log file switch (archiving needed) 
+log file switch/archive 
+log file switch (clearing log file) 
+log file switch completion 
+log switch/archive 
+log file sync
+
+
+LOG_CHECKPOINT_INTERVAL
+------------------------------------------- 
+  
+LOG_CHECKPOINT_INTERVAL parameter specifies the maximum number of redo blocks the incremental checkpoint target should lag the current log tail.
+
+If FAST_START_MTTR_TARGET is specified, LOG_CHECKPOINT_INTERVAL should not be set or set to 0.
+
+On most Unix systems the operating system block size is 512 bytes. This means that setting LOG_CHECKPOINT_INTERVAL to a value of 10,000 would
+mean the incremental checkpoint target should not lag the current log tail by more than 5,120,000 (5M) bytes. .  
+
+If the size of your redo log is 20M, you are taking 4 checkpoints for each log.
+
+LOG_CHECKPOINT_INTERVAL influences when a checkpoint occurs, which means careful attention should be given to the setting of this parameter, keeping it
+updated as the size of the redo log files is changed.  
+
+The checkpoint frequency is one of the factors which impacts the time required for the database to recover from an unexpected failure.  
+
+Longer intervals between checkpoints mean that if the system crashes, more time will be needed for the database to recover.  
+
+Shorter checkpoint intervals mean that the database will recover more quickly, at the expense of increased resource utilization during the checkpoint operation.
+
+This parameter also impacts the time required to complete a database recovery operation during the roll forward phase of recovery.  The actual recovery time is dependent upon this time, and other factors, such as the type of failure (instance or system crash, media failure, etc.), and the number of archived redo logs which need to be applied. setting and the estimated number of I/Os that would be resulted by the current workload under other MTTR settings. 
+
+This view helps the user to assess the trade-off between runtime performance and setting FAST_START_MTTR_TARGET to achieve better recovery time.
+
+
+
+
+
+=============================================
+In this post, I will explain about checkpoints – their purpose and different types of checkpoints.
+PURPOSE OF CHECKPOINTS
+   Database blocks are temporarily stored in Database buffer cache. As blocks are read, they are stored in DB buffer cache so that if any user accesses them later, they are available in memory and need not be read from the disk. When we update any row, the buffer in DB buffer cache corresponding to the block containing that row is updated in memory. Record of the change made is kept in redo log buffer . On commit, the changes we made are written to the disk thereby making them permanent. But where are those changes written? To the datafiles containing data blocks? No !!! The changes are recorded in online redo log files by flushing the contents of redo log buffer to them.This is called write ahead logging.  If the instance crashed right now, the DB buffer cache will be wiped out but on restarting the database, Oracle will apply the changes recorded in redo log files to the datafiles.
+    Why doesn’t Oracle write the changes to datafiles right away when we commit the transaction? The reason is simple. If it chose to write directly to the datafiles, it will have to physically locate the data block in the datafile first and then update it which means that after committing, user has to wait until DBWR searches for the block and then writes it before he can issue next command. Moreover, writing to datafiles is performed in  units of Oracle data blocks. Each block may contain multiple rows. Modifying even one column in one row of a block will necessitate writing whole of the block. This will bring down the performance drastically. That is where the role of redo logs comes in. The writes to the redo logs are sequential writes – LGWR just dumps the info in redologs to log files sequentially and synchronously so that the user does not have to wait for long. Moreover, in contrast to DBWR which writes data blocks, LGWR will write only the changes vectors . Hence,  write ahead logging also improves performance by reducing the amount of data written synchronously. When will the changes be applied to the datablocks in datafiles? The data blocks in the datafiles will be updated by the DBWR asynchronously in response to certain triggers. These triggers are called checkpoints.
+  Checkpoint is a synchronization event at a specific point in time which causes some / all dirty blocks to be written to disk thereby guaranteeing that blocks dirtied prior to that point in time get written.
+  Whenever dirty blocks are written to datafiles, it allows oracle
+- to reuse a redo log : A redo log can’t be reused until DBWR writes all the dirty blocks protected by that logfile to disk. If we attempt to reuse it before DBWR has finished its checkpoint, we get the following message in alert log : Checkpoint not complete.
+- to reduce instance recovery time : As the memory available to a database instance increases, it is possible to have database buffer caches as large as several million buffers. It requires that the database checkpoint advance frequently to limit recovery time, since infrequent checkpoints and large buffer caches can exacerbate crash recovery times significantly.
+- to free buffers for reads : Dirtied blocks can’t be used to read new data into them until they are written to disk. Thus DBWrR writes dirty blocks from the buffer cache, to make room in the cache.
+Various types of checkpoints  in Oracle :
+
+– Full checkpoint
+
+– Thread checkpoint
+
+- File checkpoint
+- Parallel Query checkpoint
+- Object checkpoint
+- Log switch checkpoint
+_ Incremental checkpoint
+Whenever a checkpoint is triggered :
+- DBWR writes some /all dirty blocks to datafiles
+- CKPT process updates the control file and datafile headers
+                      FULL CHECKPOINT
+- Writes block images to  the database for all dirty buffers from all instances.
+- Statistics updated
+  . DBWR checkpoints
+  . DBWR checkpoint buffers written
+  . DBWR thread checkpoint buffers written
+- Caused by :
+  . Alter system checkpoint [global]
+  . ALter database begin backup
+  . ALter database close
+  . Shutdown [immediate]
+- Controlfile and datafile headers are updated
+  . Checkpoint_change#
+                   THREAD CHECKPOINT
+ – Writes block images to the database for all dirty buffers from one instance
+- Statistics updated
+  . DBWR checkpoints
+  . DBWR checkpoint buffers written
+  . DBWR thread checkpoint buffers written
+- Caused by :
+  . Alter system checkpoint local
+- Controlfile and datafile headers are updated
+  . Checkpoint_change#
+                   FILE CHECKPOINT
+   When a tablespace is put into backup mode or take it offline, Oracle writes all the dirty blocks from the tablespace to disk before changing the state of the tablespace.
+- Writes block images to the database for all dirty buffers for all files of a tablespace from all instances
+- Statistics updated
+  . DBWR checkpoints
+  . DBWR tablespace checkpoint buffers written
+  . DBWR checkpoint buffers written
+- Caused by :
+  . Alter tablespace xxx offline
+  . Alter tablespace xxx begin backup
+  . Alter tablespace xxx read only
+- Controlfile and datafile headers are updated
+  . Checkpoint_change#
+                  PARALLEL QUERY CHECKPOINT
+   Parallel query often results in direct path reads (Full tablescan or index fast full scan). This means that blocks are read straight into the session’s PGA, bypassing the data cache; but that means if there are dirty buffers in the data cache, the session won’t see the most recent versions of the blocks unless they are copied to disk before the query starts – so parallel queries start with a checkpoint.
+- Writes block images to the database for all dirty buffers belonging to objects accessed by the query from all instances.
+- Statistics updated
+  . DBWR checkpoints
+  . DBWR checkpoint buffers written
+- Caused by :
+  . Parallel Query
+  . Parallel Query component of Parallel DML (PDML) or Parallel DDL (PDDL)
+- Mandatory for consistency
+- Controlfile and datafile headers are updated
+  . Checkpoint_change#
+                 OBJECT CHECKPOINT
+   When an object is dropped/truncated, the session initiates an object checkpoint telling DBWR to copy any dirty buffers for that object to disk and the state of those buffers is changed to free.
+- Writes block images to the database for all dirty buffers belonging to an object from all instances.
+- Statistics updated
+  . DBWR checkpoints
+  . DBWR object drop buffers written
+- Caused by dropping or truncating a segment:
+  . Drop table XXX
+  . Drop table XXX Purge
+  . Truncate table xxx
+  . Drop index xxx
+- Mandatory for media recovery purposes
+- Controlfile and datafile headers are updated
+  . Checkpoint_change#
+                LOG SWITCH CHECKPOINT
+- Writes the contents of the  dirty buffers whose information is protected by a redo log to the database .
+- Statistics updated
+  . DBWR checkpoints
+  . DBWR checkpoint buffers written
+  . background checkpoints started
+  . background checkpoints completed
+- Caused by log switch
+ – Controlfile and datafile headers are updated
+  . Checkpoint_change#
+                  INCREMENTAL CHECKPOINT
+   Prior to Oracle 8i, only well known checkpoint was log switch checkpoint. Whenever LGWR filled an online logfile, DBWR would go into a frenzy writing data blocks to disks, and when it had finished, Oracle would update each data file header block with the SCN to show that file was updated up to that point in time.
+   Oracle 8i introduced incremental checkpointing which triggered DBWR to write some dirty blocks from time to time so as to advance the checkpoint and reduce the instance recovery time.
+Incremental checkpointing has been implemented using two algorithms :
+ – Ageing algorithm
+- LRU/TCH algorithm
+                                               AGEING ALGORITHM
+This strategy involves writing changed blocks that have been dirty for the longest time and  is called aging writes. This algorithm relies on the CKPT Q running thru the cache and buffers being linked to the end of this list the first time they are made dirty.
+   .The LRU list contains all the buffers – free / pinned / dirty. Whenever a buffer in LRU list is dirtied, it is placed in CKPT Q as well i.e. a buffer can  simultaneously have pointers in both LRU list and CKPT Q but the buffers in CKPT Q are arranged in the order in which they were dirtied.Thus,  checkpoint queue contains dirty blocks in the order of SCN# in which they were dirtied
+  Every 3 secs DBWR wakes up and checks if there are those many  dirty buffers in CKPT Q which need to br written so as to satisfy instance recovery requirement..
+If those many or more dirty buffers are not found,
+   DBWR goes to sleep
+else (dirty buffers found)
+  .CKPT target RBA is calculated based on
+   – The most recent RBA
+   – log_checkpoint_interval
+   – log_checkpoint_timeout
+   – fast_start_mttr_target
+   – fast_start_io_target
+   – 90% of the size of the smallest redo log file
+   . DBWR walks the CKPT Q from the low end (dirtied earliest) of the redo log file collecting buffers for writing to disk until it reaches the buffer that is more recent than the target RBA. These buffers are placed in write list-main.
+  . DBWR walks the write list-main and checks all the buffers
+    – If changes made to the buffer have already been written to redo log files
+        . Move those buffers to write-aux list
+      else
+        . Trigger LGWR to write changes to those buffers to redo logs
+        . Move those buffers to write-aux list
+  . Write buffers from write-aux list to disk
+  . Update checkpoint RBA in SGA
+  . Delink those buffers from CKPT Q
+  . Delink those buffers from write-aux list
+- Statistics Updated :
+   . DBWR checkpoint buffers written
+- Controlfile updated every 3 secs by CKPT
+   . Checkpoint progress record
+   As sessions link buffers to one end of the list, DBWR can effectively unlink buffers from the other end and copy them to disk. To reduce contention between DBWR and foreground sessions, there are two linked lists in each working set so that foreground sessions can link buffers to one while DBWR is unlinking them from the other.
+                                                          LRU/TCH ALGORITHM
+ LRU/TCH algorithm writes the cold dirty blocks to disk that are on the point of being pushed out of cache.
+   As per ageing algorithm, DBWR will wake up every 3 seconds to flush dirty blocks to disk. But if blocks get dirtied at a fast pace during those 3 seconds and a server process needs some free buffers, some buffers need to be flushed to the disk to make room. That’s when LRU/TCH algorithm is used to write those dirty buffers which are on the cold end of the LRU list.
+    Whenever a server process needs some free buffers to read data, it scans the LRU list from its cold end to look for free buffers.
+While searching
+  If unused buffers found
+    Read blocks from disk into the buffers and link them to the corresponding hash bucket
+   if it finds some clean buffers (contain data but not dirtied or dirtied and have been flushed to disk),
+      if they are the candidates to be aged out (low touch count)
+          Read blocks from disk into the buffers and link them to the corresponding hash bucket
+      else (have been accessed recently and should not be aged out)
+         Move them to MRU end depending upon its touch count.
+   If it finds dirty buffers (they are already in CKPT Q),
+     Delink them from LRU list
+     Link them  to the write-main list (Now these buffers are in CKPT Q and write-main list)
+   The server process scans a threshold no. of buffers (_db_block_max_scan_pct = 40(default)). If it does not find required no. of free buffers,
+    It triggers DBWR to dirty blocks in write-mainlist to disk
+ . DBWR walks the write list-main and checks all the buffers
+    – If changes made to the buffer have already been written to redo log files
+           . Move those buffers to write-aux list
+       else
+          . Trigger LGWR to write changes to those buffers to redo logs
+          . Move those buffers to write-aux list
+  . Write buffers from write-aux list to disk
+  . Delink those buffers from CKPT Q and w rite-aux list
+  . Link those buffers to LRU list as free buffers
+ Note that
+- In this algorithm, the dirty blocks are delinked from LRU list before linking them to write-main list in contrast to ageing algorithm where the blocks can be simultaneously be in both CKPT Q and LRU list.
+ – In this algorithm, checkpoint is not advanced because it may be possible that the dirty blocks on the LRU end may actually not be the ones which were dirtied earliest. They may be there because the server process did not move them to the MRU end earlier. There might be blocks present in CKPT Q which were dirtied earlier than the blocks in question.

@@ -1,0 +1,57 @@
+==============================
+ADDM text report : From script
+==============================
+@$ORACLE_HOME/rdbms/admin/addmrpt.sql
+
+From SQL                                                                                                                                                                                                                                                       
+exec DBMS_ADVISOR.create_task ( advisor_name => 'ADDM', task_name => 'TEST_TASK1',task_desc => 'Advisor for snapshots 78 to 81');
+exec DBMS_ADVISOR.set_task_parameter (task_name => 'TEST_TASK1',parameter => 'START_SNAPSHOT', value     => 78);                 
+exec DBMS_ADVISOR.set_task_parameter (task_name => 'TEST_TASK1',parameter => 'END_SNAPSHOT',value     => 81);                    
+exec DBMS_ADVISOR.execute_task(task_name => 'TEST_TASK1');                                                                       
+
+SET LONG 100000                                                                                     
+SET PAGESIZE 50000                                                                 
+select  dbms_advisor.get_task_report('ADDM:2102609525_1_72') AS report FROM   dual;
+
+===========================
+AWR HTML REPORT  
+===========================
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+@$ORACLE_HOME/rdbms/admin/awrrpt.sql
+1. The awrrpt.sql   HTML/text report statistics for a range of snapshot Ids.                                     
+2. The awrrpti.sql  HTML/text report statistics for a range of snapshot Ids (per instance)                                    . 
+3. The awrsqrpt.sql HTML/text report statistics of a SQL statement for a range of snapshot Ids. to inspect or debug performance of SQL statement. 
+4. The awrsqrpi.sql HTML/text report statistics of a particular SQL statement for a range of snapshot Ids on a specified SQL. 
+5. The awrddrpt.sql HTML/text report comparing performance attributes and configuration settings between two selected time periods. 
+6. The awrddrpi.sql HTML/text report comparing performance attributes and configuration settings between two selected time periods (per instance).                                                                                  
+ @?/rdbms/admin/awrsqrpt.sql
+
+
+COLUMN begin_interval_time FORMAT A30
+COLUMN end_interval_time FORMAT A30
+COLUMN startup_time FORMAT A30
+SELECT snap_id, begin_interval_time, end_interval_time, startup_time
+FROM   dba_hist_snapshot
+WHERE  begin_interval_time > TRUNC(SYSTIMESTAMP)
+ORDER BY snap_id;
+
+
+SQL>  @?/rdbms/admin/awrrpt.sql
+
+Specify the Report Type 
+~~~~~~~~~~~~~~~~~~~~~~~ 
+Specify the Begin and End Snapshot Ids 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+Specify the Report Name 
+~~~~~~~~~~~~~~~~~~~~~~~
+
+
+==========================
+ASH HTML Report  
+===========================
+@$ORACLE_HOME/rdbms/admin/ashrpt.sql
+----
+The ASH report utility is useful for determining the amount of active sessions, what they were doing, and which SQL statements were most active during a period of time. 
+It is especially useful for analyzing transient performance issues. The ashrpt.sql script is found in the $ORACLE_HOME/rdbms/admin directory. The output is written to the current working directory, please select HTML format.
+
+SQL>@?/rdbms/admin/ashrpt.sql

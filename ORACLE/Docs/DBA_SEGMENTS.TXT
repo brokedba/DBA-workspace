@@ -1,0 +1,573 @@
+===================================== 
+1- Clustering factor vs ROW MOVEMENT
+=====================================
+- If table and an index key are in the same order, clustering factor = near the number of blocks in the table (efficient index scan for large table scan)  
+- If the data is randomly scattered, clustering factor = near the number of rows in the table, and given that the number of rows in a table is an order of magnitude more than the number of blocks (inefficient index scan for large table scan)  
+TABLE BLOCKS  ROWS/BLOCK  IDX CLUSTERING FACTOR  I/O per 200 rows
+------------ ------------ ---------------------  -----------------
+     100         100            100                2
+     100         100            10,000
+
+
+-- Total size allocated for each tablespace:
+
+COLUMN tablespace_name FORMAT A21
+COLUMN Sum(bytes/(1024*1024)) FORMAT 999,999,999,999
+
+Select tablespace_name,
+Sum(bytes/(1024*1024)) TotalMB
+From dba_segments
+Group By tablespace_name;
+
+-- Total space allocated by Owner:
+
+Select owner,
+sum(blocks) Totalblocks,
+sum(bytes/(1024*1024)) TotalMB
+From dba_segments
+Group By owner
+-- Total space allocated by Tablespace:
+Select tablespace_name,
+sum(blocks) Totalblocks,
+sum(bytes/(1024*1024)) TotalMB
+From dba_segments
+Group By tablespace_name 
+
+-- Space used in each Segment:
+
+SET LINESIZE 150
+COLUMN tablespace_name FORMAT A15
+COLUMN owner FORMAT A10
+COLUMN segment_name FORMAT A35
+COLUMN segment_type FORMAT A10
+COLUMN extents FORMAT 9,999
+COLUMN blocks FORMAT 999,999
+COLUMN bytes FORMAT 999,999,999,999
+
+Select tablespace_name, 
+owner, 
+segment_name, 
+segment_type, /* TABLE,INDEX */ 
+extents, /* No. of extents in the segment*/ 
+blocks, /* No. of db blocks in the segment*/ 
+bytes /* No. of bytes in the segment*/ 
+From dba_segments
+Where owner NOT IN('SYSTEM','DBSNMP', 'ORDSYS', 'OUTLN','SYS')
+Order By bytes ;
+
+--INFO segment
+select segment_name,tablespace_name, extents,blocks from dba_segments where owner ='RER';
+
+
+SEGMENT_NAME		       TABLESPACE_NAME			 EXTENTS     BLOCKS
+------------------------------ ------------------------------ ---------- ----------
+TRANSACTIONS		          RER				    9       2048
+
+--INFO extents
+select extent_id,file_id,block_id,blocks from dba_extents where owner ='GRH1' and segment_name ='TRANSACTIONS';
+
+EXTENT_ID    FILE_ID	BLOCK_ID     BLOCKS
+---------- ---------- ---------- ----------
+	 0	   29	   69001       1024
+	 1	   29	   70025	128
+	                                                                                                                                                                                          
+---INFO FREE extent                                                                                                                                                        
+select tablespace_name, count(*) EXTENT#,sum(blocks)*(select value from v$parameter where name = 'db_block_size')/1024/1024 FREEMB                            
+From DBA_Free_space                                                                                                                                                        
+Group by tablespace_name                                                                                                                                 
+order by 1;                                                                                                                                                   
+------------------------	                                                                                                                              
+CHECK IF UNDO TABLESPACE HAS ACTIVE SEGMENTS                                                                                                                             
+	 select a.name,b.status from v$rollname a ,v$rollstat b                                                                                                    
+         where a.name in (select segment_name from dba_segments                                                                                                          
+         where tablespace_name='UNDOTBS')                                                                                                                                
+         and a.usn=b.usn;                                                                                                                                                
+                                                                                                                                                                                                 
+                                                                                                                                                                         
+===========                                                                                                                                                            
+  ### alter index "STO_MDPIDS1"."V_AR_ALT_IDENT_LKP_NI_UNQ" modify partition "P_MAXVALUE" shrink space                                                                   
+                                                                                                                                                                         
+ ----Check OBJECT DEPENDENT SEGMENTS                                                                                                                                     
+                                                                                                                                                                         
+ col segment_owner for a15                                                                                      
+ col tablespace_name for a15                                                                                    
+ col segment_type for a15                                                                                       
+ col partition_name for a20                                                                                     
+ col lob_column_name for a20                                                                                    
+ select  * from table (DBMS_SPACE.OBJECT_DEPENDENT_SEGMENTS('CMC','CMC_AUDIT_EMAIL',null,1)) order by 3,2;      
+ ----                                                                                                               
+DBMS_SPACE.OBJECT_DEPENDENT_SEGMENTS(                                                                                                                              
+   objowner    IN     VARCHAR2,              
+   objname     IN     VARCHAR2,              
+   partname    IN     VARCHAR2,              
+   objtype     IN     NUMBER)                
+  RETURN dependent_segments_table PIPELINED; 
+                                             
+DBMS_SPACE.OBJECT_DEPENDENT_SEGMENTS :                   
+Parameter   Description                             
+---------- ----------------------------------
+Objowner    The schema containing the object.          
+Objname	    The name of the object.                        
+Partname    The name of the partition.                 
+Objtype	    Type of the object:                                     
+                                                         
+-OBJECT_TYPE_TABLE := 1;               
+                                                         
+-OBJECT_TYPE_NESTED_TABLE := 2;        
+                                                         
+-OBJECT_TYPE_INDEX := 3;               
+                                                         
+-OBJECT_TYPE_CLUSTER := 4;             
+                                                         
+-OBJECT_TYPE_TABLE_PARTITION := 7;     
+                                                         
+-OBJECT_TYPE_INDEX_PARTITION := 8;     
+                                                         
+-OBJECT_TYPE_TABLE_SUBPARTITION := 9;  
+                                                         
+-OBJECT_TYPE_INDEX_SUBPARTITION := 10; 
+                                                         
+-OBJECT_TYPE_MV    := 13;                 
+-OBJECT_TYPE_MVLOG := 14;              
+
+********************************************************************************************************************************************************                                                                
+                                                                    SEGMENT ADVISOR                                                                                         
+********************************************************************************************************************************************************        
+                                                                                                                                                                
+1- DBMS_ADVISOR.CREATE_TASK (                                                                                                                                      
+   advisor_name          IN VARCHAR2,                                                                                                                           
+   task_id               OUT NUMBER,                                                                                                                            
+   task_name             IN OUT VARCHAR2,                                                                                                                       
+   task_desc             IN VARCHAR2 := NULL,                                                                                                                   
+   template              IN VARCHAR2 := NULL,                                                                                                                   
+   is_template           IN VARCHAR2 := 'FALSE',                                                                                                                
+   how_created           IN VARCHAR2 := NULL);                                                                                                                  
+                                                                                                                                                                
+DBMS_ADVISOR.SET_TASK_PARAMETER :
+
+Input Parameter	Description	                         Possible Values	                                                       Default Value
+--------------- ---------------------------------------- -------------------------------------------------------------------------- -----------------------------
+time_limit      time limit for Segment Advisor           Any number of seconds                                                       UNLIMITED
+                 run (in seconds).                                                                                                                                                                                                                                               
+recommend_all   Whether Segment Advisor should generate  TRUE (default): Findings are generated on all segments specified, whether or not space reclamation is recommended.
+                findings for all segments.               FALSE: Findings are generated only for those objects that generate recommendations for space reclamation.
+
+
+                                                                           
+2- DBMS_ADVISOR.EXECUTE_TASK (
+  task_name         IN VARCHAR2,
+  execution_type    IN VARCHAR2             := NULL,
+  execution_name    IN VARCHAR2             := NULL,
+  execution_params  IN dbms_advisor.argList := NULL,
+  execution_desc    IN VARCHAR2             := NULL,
+  RETURN VARCHAR2;
+ 
+ DBMS_ADVISOR.EXECUTE_TASK(task_name);  
+
+Parameter	Description
+--------------- ------------------------------------------------------------------------------------------------------------------------------------
+Task_name       The task name that uniquely identifies an existing task.
+Execution_type  The type of action to be performed by the function. If NULL, it will default to the value of the DEFAULT_EXECUTION_TYPE parameter.
+As an example/  The SQL Performance Analyzer accepts the following possible values:
+                 EXPLAIN PLAN: Generate an explain plan for a SQL statement. This is similar to an EXPLAIN PLAN command. The resulting plans will be stored in the advisor framework in association with the task.
+                 TEST EXECUTE: Test execute the SQL statement and collect its execute plan and statistics. The resulting plans and statistics are stored in the advisor framework.
+                 ANALYZE PERFORMANCE: Analyze and compare two versions of SQL performance data. The performance data is generated by test executing a SQL statement or generating its explain plan.
+execution_name   A name to qualify and identify an execution. If not specified, it will be generated by Advisor/returned by function.
+execution_params A list of parameters (name, value) for the specified execution. Note that execution parameters are real task parameters, but they affect only the execution they are specified for.
+                             As an example, consider the following: DBMS_ADVISOR.ARGLIST('time_limit', 12, 'username', 'foo')
+
+3- DBMS_ADVISOR.CREATE_OBJECT (
+   task_name         IN VARCHAR2,
+   object_type       IN VARCHAR2,
+   attr1             IN VARCHAR2 :=  NULL,
+   attr2             IN VARCHAR2 :=  NULL,
+   attr3             IN VARCHAR2 :=  NULL,
+   attr4             IN CLOB     :=  NULL,
+   attr5             IN VARCHAR2 :=  NULL, ---Optional
+   object_id         OUT NUMBER);
+
+OBJECT_TYPE	     ATTR1	    ATTR2       ATTR3	             ATTR4                                                                                    
+-------------------- -------------- ----------- --------------------- --------------------- 
+TABLESPACE           tablespacename NULL         NULL                Unused.  Specify NULL.                                                                   
+TABLE                schema_name    tablename    NULL                Unused. Specify NULL.
+INDEX                schema_name    index-name   NULL              
+TABLE-PARTITION      schema_name    tablename    partitioname        -----------
+INDEX PARTITION      schema_name    index-name   index_partitioname
+TABLE SUBPARTITION   schema_name    tablename    subpartition_name
+INDEX SUBPARTITION   schema_name    index-name   index_subpartitionname
+LOB                  schema_name    segment name
+LOB PARTITION        schema_name    segment name
+LOB SUBPARTITION     scehma_name    segment name
+                                           
+
+*************
+Useful Views:
+*************
+----------------------- ----------------------------------------------------------------
+DBA_ADVISOR_TASKS	     displays information about the task like name, frequency, etc
+DBA_ADVISOR_PARAMETERS	     displays the name and values of all parameters for all tasks
+DBA_ADVISOR_FINDINGS	     shows the findings reported by all the advisors
+DBA_ADVISOR_RECOMMENDATIONS  contains an analysis of all the recommendations in the database i.e benefits, ranking
+DBA_ADVISOR_ACTIONS	     shows the remedial actions associated with each advisor recommendation
+DBA_ADVISOR_RATIONALE	     show you the rationale behind each recommendation
+
+=====================================================================EXAMPLES===========================================================================
+
+
+  variable stmt_task  clob    
+  variable v_object_id  NUMBER 
+  
+1-CREATE TASK:
+     EXEC :stmt_task := dbms_advisor.create_task(‘Segment Advisor’,'Manual_segADV', ‘Free space in TBS_STO’, null);
+     EXEC :stmt_task := dbms_advisor.create_task(‘Segment Advisor’,'Manual_segAR_AVY', ‘Free space in AR_AVY’, null);    
+     EXEC :stmt_task := dbms_advisor.create_task(‘Segment Advisor’,'Manual_seg_TAB', 'Free space in CHANNEL_USAGE',null);
+2.1-CREATE OBJECT:
+ declare  v_object_id  NUMBER;
+     EXEC :stmt_task := dbms_advisor.create_object( 'Manual_segAR_AVY', ‘TABLE’, 'STO_MDPS1', ‘AR_AVY’, null, null, v_object_id);
+     EXEC :stmt_task := dbms_advisor.create_object( 'Manual_segADV', ‘TABLESPACE’, 'STO_MDPIDS1',null,'null', null, v_object_id); 
+     EXEC :stmt_task := dbms_advisor.create_object( 'Manual_seg_TAB','TABLE','CMC','CMC_CHANNEL_USAGE',null,null,v_object_id);  
+
+2.2-SET TASK PARAMETER:
+     EXEC dbms_advisor.set_task_parameter( 'Manual_segADV', ‘recommend_all’, ‘true’);
+     EXEC  dbms_advisor.set_task_parameter( 'Manual_segAR_AVY', ‘recommend_all’, ‘true’); 
+---on all the segments 
+
+3-EXECUTE TASK:	
+     EXEC :stmt_task := dbms_advisor.execute_task('Manual_segAR_AVY');
+     EXEC dbms_advisor.execute_task('Manual_segADV');    
+
+OTHER:
+delete :	dbms_advisor.delete_task(task_name);  Cancel task:   dbms_advisor.cancel_task('Manual_segAR_AVY');      display task print task_id
+
+4-DISPLAY RECOMMENDATIONS:	
+ 
+     select owner, task_id, task_name, type, message, more_info from dba_advisor_findings where task_name = 'Manual_segADV';                                                                                                  
+     select rec_id, rank, benefit, from dba_advisor_recommendations where task_name = 'Segment_AR_AVY';
+
+5-DISPLAY ACTIONS:****************************************command**********
+------------------
+col task_id for 99999
+col task_name for a20
+col command for a25
+col attr1 for a95
+select task_id, task_name, command, attr1 from dba_advisor_actions where task_name = 'Manual_seg_TAB';
+select execution_start,a.task_id, a.task_name, command, attr1 from dba_advisor_actions a join dba_advisor_tasks b on(a.task_id=b.task_id) where a.task_name = 'Manual_seg_TAB' ;
+
+
+*****************************************************************************************************
+                                               VIEW SEGMENT ADVISOR Results: REPORT
+****************************************************************************************************
+----optional
+SELECT TASK_NAME,max(EXECUTION_START),max(execution_end) from dba_advisor_tasks where ADVISOR_NAME='Segment Advisor' group by task_name order by 1;
+------   
+SELECT 
+  af.task_name, ao.attr2 segname, ao.attr3 partition, ao.type, af.message,ac.message 
+  from dba_advisor_findings af, dba_advisor_objects ao,dba_advisor_recommendations d,dba_advisor_actions ac
+  where ao.task_id = af.task_id
+  and ao.object_id = af.object_id
+  and af.task_id=d.task_id
+  and ac.rec_id=d.rec_id
+  and ao.owner = '&owner'
+  and ac.task_id=d.task_id
+  and rownum<100;
+ 
+                                                       =====================================
+                                                        CHECK RECENT ADVISORS RECOMANDATION
+                                                       ===================================== 
+------#Primary#
+prompt the available segment advisor tasks :please chose one
+------
+select TASK_NAME,max(EXECUTION_START),max(execution_end) from dba_advisor_tasks where ADVISOR_NAME='Segment Advisor' group by task_name order by 1;
+
+col impact for 99999999
+col rank for 9
+col type for a10
+col message for a50
+col command for a95      
+
+SELECT 
+        a.task_name,TO_CHAR(nvl(a.execution_end,a.execution_start),'dd-mm-yy:hh24')||'H' task_date, d.rank, d.type, substr(b.more_info,instr(b.more_info,'Reclaimable Space :')) MB_RECLAIMABLE, c.attr1 COMMAND
+	From dba_advisor_tasks a, dba_advisor_findings b,Dba_advisor_actions c, dba_advisor_recommendations d
+	Where a.owner=b.owner and a.task_id=b.task_id
+	And b.task_id=d.task_id and b.finding_id=d.finding_id
+	And a.task_id=c.task_id and d.rec_id=c.rec_Id
+	And a.task_name like '&&task_name' 
+	and a.execution_start=(select max(execution_start) from dba_advisor_tasks where task_name ='&&task_name' and ADVISOR_NAME='Segment Advisor')
+	Order by b.impact, d.rank;    
+	
+
+select ddf.file_name,ddf.tablespace_name,sum(dfs.bytes)/1024/1024 free_space
+ from dba_data_files ddf, dba_free_space dfs
+ where ddf.file_id = dfs.file_id and ddf.tablespace_name like '&tbs'
+ group by ddf.file_name,ddf.tablespace_name
+ /
+
+	
+
+                                                   ====================================================
+                                                   Viewing Automatic RECENT Segment Advisor Information 
+                                                   ====================================================
+ 
+*************#Primary#
+The following query returns recommendations by the most recent run of the Auto Segment Advisor, with the suggested command to run
+*************
+to follow the recommendations:        
+
+col segment_name for a20                                                                     																																																																																							
+col tablespace_name for a20                                                                  																																																																																							
+col partition_name for a20                                                                       																																																																																							
+col recommendations for a50                                                                  																																																																																							
+col command for a40 
+col segment_type for a15
+SELECT                                        
+    b.Task_name,b.EXECUTION_START,tablespace_name, segment_name, segment_type, trim(partition_name) partition_name,trunc(reclaimable_space/1024/1024,2)RECLAIMABLE_SPACE_MB, c1 command  
+    from table(dbms_space.asa_recommendations('TRUE', 'TRUE', 'FALSE'))a,dba_advisor_tasks b
+    where recommendations like '%shrink%'  and a.task_id=b.task_id
+    and b.task_name='&task_name'
+     order by 5 desc;     
+  
+  OR   
+    
+BREAK ON SEGMENT_OWNER;
+COMPUTE SUM LABEL 'TOTAL' OF RECLAIMABLE_SPACE ON SEGMENT_OWNER;   
+     SELECT 
+'Segment Advice --------------------------'|| chr(10) || 
+'TABLESPACE_NAME : ' || tablespace_name || chr(10) || 
+'SEGMENT_OWNER : ' || segment_owner || chr(10) || 
+'SEGMENT_NAME : ' || segment_name || chr(10) || 
+'ALLOCATED_SPACE MB: ' || allocated_space/1024/1024  || chr(10) || 
+'RECLAIMABLE_SPACE MB: ' || trunc(reclaimable_space/1024/1024,2) || chr(10) || 
+'RECOMMENDATIONS : ' || recommendations || chr(10) || 
+'SOLUTION 1 : ' || c1 || chr(10) || 
+'SOLUTION 2 : ' || c2 || chr(10) || 
+'SOLUTION 3 : ' || c3 Advice 
+FROM 
+TABLE(dbms_space.asa_recommendations('FALSE', 'FALSE', 'FALSE')) 
+order by reclaimable_space desc
+/                                                                                                                                                        																																																																																							
+     
+                                                --------------------------------------------------
+SELECT 
+                       OWNER,TASK_NAME,TYPE,OBJECT_ID,IMPACT_TYPE,IMPACT,MESSAGE,more_info,EXECUTION_START 
+                       From dba_advisor_findings natural join dba_advisor_tasks
+                       Where owner='HF53ES';
+     
+=====================================================================================
+View related segment advisor objects  
+=====================================================================================   
+col TASK_NAME for a20
+col segname for a25
+col partition for a25
+col type for a20
+col message for a40
+col benefit for a20
+
+SELECT 
+ao.object_id,af.task_name,to_char(nvl(at.execution_end,execution_end),'dd-mm-yyyy') stardate,ao.attr2 segname,ao.attr3 partition,ao.TYPE,af.MESSAGE,ar.benefit,ar.rank
+  FROM dba_advisor_findings af, dba_advisor_objects ao, dba_advisor_recommendations ar ,dba_advisor_tasks at
+ WHERE     ao.task_id = af.task_id
+       AND ar.task_id=af.task_id
+       AND at.task_id=af.task_id
+       AND ar.finding_ID=af.finding_ID
+       AND ao.object_id = af.object_id
+       AND af.TASK_NAME='SEGMENTADV_weekly'
+       AND at.execution_start = (select max(execution_start) from dba_advisor_tasks where task_name ='SEGMENTADV_weekly' and ADVISOR_NAME='Segment Advisor')
+       AND at.ADVISOR_NAME='Segment Advisor'
+       --and rownum<10
+       order by ar.rank,substr(instr(;
+------------------------------------------------------------
+View related objects and recommandation actions (long query)
+------------------------------------------------------------                
+              
+Select 
+ao.attr2 segname,ao.attr3 partition,ao.type,ar.rank,af.message,aa.command COMMAND 
+       from dba_advisor_findings af,dba_advisor_objects ao, dba_advisor_recommendations ar ,dba_advisor_tasks at,DBA_ADVISOR_ACTIONS aa 
+    WHERE at.task_id=af.task_id
+      AND ao.task_id =af.task_id
+      AND ar.task_id=af.task_id
+      AND aa.task_id=af.task_id
+      AND ar.finding_ID=af.finding_ID
+      AND ao.object_id = af.object_id
+      AND af.TASK_NAME='SEGMENTADV_weekly'
+      AND ar.rec_id=aa.rec_Id
+      AND at.ADVISOR_NAME='Segment Advisor'
+      AND at.execution_start=(select max(execution_start) from dba_advisor_tasks where task_name ='SEGMENTADV_weekly' and ADVISOR_NAME='Segment Advisor')
+Order by af.impact, ar.rank
+;
+
+
+ 
+*********************************************************************************************************************************************************    
+UNUSED_SPACE Procedure    
+*********************************************************************************************************************************************************
+
+  DBMS_SPACE.UNUSED_SPACE (
+   segment_owner              IN  VARCHAR2, 
+   segment_name               IN  VARCHAR2,
+   segment_type               IN  VARCHAR2,
+   total_blocks               OUT NUMBER,
+   total_bytes                OUT NUMBER,
+   unused_blocks              OUT NUMBER,
+   unused_bytes               OUT NUMBER,
+   last_used_extent_file_id   OUT NUMBER,
+   last_used_extent_block_id  OUT NUMBER,
+   last_used_block            OUT NUMBER, 
+   partition_name             IN  VARCHAR2 DEFAULT NULL);
+   
+ 
+ DECLARE
+  v_total_blocks   NUMBER;
+  v_total_bytes    NUMBER;
+  v_unused_blocks  NUMBER;
+  v_unused_bytes   NUMBER;
+  v_file_id        NUMBER;
+  v_block_id       NUMBER;
+  v_last_block     NUMBER;
+  v_used           NUMBER;
+ BEGIN
+ DBMS_OUTPUT.ENABLE(100000);
+ -----
+	 DBMS_SPACE.UNUSED_SPACE('GRMF1', 'LIENTRANSAC','TABLE', v_total_blocks, v_total_bytes,v_unused_blocks, v_unused_bytes, v_file_id,v_block_id, v_last_block);  
+	 ------
+ DBMS_OUTPUT.PUT_LINE(CHR(10));
+           DBMS_OUTPUT.PUT_LINE('table Name                   = G_TRACEMODIF');
+           DBMS_OUTPUT.PUT_LINE('Total Blocks                 = '||v_total_blocks);
+           DBMS_OUTPUT.PUT_LINE('Total MB                     = '||v_total_bytes/1024/1024);
+           DBMS_OUTPUT.PUT_LINE('Unused Blocks                = '||v_unused_blocks);
+           DBMS_OUTPUT.PUT_LINE('Unused MB                    = '||v_unused_bytes/1024/1024);
+           v_used := v_total_blocks - v_unused_blocks;
+           DBMS_OUTPUT.PUT_LINE('Used Blocks                  = '||v_used);
+           v_used := v_total_bytes - v_unused_bytes;
+           DBMS_OUTPUT.PUT_LINE('Used MB                      = '||v_used/1024/1024);
+           DBMS_OUTPUT.PUT_LINE('Last used extents file id    = '||v_file_id);
+           DBMS_OUTPUT.PUT_LINE('Last used extents block id   = '||v_block_id);
+           DBMS_OUTPUT.PUT_LINE('Last used block              = '||v_last_block);
+ END;
+ / 
+------The following statements deallocate unused space in a segment (table, index or cluster):
+
+ALTER TABLE table DEALLOCATE UNUSED KEEP integer;
+ALTER INDEX index DEALLOCATE UNUSED KEEP integer;
+ALTER CLUSTER cluster DEALLOCATE UNUSED KEEP integer;
+* The KEEP clause is optional and lets you specify the amount of space retained in the segment. You can verify that the deallocated space is freed by examining the DBA_FREE_SPACE view.  
+  
+  
+  
+  =================================================
+  MS_SPACE Subprograms
+  
+TaS_SPACE Package Subprograms
+  
+Su        Description
+-------------------------- ---------------------------------------------------------------------------------
+ASA_RECOMMENDATIONS            Function Returns recommendations/findings of segment advisor run automatically by the system or manually invoked by the user
+CREATE_INDEX_COST              Procedure Determines the cost of creating an index on an existing table
+CREATE_TABLE_COST              Procedures Determines the size of the table given various attributes
+FREE_BLOCKS Procedure          Returns information about free blocks in an object (table, index, or cluster)
+OBJECT_DEPENDENT_SEGMENTS      Function Returns the list of segments that are associated with the object
+OBJECT_GROWTH_TREND            Function A table function where each row describes the space usage of the object at a specific point in time
+SPACE_USAGE Procedures         Returns information about free blocks in an auto segment space managed segment
+UNUSED_SPACE Procedure         Returns information about unused space in an object (table, index, or cluster)
+
+10.1.3.5 Segment-Level Statistics
+
+V$SEGSTAT_NAME This view lists the segment statistics being collected, as well as the properties of each statistic (for instance, if it is a sampled statistic).
+
+V$SEGSTAT This is a highly efficient, real-time monitoring view that shows the statistic value, statistic name, and other basic information.
+
+V$SEGMENT_STATISTICS  This is a user-friendly view of statistic values. In addition to all the columns of V$SEGSTAT, it has information about such things as the segment owner and table space name.
+ It makes the statistics easy to understand, but it is more costly. 
+ select OWNER, OBJECT_NAME,SUBOBJECT_NAME,TABLESPACE_NAME,OBJECT_TYPE,STATISTIC_NAME,VALUE from V$SEGMENT_STATISTICS where OWNER like '%1%';
+ 
+ 
+ 
+ ==============
+ JOB
+ ==============
+ 
+ 
+ create or replace procedure calculate_IOPS(OBJECT_TYPE IN varchar2,) is 
+   run_duration number :=h*3600;
+   capture_gap number :=5;
+   loop_count number :=run_duration/capture_gap;
+   rdio number ;
+   wtio number;
+   prev_rdio number :=0;
+   prev_wtio number :=0;
+   rdbt number;
+   wtbt number;
+   prev_rdbt number;
+   prev_wtbt number
+ 
+ 
+ 
+ 
+ DECLARE
+  l_object_id     NUMBER;
+  l_task_name     VARCHAR2(32767) := 'Manual_seg_&&taskname';
+  l_object_type   VARCHAR2(32767) := UPPER('&1');
+  l_attr1         VARCHAR2(32767) := UPPER('&2');
+  l_attr2         VARCHAR2(32767) := UPPER('&3');
+BEGIN
+  IF l_attr2 = 'NULL' THEN
+    l_attr2 := NULL;
+  END IF;
+
+  DBMS_ADVISOR.create_task (
+    advisor_name      => 'Segment Advisor',
+    task_name         => l_task_name);
+
+  DBMS_ADVISOR.create_object (
+    task_name   => l_task_name,
+    object_type => l_object_type,
+    attr1       => l_attr1,
+    attr2       => l_attr2,
+    attr3       => NULL,
+    attr4       => 'null',
+    attr5       => NULL,
+    object_id   => l_object_id);
+
+  DBMS_ADVISOR.set_task_parameter (
+    task_name => l_task_name,
+    parameter => 'RECOMMEND_ALL',
+    value     => 'TRUE');
+
+  DBMS_ADVISOR.execute_task(task_name => l_task_name);
+
+    FOR cur_rec IN (SELECT                                        
+    b.Task_name,
+    b.EXECUTION_START,
+    tablespace_name,
+    segment_owner,
+    segment_name,
+    segment_type TYPE,
+    decode(segment_type,'TABLE','ALTER TABLE '||segment_owner||'.'||segment_name||' ENABLE ROW MOVEMENT; '||c1||';',c1||';') command_To_execute,
+    trunc(reclaimable_space/1024/1024,2)RECLAIM_MB,
+    trunc(allocated_space/1024/1024,2) ALLOCATED_MB,
+    trim(partition_name) partition  
+    From table(dbms_space.asa_recommendations('TRUE', 'TRUE', 'FALSE'))a,dba_advisor_tasks b
+    where recommendations like '%shrink%'  and a.task_id=b.task_id
+    and b.task_name like'%&&task_name%'
+     order by 1,7 desc)
+  LOOP
+    DBMS_OUTPUT.put_line('..');
+    DBMS_OUTPUT.put_line('Task_name             : ' || cur_rec.Task_name);
+    DBMS_OUTPUT.put_line('EXECUTION_START       : ' || cur_rec.EXECUTION_START);
+    DBMS_OUTPUT.put_line('tablespace            : ' || cur_rec.tablespace_name);
+    DBMS_OUTPUT.put_line('segment               : ' || cur_rec.segment_name);
+    DBMS_OUTPUT.put_line('Type                  : ' || cur_rec.type);
+    DBMS_OUTPUT.put_line('Command               : ' || cur_rec.command_To_execute);
+    DBMS_OUTPUT.put_line('Reclaimable MB        : ' || cur_rec.RECLAIM_MB);
+    DBMS_OUTPUT.put_line('Alllocated  MB        : ' || cur_rec.ALLOCATED_MB);
+    DBMS_OUTPUT.put_line('Percentage reclaim    : ' || trunc((cur_rec.RECLAIM_MB*100)/cur_rec.ALLOCATED_MB,2)||'%');
+  END LOOP;
+
+  DBMS_ADVISOR.delete_task(task_name => l_task_name); 
+--DBMS_ADVISOR.RESET_TASK(task_name => l_task_name);
+EXCEPTION
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.put_line('Error            : ' || DBMS_UTILITY.format_error_backtrace);
+    DBMS_ADVISOR.delete_task(task_name => l_task_name);
+END;
+/
+ 

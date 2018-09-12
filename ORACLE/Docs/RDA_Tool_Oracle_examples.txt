@@ -1,0 +1,263 @@
+INSTALLATION INSTRUCTIONS
+=========================
+ extract the .zip archive contents into a new directory,preserving the directory structure of the archive. Do not extract into a directory that contains an older RDA version.
+
+Example:
+  unzip rda.zip
+
+You can verify the RDA installation using the following command:
+
+  rda.cmd -cv
+
+RUNNING RDA
+===========
+Before you begin: Log on as the user that owns the Oracle software installation. On some systems, this user will not have the necessary
+permissions to run all of the commands and utilities called by RDA (e.g. WinMsdutility, MSInfo32 on Windows 2000, Windows 2003) If you are running RDA to assist in resolving a Service Request, the analyst will most likely need the
+information pertaining to the Oracle software owner.
+
+1) Choose the RDA command that you will be using depending on your environment:
+   -- rda.pl  Use the following command to verify Perl is installed and
+              available in the path:
+
+              perl -V
+
+   -- rda.cmd Use this command if Perl is not available. Specifying the
+              extension is mandatory to prevent confusion with the VMS script.
+
+   NOTE: The RDA command you selected above is represented as <rda> in the
+   rest of this procedure. Therefore substitute <dir>\rda.cmd, <dir>\rda.pl,perl -T <dir>\rda.pl, or perl <dir>\rda.pl in place of <rda>. 
+   <dir> represents the directory containing the RDA executable files. 
+
+2) Check the age of the RDA installed by using the following command:
+
+   <rda> -vXRda check -A
+   Recent build 20170613
+
+   If it is not a recent build, then download the latest version from the following My Oracle Support document: https://support.oracle.com/rs?type=doc&id=314422.1
+
+3) The data collection requires an initial setup to determine which information should be collected. Enter the following command from the Windows Command or DOS prompt to initiate the set up:
+    
+   <rda> -S
+
+   After setup completes, review the result set definition file output.cfg.
+
+   You can also choose to collect only specific data. For more details, view the command usage help by specifying the -h option, or complete manual page  with the -M option.
+
+4) At this point, you can collect diagnostic information. When a database collection is requested, 
+    Start the data collection using the following command:
+
+   <rda> [-v]
+
+   The -v option is optional. It allows you to view the collection progression.
+
+5) The output is a set of HTML files that are located in the RDA result set directory. By default, RDA saves the result set definition in output.cfg and
+   puts the collection result in the output directory. By default, both are located in the current working directory. You can review the data collected,
+   starting with:
+
+   <result_set_name>\RDA__start.htm
+
+ 
+6) The final output is also packaged in an archive located in the same directory than the result set definition file. The packaged output file will have a .zip extension (for example, RDA_<result_set_name>_<host>.zip). If
+   the data collection was generated to assist in resolving a Service Request,send the report archive to Oracle Support by uploading the file via My Oracle Support.
+
+It is not unusual for RDA to take 15 minutes or more on a very busy server, especially if there are many Oracle listener processes active.
+
+If you must run data collection for specific modules again, for example the  OS and DBA modules, then you can run the following command:
+
+  <rda> -vCRP OS.OS DB.DBA
+  
+6.2) A more targeted way of executing RDA and a way to limit the number of setup questions asked is the use of Diagnostic profiles (<rda> -p <profile_name>), 
+     see RDA Profiles for list of various profiles or run <rda> -L profiles. 
+      e.g:. rda.cmd -p DB10g 
+  List of profiles:
+    	DB10g  	           Oracle Database 10g problems
+  	DB11g  	           Oracle Database 11g problems
+  	DB12c  	           Oracle Database 12c problems
+  	DB8i  	           Oracle Database 8i problems
+  	DB9i  	           Oracle Database 9i problems
+  	DB_Assessment  	   Oracle Database assessment collections
+  	DB_BackupRecovery  Oracle Database backup and recovery problems
+  	DB_Ips  	   Oracle Incident Packaging Service problems
+  	DB_Perf  	   Oracle Database performance problems
+  
+
+RDA maintains the list of modules that are already collected. If you want RDA to collect all data again using the same setup, then you can execute the
+following command:
+
+  <rda> -vCRPf or <rda> -vf
+
+You can force RDA to define another collection using system defaults instead of
+the previous collection settings in two ways:
+
+  Deleting or renaming the "output.cfg" file before running:
+    <rda> -S
+or
+  Running the following RDA command:
+    <rda> -Sfn
+
+Currently this utility is written in the English language only, including the
+built in documentation.
+
+
+
+PRODUCTS SUPPORTED
+==================
+RDA collects information that is useful for troubleshooting issues in the following areas:
+
+-- Installation/configuration issues
+-- Performance issues
+-- ORA-600, ORA-7445, ORA-3113, and ORA-4031 errors
+-- Upgrade, migration, and linking issues
+-- Developer issues
+-- Oracle Database issues
+-- Oracle Application Server/Fusion Middleware issues
+-- Oracle Enterprise Manager issues
+-- Oracle Collaboration products (Oracle Collaboration Suite and Oracle
+   Beehive) issues
+-- Oracle Application issues
+-- Acquired company product issues
+-- Other corrective issues
+
+
+=========================================================
+HOW TO RUN THE ORA-00060 DIAGNOSTIC ASSISTANT DEADLOCK
+=========================================================
+A- Instructions for UNIX/ZLinux Type Operating Systems Login to the server using your Oracle account
+Navigate to the da directory
+> cd $HOME/rda/da   (where $HOME is usually = ORACLE_HOME or PRODUCT_HOME)
+Run:
+> ./da.sh menu menus/ora60.xml
+Select option 1 from the menu
+
+B- Instructions for Microsoft Windows Based Operating Systems
+
+Login to the server using your Oracle account. Navigate to the da folder > cd %HOME%\rda\da
+where %HOME% is usually = ORACLE_HOME or PRODUCT_HOME
+Run:
+> da.cmd menu menus\ora60.xml
+Select option 1 from the menu
+
+
+
+SPECIAL NOTES ON USERIDS AND PASSWORDS
+======================================
+As a means of providing higher security when using RDA, passwords are no longer stored in plain text in the setup.txt file. As result, RDA prompts for the required passwords when collecting the data.
+If the Perl implementation installed on your operating system supports it, RDA will suppress the character echo during password requests. When the character echo is suppressed, the password is requested twice for verification. 
+If both entered passwords do not match after three attempts, the request is canceled.
+RDA can perform OS authentication, which eliminates having to enter a password for database information gathering. It also accepts "/" as a user name to avoid entering a password when RDA is gathering database information.
+For executing RDA at regularly scheduled intervals via cron, passwords can be encoded inside the result set definition file. For instance, to encode the
+system password, use the following command:
+
+  <rda> -A system
+
+The password will be requested interactively.
+
+SPECIAL NOTES ON RDA OUTPUT DIRECTORY
+=====================================
+To limit security vulnerabilities, the permissions of the RDA output directory should be set as restrictive as possible.  
+
+SPECIAL NOTES ON SECURITY
+=========================
+The RDA report, which is sent to Oracle Support for diagnostic reasons, can contain sensitive information such as IP addresses and user names. RDA allows
+the user to remove sensitive data from the reports before communicating externally. Following are the options which RDA offers to mask sensitive data
+in the reports :
+Domain names
+Group names
+Host names
+IPv4 and IPv6 addresses
+LDAP domain components
+Network masks
+User names
+
+The Security profile to turn on filtering. It can be combined with other profiles:
+
+  <rda> -S -p DB11g-Security
+
+The previous command sets up RDA for the DB11g profile and turns on filtering through the Security profile.
+
+To enable filtering for an existing setup:
+  <rda> -XFilter enable
+
+If the user want to know what exactly RDA is collecting, the RDA code is readable to the user and it is available in the "collect" directory structure.
+
+TROUBLESHOOTING STEPS
+=====================
+If you receive a "Command not found" error, ensure that you have privileges to execute SQL*Plus and Windows System root directory (WINDOWS or WINNT).
+
+If RDA is unable to connect to the database, and the user is declared as a SYSDBA user when running the setup, ensure that connections are possible with
+that user using AS SYSDBA. For example, if SYSTEM is specified as the user name, make sure that you can connect using the following command in SQL*Plus:
+
+  connect system AS SYSDBA
+
+If you cannot connect, run the setup again and answer N to that question, or edit the result set definition file and set B_SYSDBA=0. You can also use the
+'TMdb' test module to obtain more elements on the connection problem.
+
+If you use TWO_TASK to connect to the database, unset TWO_TASK and run RDA on the server local to the database. This is necessary because RDA depends on a
+local connection to the database, and automatically unsets TWO_TASK before performing any function.
+
+If you run RDA for an issue that involves multiple tiers (for example,Application Server, Database Server, OLAP/Express Drive, OID, etc.) and the
+tiers are on separate servers, then you must run RDA on each server associated with the issue that you are troubleshooting. Data for these tiers will not be
+collected unless RDA is run on the server that the product resides on.
+
+If you are running RDA for an issue that involves products under different ORACLE_HOME directories but the same server, you must run RDA multiple times,
+once for each ORACLE_HOME that is involved in the issue that you are troubleshooting. It is possible to have multiple result sets (see option -s).
+
+RDA has N_TIMEOUT and N_SQL_TIMEOUT settings, which allows to limit the execution time of operating system commands and SQL scripts respectively. This
+is done to avoid situations in which RDA could hang because the execution of a query would never complete. However, this feature depends on the operating
+system capability to interrupt any tasks and should not always be operational.If RDA was not able to execute a specific script, it might be a timeout issue.
+You can try to increase these parameters in the result set definition file.
+
+There could be situations in which some queries would take longer than 30 seconds to complete execution. In these cases, do the following to increase
+the N_TIMEOUT or N_SQL_TIMEOUT parameter:
+
+1) Change directory to the directory where the result set definition file is
+   stored.
+
+2) Use an editor such as 'wordpad' to edit the result set definition file
+   (output.cfg by default).
+
+3) Change the value of N_TIMEOUT or N_SQL_TIMEOUT in the [DEFAULT] section to a
+   value greater than 30.
+
+4) Re-run RDA (possibly limited to impacted modules).
+
+5) It may be necessary to increase this value several times in order for the
+   query to complete in the allotted time.
+
+You can also change the settings at execution time by using an option like
+'-eDFT/N_TIMEOUT=<n>,DFT/N_SQL_TIMEOUT=<n>' where <n> represents the new limit.
+
+Under certain circumstances, RDA generates an error in a RDA-nnnnn format. You
+can discover the meaning and possible solution to the error by using the '-E'
+option. For example,
+    <rda> -E RDA-00014
+
+HOW TO REPORT PROBLEMS
+======================
+If problems running RDA cannot be fixed with the troubleshooting steps
+described above, you can file a Service Request in My Oracle Support.
+Information on how to create an RDA Service Request is available at
+https://support.oracle.com/rs?type=doc&id=1554251.1
+Please include:
+
+-- The description of the error, including the error number and messages.
+
+-- The output of:
+     <rda> -c
+     <rda> -V
+     set
+
+When possible, re-run the RDA program with debug and trace mode enabled and
+upload the output in the Service Request. For instance:
+
+     <rda> -vt99             (for whole data collection)
+     <rda> -vt90 T:<module>  (for a single module)
+
+For taint mode issues, ensure that the following variable is set before
+requesting the trace:
+
+     set RDA_DUMP=ENV,ERROR
+
+For database connection problems, include the output of
+     <rda> -T T:TOOL.db
+

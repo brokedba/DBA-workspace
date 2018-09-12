@@ -1,0 +1,415 @@
+ CBO Statistics During an Upgrade from 10g or 9i into 11:
+ Cost-based Optimizer (CBO) uses statistics when generating execution plans. CBO statistics can be classified into four types: 
+
+schema objects - In use since the introduction of the CBO
+data dictionary - introduced in 9i and considered optional to gather
+fixed objects - Introduced in 10g
+system (performance) statistics - introduced in 9i but rarely implemented.
+
+.Pay special attention to estimate_percent and method_opt.  // autostat task info: DBMS_AUTO_TASK_ADMIN.ENABLE('auto optimizer stats collection', NULL, NULL);
+SQL> SELECT client_name, status FROM dba_autotask_operation;
+
+CLIENT_NAME							 STATUS
+---------------------------------------------------------------- --------
+auto optimizer stats collection 				 ENABLED
+auto space advisor						 ENABLED
+sql tuning advisor						 ENABLED
+Relevant Views
+
+The following views display information related to the automated database maintenance tasks:
+
+DBA_AUTOTASK_CLIENT
+DBA_AUTOTASK_CLIENT_HISTORY
+DBA_AUTOTASK_CLIENT_JOB
+DBA_AUTOTASK_JOB_HISTORY
+DBA_AUTOTASK_OPERATION
+DBA_AUTOTASK_SCHEDULE
+DBA_AUTOTASK_TASK
+DBA_AUTOTASK_WINDOW_CLIENTS
+DBA_AUTOTASK_WINDOW_HISTORY
+
+SOLUTION:
+Before upgrading:It can be used on 9i, 10g, 11g or 12c. Execute connected as SYS. 
+- Continue gathering CBO statistics as per your current procedures. 
+1. coe_create_user_coecbostats.sql creates a new schema owner COECBOSTATS with one object (COE$_STATTAB). Table COE$_STATTAB  stores persistent versions of CBO statis for four types: schema objects, data dictionary, fixed objects, and system performance. Execute connected as SYS. 
+
+2. coe_backup_cbo_stats.sql -  make a full backup of your 4 types CBO statistics BACKUP). Execute connected as SYS. 
+- make an export of pre-upgrade CBO statistics (or schema owner COECBOSTATS if coe scripts were used on prior step).
+
+ After upgrading:
+3. coe_gather_dictionary_stats.sql generate fresh baseline of Data Dictionary CBO statistics. Be sure to specify a 100 sample size and no histograms, and cascades into all related indexes . It makes a backup of these statistics before and after gathering. Execute connected as SYS.  
+
+4. coe_gather_fixed_objects_stats.sql Create right after normal system load a baseline of Fixed Objects CBO statistics . It makes a backup of these statistics before and after gathering. 
+
+5. coe_gather_system_stats_nw.sql gathers system statistics that are independent of the workload. Execute connected as SYS. 
+
+6. coe_gather_system_stats_start.sql is used in combination with coe_gather_system_stats_stop.sql. They start and stop the gathering of system statistics that are dependent upon the system workload and configuration. They must be executed during a normal system utilization window.   
+3 hours
+7. coe_gather_system_stats_stop.sql is used in combination with coe_gather_system_stats_start.sql. They start and stop the gathering of system statistics that are dependent upon the system workload and configuration. They must be executed during a normal system utilization window . 
+
+6-7 - replace by  DBMS_STATS APIs with workload option and 2-3 hrs interval covering normal system load.
+exec DBMS_STATS.GATHER_SYSTEM_STATS(gathering_mode => 'INTERVAL', interval => 180, stattab => 'COE$_STATTAB', statid => 'OLTP');
+
+If your workload or hardware configuration changes over time, you will have to execute this set in the same manner after the system load/configuration has been implemented and during normal system utilization.After gathering system statistics perform a sanity check on them.  
+
+====================================================================
+
+====================================================================
+
+System Stats:
+A- Gathering noworkload stats builtin with Oracle 
+EXEC DBMS_STATS.gather_system_stats;
+B- Workload: When initiated using the start/stop or interval parameters .accurate idea of the performance of the system. If workload statistics are present, they will be used in preference to noworkload statistics.
+
+Collect System Statistics for OLTP:
+-- Manually start and stop to sample a representative time (several hours) of system activity.
+EXEC DBMS_STATS.gather_system_stats('start');
+EXEC DBMS_STATS.gather_system_stats('stop');
+
+-- Sample from now until a specific number of minutes.
+exec DBMS_STATS.gather_system_stats('interval', interval => 120);  --minutes 
+
+Transfering Stats:
+====================                                                                           
+It is possible to transfer statistics between servers allowing consistent execution plans between servers with varying amounts of data. 
+First 1. Create a table for OLTP statistics:
+SQL> execute DBMS_STATS.CREATE_STAT_TABLE ('SYS','OLTP_stats','USERS');    ---table,tablespace remove to make it user's default
+Second 2. The statistics must be collected into a statistics table. 
+exec DBMS_STATS.GATHER_SYSTEM_STATS(gathering_mode => 'INTERVAL', interval => 180, stattab => 'OLTP_stats', statid => 'OLTP');
+3. Transfer the OLTP statistics from OLTP_STATS table to the dictionary tables:
+SQL> execute DBMS_STATS.IMPORT_SYSTEM_STATS(stattab => 'OLTP_stats', statid => 'OLTP', statown => 'SYS');                                                                                                    ßSNAME                          PNAME                               PVAL1 PVAL2                                  
+sys@PRD1>  select * from sys.aux_stats$;                                                                                                                                                                     ------------------------------ ------------------------------ ---------- ---------------------------------------
+                                                                                                                                                                                                             SYSSTATS_INFO                  STATUS                                    AUTOGATHERING                          
+SNAME                          PNAME                               PVAL1 PVAL2                                                                                                                               SYSSTATS_INFO                  DSTART                                    06-06-2017 11:00                        
+------------------------------ ------------------------------ ---------- --------------------                    sreadtim - single block read time                                                           SYSSTATS_INFO                  DSTOP                                     06-06-2017 12:00                       
+SYSSTATS_INFO                  STATUS                                    COMPLETED                               mreadtim - multiblock read time                                                             SYSSTATS_INFO                  FLAGS                                   0                                        
+SYSSTATS_INFO                  DSTART                                    07-20-2010 23:37                        mbrc - multi-block read count                                                               SYSSTATS_MAIN                  CPUSPEEDNW                     1365.71988                                        
+SYSSTATS_INFO                  DSTOP                                     07-20-2010 23:37                        cpuspeed - CPU speed                                                                        SYSSTATS_MAIN                  IOSEEKTIM                              10                                        
+SYSSTATS_INFO                  FLAGS                                   1                                         ioseektime maxthr, slavethr,                                                                SYSSTATS_MAIN                  IOTFRSPEED                           4096                                        
+SYSSTATS_MAIN                  CPUSPEEDNW                     1365.71988                                                                                                                                     SYSSTATS_MAIN                  SREADTIM                            5.336                                        
+SYSSTATS_MAIN                  IOSEEKTIM                              10                                                                                                                                     SYSSTATS_MAIN                  MREADTIM                             2.75                                        
+SYSSTATS_MAIN                  IOTFRSPEED                           4096                                                                                                                                     SYSSTATS_MAIN                  CPUSPEED                             2648                                        
+SYSSTATS_MAIN                  SREADTIM                                                                                                                                                                      SYSSTATS_MAIN                  MBRC                                   15                                        
+SYSSTATS_MAIN                  MREADTIM                                                                                                                                                                      SYSSTATS_MAIN                  MAXTHR                           31527936                                        
+SYSSTATS_MAIN                  CPUSPEED                                                                                                                                                                      SYSSTATS_MAIN                  SLAVETHR                                                                         
+SYSSTATS_MAIN                  MBRC                                                                                                                                                                          SYSSTATS_TEMP                  SBLKRDS                          10606311                                        
+SYSSTATS_MAIN                  MAXTHR                                                                                                                                                                        SYSSTATS_TEMP                  SBLKRDTIM                        11485320                                        
+SYSSTATS_MAIN                  SLAVETHR                                                                                                                                                                      SYSSTATS_TEMP                  MBLKRDS                           5504802                                        
+                                                                                                                                                                                                             SYSSTATS_TEMP                  MBLKRDTIM                        12702170                                        
+ CPU_COST and IO_COST in PLAN_TABLE table                                                                                                                                                                    SYSSTATS_TEMP                  CPUCYCLES                         6999888                                        
+                                                                                                                                                                                                             SYSSTATS_TEMP                  CPUTIM                            2641405                                        
+Different queries will now show different cpu and io costs depending on the kind of work that is being done:                                                                                                 SYSSTATS_TEMP                  JOB                                    21                                        
+*** ********************************************************                                                                                                                                                 SYSSTATS_TEMP                  CACHE_JOB                              22                                        
+*** CPU_COST and IO_COST in PLAN_TABLE table                                                                                                                                                                 SYSSTATS_TEMP                  MBRTOTAL                         56031083                                        
+*** ********************************************************
+ SQL> explain plan for select * from oltp.test where c='AAAHxGAABAAAJS1AEZ';
+   Explained.
+ 
+                                                                                                                     
+The DELETE_SYSTEM_STATS procedure will delete all workload stats and replace previously gathered noworkload stats with the default values.
+EXEC DBMS_STATS.delete_system_stats;                                                                                 
+     
+     
+12c Prior to Oracle Database 12c Release 1 fixed object statistics are not created or maintained by the automatic statistics gathering job.                                                                                                                      
+ - Fixed Object Stats : gathers statistics on the X$ tables, which sit underneath the V$ dynamic performance views. Major changes to initialization parameters or system activity should signal you to gather fresh stats.
+    You can collect statistics on fixed objects using DBMS_STATS.GATHER_FIXED_OBJECTS_STATS.
+   SQL> EXEC DBMS_STATS.gather_fixed_objects_stats;                                                                          
+    The stats are removed using the DELETE_FIXED_OBJECTS_STATS procedure.                                                
+   SQL> EXEC DBMS_STATS.delete_fixed_objects_stats;   
+
+SELECT TO_CHAR(d.directive_id) dir_id, o.owner, o.object_name, o.subobject_name col_name, o.object_type, d.type, d.state, d.reason
+FROM   dba_sql_plan_directives d, dba_sql_plan_dir_objects o
+WHERE  d.directive_id=o.directive_id and owner='GRH1'
+and rownum <10
+ORDER BY 1,2,3,4,5;
+
+
+
+- Transfert schema stats :
+   EXEC DBMS_STATS.create_stat_table('DBASCHEMA','STATS_TABLE');
+   EXEC DBMS_STATS.export_schema_stats('APPSCHEMA','STATS_TABLE',NULL,'DBASCHEMA');
+   --- transfered to another server using import/export + imported into the data dictionary 
+   EXEC DBMS_STATS.import_schema_stats('APPSCHEMA','STATS_TABLE',NULL,'DBASCHEMA');
+   EXEC DBMS_STATS.drop_stat_table('DBASCHEMA','STATS_TABLE'); 
+   
+   - Setting Preferences 11g+:
+   SET_GLOBAL_PREFS: Used to set global preferences, including some specific to the automatic stats collection job. // EXEC DBMS_STATS.reset_global_pref_defaults;
+   EXEC DBMS_STATS.set_global_prefs('AUTOSTATS_TARGET', 'AUTO');
+   
+   SET_DATABASE_PREFS: Sets preferences for the whole database. // EXEC DBMS_STATS.delete_database_prefs('CASCADE');
+   EXEC DBMS_STATS.set_database_prefs('STALE_PERCENT', '15');
+   
+   SET_SCHEMA_PREFS: Sets preferences for a specific schema. // EXEC DBMS_STATS.delete_schema_prefs('SCOTT','DEGREE');
+   EXEC DBMS_STATS.set_schema_prefs('SCOTT','DEGREE', '5');
+   
+   SET_TABLE_PREFS: Sets preferences for a specific table.
+   EXEC DBMS_STATS.set_table_prefs('SCOTT', 'EMP', 'CASCADE', 'FALSE'); // EXEC DBMS_STATS.delete_table_prefs('SCOTT', 'EMP', 'CASCADE');
+   
+- GET AND SET STATISTIQUES
+  Manually setting statistics.
+    - SET_SYSTEM_STATS    SET_COLUMN_STATS
+    - SET_TABLE_STATS     SET_INDEX_STATS 
+    
+-  Current stats are returned using the following procedures.
+    GET_SYSTEM_STATS      GET_COLUMN_STATS    
+    GET_TABLE_STATS       GET_INDEX_STATS
+
+- Locking\Unlocking : 
+
+  EXEC DBMS_STATS.unlock/lock_schema_stats('SCOTT');
+  EXEC DBMS_STATS.unloc/lock_table_stats('SCOTT', 'EMP');
+  EXEC DBMS_STATS.unlock/lock_partition_stats('SCOTT', 'EMP', 'EMP_PART1');
+
+III-  Extended statistics :encompasses two additional types of column statistics; column groups and expression statistics. 
+  - column groups :
+  select DBMS_STATS.DROP_EXTENDED_STATS ( 'SH' ,'SALES', '(PROD_ID,CUST_ID)') from dual;  
+  - Auto Column Groups Detection:
+   Step1: Seed Column Usage
+    begin
+    dbms_stats.seed_col_usage(null,null,300); -- 5 minutes system workload  
+    -- exec dbms_stats.seed_col_usage('TunSet_TEST','SYSTEM',3600); ---tuning set workload -max 2 Hours
+    end;   
+     /
+  step2: See column usage report for one or All tables
+  select dbms_stats.report_col_usage('EMP','CUSTOMERS') from dual; 
+  OR 
+  select dbms_stats.report_col_usage('EMP',null) from dual;  -- all shcemas tables
+  
+  Step3: Create recomended extended statistics
+  select dbms_stats.create_extended_stats('SCOTT','EMP') from dual ;  --one table
+  select dbms_stats.create_extended_stats('SCOT',null) From dual ;   -- all schema's table 
+  
+  Step 3: Re-gather Statistics
+  exec dbms_stats.gather_table_stats(null,'CUSTOMERS')
+  
+to allow SQL plan directives to create column groups automatically 12c:
+exec dbms_stats.set_global_prefs ('AUTO_STAT_EXTENSIONS', 'ON');  
+  
+  
+- Expression Statistics:
+
+DECLARE
+  l_cg_name VARCHAR2(30);
+BEGIN
+  -- Explicitly created.
+  l_cg_name := DBMS_STATS.create_extended_stats(ownname   => 'SCOTT', tabname   => 'EMP',extension => '(LOWER(ENAME))');
+                                                
+ l_cg_name2 := dbms_stats.create_extended_stats (NULL, 'SALES', '(PROD_ID+CUST_ID)') ;                                               
+  -- Implicitly created.
+  DBMS_STATS.gather_table_stats('SCOTT','EMP',method_opt => 'for columns (upper(ename))');
+END;
+/
+
+-- chek results
+SELECT extension_name, extension
+FROM   dba_stat_extensions
+WHERE  table_name = 'EMP';
+
+
+====
+
+
+
+=====================12c Enhancements ===================
+----------------------------------------------------------------
+I- Optimizer Statistics Advisor in Oracle Database 12c Release 2
+----------------------------------------------------------------- 
+     1. Optimizer Statistics Advisor Rules :
+      Advisor works through a list of rules provided by Oracle, which represent "best practices" for optimizer statistics. 
+      list of rules : select * from V$STATS_ADVISOR_RULES;
+      
+         RULE_ID NAME 			       RULE_TYPE DESCRIPTION									
+---------- ----------------------------------- --------- -------------------------------------------------------------------------------
+	 0				       SYSTEM											
+	 1 UseAutoJob			       SYSTEM	 Use Auto Job for Statistics Collection 					
+	 2 CompleteAutoJob		       SYSTEM	 Auto Statistics Gather Job should complete successfully			
+	 3 MaintainStatsHistory 	       SYSTEM	 Maintain Statistics History							
+	 4 UseConcurrent		       SYSTEM	 Use Concurrent preference for Statistics Collection				
+	 5 UseDefaultPreference 	       SYSTEM	 Use Default Preference for Stats Collection					
+	 6 TurnOnSQLPlanDirective	       SYSTEM	 SQL Plan Directives should not be disabled					
+	 7 AvoidSetProcedures		       OPERATION Avoid Set Statistics Procedures						
+	 8 UseDefaultParams		       OPERATION Use Default Parameters in Statistics Collection Procedures			
+	 9 UseGatherSchemaStats 	       OPERATION Use gather_schema_stats procedure						
+	10 AvoidInefficientStatsOprSeq	       OPERATION Avoid inefficient statistics operation sequences				
+	11 AvoidUnnecessaryStatsCollection     OBJECT	 Avoid unnecessary statistics collection					
+	12 AvoidStaleStats		       OBJECT	 Avoid objects with stale or no statistics					
+	13 GatherStatsAfterBulkDML	       OBJECT	 Do not gather statistics right before bulk DML 				
+	14 LockVolatileTable		       OBJECT	 Statistics for objects with volatile data should be locked			
+	15 UnlockNonVolatileTable	       OBJECT	 Statistics for objects with non-volatile should not be locked			
+	16 MaintainStatsConsistency	       OBJECT	 Statistics of dependent objects should be consistent				
+	17 AvoidDropRecreate		       OBJECT	 Avoid drop and recreate object seqauences					
+	18 UseIncremental		       OBJECT	 Statistics should be maintained incrementally when it is beneficial		
+	19 NotUseIncremental		       OBJECT	 Statistics should not be maintained incrementally when it is not beneficial
+	20 AvoidOutOfRange		       OBJECT	 Avoid Out of Range Histogram endpoints 					
+	21 UseAutoDegree		       OBJECT	 Use Auto Degree for statistics collection					
+	22 UseDefaultObjectPreference	       OBJECT	 Use Default Object Preference for statistics collection			
+	23 AvoidAnalyzeTable		       OBJECT	 Avoid using analyze table commands for statistics collection			
+* It runs a task called AUTO_STATS_ADVISOR_TASK during the maintenance window. 
+CONN / AS SYSDBA                                                                                                     
+ALTER SESSION SET CONTAINER= pdb1;                                                                                 
+ALTER SESSION SET NLS_DATE_FORMAT='DD-MON-YYYY HH24:MI:SS';                                                                                                                                                                      
+
+COLUMN task_name FORMAT A25                                                                                              
+COLUMN execution_name FORMAT A20                                                                                         
+COLUMN execution_end FORMAT A20                                                                                          
+COLUMN execution_type FORMAT A20                                                                                         
+                                                                                                                         
+SELECT task_name,execution_name,execution_start,execution_end,execution_type,status                                                                                                            
+FROM   dba_advisor_executions                                                                                            
+WHERE  task_name = 'AUTO_STATS_ADVISOR_TASK'                                                                             
+AND    execution_end >= SYSDATE-2                                                                                        
+ORDER BY 3;                                                                                                              
+                                                                                                                         
+TASK_NAME		  EXECUTION_NAME       EXECUTION_START	    EXECUTION_END	 EXECUTION_TYPE       STATUS     
+------------------------- -------------------- -------------------- -------------------- -------------------- -----------
+AUTO_STATS_ADVISOR_TASK   EXEC_42	       23-AUG-2017 23:00:15 23-AUG-2017 23:00:20 STATISTICS	      COMPLETED  
+AUTO_STATS_ADVISOR_TASK   EXEC_52	       24-AUG-2017 23:00:27 24-AUG-2017 23:00:40 STATISTICS	      COMPLETED 
+
+* Generate a Report :
+SET LONG 1000000
+SET PAGESIZE 0
+SET LONGCHUNKSIZE 100000
+SELECT DBMS_STATS.report_advisor_task('AUTO_STATS_ADVISOR_TASK') AS REPORT 
+FROM   dual;
+
+* Implement Advisor Recommendations:
+VARIABLE v_result CLOB
+-- Implement recommendations.
+DECLARE
+  l_task_name  VARCHAR2(32767);
+BEGIN
+  l_task_name := 'AUTO_STATS_ADVISOR_TASK';
+  :v_result := DBMS_STATS.implement_advisor_task(l_task_name);
+END;
+/
+-- Display results.
+SET LONG 10000
+SELECT XMLTYPE(:v_result) AS results
+FROM   dual; 
+
+
+* run Default script :
+SET LINESIZE 200
+SET LONG 1000000
+SET PAGESIZE 0
+SET LONGCHUNKSIZE 100000
+
+SELECT DBMS_STATS.script_advisor_task('AUTO_STATS_ADVISOR_TASK')FROM   dual;
+
+* Manually Execute the Advisor:
+CONN / AS SYSDBA
+ALTER SESSION SET CONTAINER=pdb1;
+
+SET SERVEROUTPUT ON
+DECLARE
+  l_task_name  VARCHAR2(32767);
+  l_exec_name  VARCHAR2(32767);
+  l_report     CLOB;
+BEGIN
+  l_task_name := DBMS_STATS.create_advisor_task;
+  l_exec_name := DBMS_STATS.execute_advisor_task(task_name => l_task_name);
+  l_report    := DBMS_STATS.report_advisor_task(task_name=> l_task_name,execution_name => l_exec_name);
+  DBMS_OUTPUT.put_line(l_report);
+END;
+/
+
+--------------------------------------------------
+II- Cost-Based Optimizer (CBO) And Database Statistics
+--------------------------------------------------
+
+The current statistics information is available from the data dictionary views:
+DBA_TABLES                   DBA_TAB_STATISTICS                                   DBA_TAB_HISTOGRAMS 
+DBA_TAB_PARTITIONS           DBA_TAB_SUB_PARTITIONS                               DBA_PART_HISTOGRAMS
+DBA_TAB_COLUMNS              DBA_TAB_COL_STATISTICS                               DBA_SUBPART_HISTOGRAMS
+DBA_PART_COL_STATISTICS      DBA_SUBPART_COL_STATISTICS   
+DBA_INDEXES                  DBA_IND_STATISTICS
+DBA_IND_PARTITIONS           DBA_IND_SUBPARTIONS
+
+---------------------------------------------
+III- Automatic Column Group Detection 12c
+---------------------------------------------
+DBMS_STATS.SEED_COL_USAGE procedure allows to determine which column group statistics would be useful, based on a specified SQL Tuning Set or a specific monitoring period.
+- The column group is only automatically detected during a hard parse or a reoptimization of a statement in the presence of persisted SQL plan directives. 
+- SQL plan directive isn't always present in the final execution plan, for this to happen:
+  1- If the lack of good statistics force the use of dynamic statistics directly, no automatic column group detection will be performed. 
+   - At some point, the statistics will be refreshed and one of the below scenarios will then be available.
+  2 - If a cardinality misestimate results in both statistics feedback and SQL plan directives being produced, "statistics feedback" takes priority during "reoptimization" at the  next query run. 
+     > If the query is run a second time before the SQL plan directives are persisted, no automatic column group detection will be triggered during the reoptimization using statistics feedback. 
+     > The next hard parse after the SQL plan directives are persisted will result in automatic column group detection, but depending on how long the statement stays in the shared pool, this could be quite a delay.
+      SELECT DBMS_STATS.report_col_usage('TEST', 'TAB1')
+      FROM   dual;
+       COLUMN USAGE REPORT FOR KH85124.TAB1
+     ....................................
+     
+     1. BEARD                               : EQ
+     2. GENDER                              : EQ
+     3. Y_CHROMOSOME                        : EQ
+     4. (GENDER)                            : FILTER   --- done after the second query run but before statistic gathering 
+
+  3- If SQL plan directives are persisted before the query is run a second time, automatic column groups detection is triggered during the reoptimization, whether the SQL plan directives or statistics feedback 
+     are used for the reoptimization of the execution plan.
+  
+        ------------------------------------------------------------------------------------------------------------------------------------
+      | Id  | Operation                           | Name                      | Starts | E-Rows | A-Rows |   A-Time   | Buffers | Reads  |
+      ------------------------------------------------------------------------------------------------------------------------------------
+      |   0 | SELECT STATEMENT                    |                           |      1 |        |   5000 |00:00:00.03 |     716 |     10 |
+      |*  1 |  TABLE ACCESS BY INDEX ROWID BATCHED| TAB1                      |      1 |   5000 |   5000 |00:00:00.03 |     716 |     10 |
+      |*  2 |   INDEX RANGE SCAN                  | TAB1_HAS_Y_CHROMOSOME_IDX |      1 |      1 |   5000 |00:00:00.02 |     345 |     10 |
+      ------------------------------------------------------------------------------------------------------------------------------------
+      Predicate Information (identified by operation id):
+      ---------------------------------------------------
+         1 - filter(("GENDER"='F' AND "BEARD"='N'))
+         2 - access("Y_CHROMOSOME"='N')
+      Note
+      -----
+         - statistics feedback used for this statement       
+  
+  4 - if Table statistics are gathered the second time, the column group statistics are created.
+        EXEC DBMS_STATS.gather_table_stats('TEST', 'TAB1');
+     
+   
+    COLUMN USAGE REPORT FOR KH85124.TAB1
+     ....................................
+     
+     1. BEARD                               : EQ
+     2. GENDER                              : EQ
+     3. Y_CHROMOSOME                        : EQ
+     4. (GENDER)                            : FILTER   --- done after the second query run but before statistic gathering 
+     5. (GENDER, Y_CHROMOSOME, BEARD)       : FILTER   --- done after statistics gathering and two query run . 
+ PLAN :
+      ------------------------------------------------------------------------------------
+      | Id  | Operation         | Name | Starts | E-Rows | A-Rows |   A-Time   | Buffers |
+      ------------------------------------------------------------------------------------
+      |   0 | SELECT STATEMENT  |      |      1 |        |   5000 |00:00:00.01 |     379 |
+      |*  1 |  TABLE ACCESS FULL| TAB1 |      1 |   5000 |   5000 |00:00:00.01 |     379 |
+      ------------------------------------------------------------------------------------
+
+Predicate Information (identified by operation id):
+---------------------------------------------------
+
+   1 - filter(("GENDER"='F' AND "Y_CHROMOSOME"='N' AND "BEARD"='N'))
+Note
+-----
+   - statistics feedback used for this statement
+ 
+  SQL> EXEC DBMS_STATS.gather_table_stats('TEST', 'TAB1');
+  
+  SQL> SELECT extension_name, extension
+  2  FROM   dba_stat_extensions
+  3  WHERE  table_name = 'TAB1';
+
+EXTENSION_NAME                 EXTENSION
+------------------------------ ---------------------------------------------
+SYS_STSJ_NI$1E_EDU917#V63HO2OA ("GENDER","Y_CHROMOSOME","BEARD")
+
+
+---------------------------------------------  
+III- Statistics Feedback (Cardinality Feedback)      
+---------------------------------------------
+if generated execution plan has missing statistics, stale statistics, complex predicates or complex operators  =>  optimizer may monitor the cardinality of operations in the plan.
+If actual and estimnate gap is big  the actual cardinalities are stored in the SGA for later use and the statement is marked as reoptimizable . stored cardinalities will be used at the next execution (reoptimization). 
+RETENTION :  erased when instance is restarted or the statement is aged out of the shared pool. 
+Performance Feedback:
+PARALLEL_DEGREE_POLICY=ADAPTIVE  similar to AUTO, but includes performance feedback that helps finding the apropriate DOP from an execution to another.    
+  
+  

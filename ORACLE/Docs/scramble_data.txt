@@ -1,0 +1,142 @@
+DBMS_RANDOM package
+
+The DBMS_RANDOM package will generate random data in character, numeric or alphanumeric formats. The size and the range from which to pickup the random values can also be specified. This package is created by the script dbmsrand.sql available in the <ORACLE_HOME>/rdbms/admin directory.
+
+The following functions present in the package can be used to serve the purpose of generating random numbers and strings. RANDOM - generate random numbers.
+
+VALUE - generate random numbers from the range provided. The range will be taken as 0-1 if none is provided.
+
+STRING - generate strings in upper case, lower case or alphanumeric format.
+
+The first parameter takes the string type to be generated, the following values can be provided in upper or lower case.
+U - Upper case
+L - Lower case
+A - Alphanumeric
+X - Alphanumeric with upper case alphabets.
+P - Printable characters only.
+opt seed values:
+'a','A'  alpha characters only (mixed case)
+'l','L'  lower case alpha characters only
+'p','P'  any printable characters
+'u','U'  upper case alpha characters only
+'x','X'  any alpha-numeric characters (upper)
+
+
+
+*************************
+select ( or update)
+    dbms_random.string('l',length(col_text)),
+    trunc(dbms_random.value(1,length(col_number))) from your_table;
+
+*************************
+
+Providing any other character will return the output in upper case only.
+
+The size of the string should also be provided as the second parameter.Oracle documentation says that it is necessary to initialize the package 
+before using the random number generator. Oracle by default initializes the package with the seed value as the current user name, current time 
+down to the second and the current session id.
+
+INITIALIZE - Initialize the package to proceed with the number generation.
+
+Provide a number (seed) as input to the routine.
+
+SEED - Used to change the seed value. It is used in the internal algorithm to generate values. Setting this will generate the random numbers
+in an order that will be similar in multiple sessions. Refer to the example below.
+TERMINATE - Close the process of random number generation.
+
+To scramble the number data type, we will simply replace the existing value with a random one. Here is an example of the command used:
+
+trunc(dbms_random.value(1,1000000000000000000))
+
+Based on the function used, we will not be able to find back the initial value of the field and a rerun will not give the same value. In the next Excel sheet, you will find the values that are scrambled.
+
+
+
+update /*+ parallel(cmc_resp_email_client) */ cmc_resp_email_client 
+   set adr_email = translate(adr_email, 'nopqrstuvwxyzabcdefghijklmNOPQRSTUVWXYZABCDEFGHIJKLM', 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+ where regexp_substr(upper(adr_email), '[^\.]+$') in ('PBZ', 'OR', 'ARG', 'SE', 'AY', 'RH', 'VG', 'HX');
+
+commit;
+
+
+Examples:
+
+Below are some examples of using the package.
+
+E.g.: Generating a random number (positive or negative)
+
+SQL> select dbms_random.random from dual;
+
+       RANDOM
+_____________
+   1393936551
+E.g.: Generating a random number between 0 and 1.
+
+SQL> select dbms_random.value from dual;
+
+        VALUE
+_____________
+            1
+E.g.: Generating a random number from a range, between 1 to 1000.
+
+SQL> select dbms_random.value(1,1000) num from dual;
+
+          NUM
+_____________
+          611
+E.g.: Generating a 12 digit random number.
+
+SQL> select dbms_random.value(100000000000, 999999999999) num from dual;
+
+          NUM
+_____________
+ 175055628780
+E.g.: Generating an upper case string of 20 characters
+
+SQL> select dbms_random.string('U', 20) str from dual;
+
+STR
+_______________________
+VUOQOSTLHCKIPIADIZTD
+E.g.: Generating a lower case string of 20 characters
+
+SQL> select dbms_random.string('L', 20) str from dual;
+
+STR
+____________________
+xpoovuspmehvcptdtzcz
+E.g.: Generating an alphanumeric string of 20 characters. There is a bug in Oracle 8i that results in special (non-alphanumeric) characters such as ']' in the string. This is resolved in Oracle 9i.
+
+SQL> select dbms_random.string('A', 20) str from dual;
+
+STR
+__________________
+sTjERojjL^OlTaIc]PLB
+E.g.: Generating an upper case alphanumeric string of 20 characters
+
+SQL> select dbms_random.string('X', 20) str from dual;
+
+STR
+________________________
+SQ3E3B3NRBIP:GOGAKSC
+E.g.: Generating a string of printable 20 characters. This will output a string of all characters that could possibly be printed.
+
+SQL> select dbms_random.string('P', 20) str from dual;
+
+STR
+___________________
+*Yw>IKzsj\uI8K[IQPag
+E.g.: Example for calling the dbms_random package and setting the seed for generating the same set of random numbers in different sessions. Please note that the same random numbers are generated in different sessions. Though I have found this to work on most accounts, in some cases, the first number generated was different in different sessions and the remaining were same. I recommend not using this option in any of production code until it is properly document by Oracle.
+
+declare
+     l_num    number;
+  begin
+    l_num := dbms_random.random;
+    dbms_output.put_line(l_num);
+    dbms_random.seed('amar testing 67890');
+    l_num := dbms_random.random;
+    dbms_output.put_line(l_num);
+  end;
+  /
+483791552
+478774329

@@ -1,0 +1,397 @@
+OWNER   OBJECT_TYPE          NB
+------- ------------------- ----------
+SASH    DATABASE LINK                3
+        INDEX                      172
+        JOB                          4
+        LOB                          1
+        PACKAGE                      3
+        PACKAGE BODY                 3
+        PROCEDURE                    3
+        SEQUENCE                     3
+        TABLE                      122
+        TRIGGER                      4
+        VIEW                        28
+
+TARGET DB :
+
+GRANTEE              OWNER                TABLE_NAME           GRANTOR              PRIVILEGE            GRA HIE COM TYPE
+-------------------- -------------------- -------------------- -------------------- -------------------- --- --- --- ------------------------
+SASH                 SYS                  DBA_DATA_FILES       SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  DBA_EXTENTS          SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  DBA_LIBRARIES        SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  DBA_OBJECTS          SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  DBA_USERS            SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  SASHNOW              SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$DATABASE          SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$EVENT_HISTOGRAM   SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$EVENT_NAME        SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$INSTANCE          SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$IOSTAT_FUNCTION   SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$LATCH             SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$OSSTAT            SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$PARAMETER         SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$SQL               SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$SQLSTATS          SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$SQLTEXT           SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$SQL_PLAN          SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$SYSMETRIC_HISTORY SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$SYSSTAT           SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$SYSTEM_EVENT      SYS                  SELECT               NO  NO  NO  VIEW
+SASH                 SYS                  V_$SYS_TIME_MODEL    SYS                  SELECT               NO  NO  NO  VIEW
+
+
+
+Installation steps :
+----------------------
+
+TARGET - database you want to monitor
+REPORITORY - database where all data will be kept and where all monitring jobs are running
+Uncompress sash.zip package into your working directory.
+Connect to TARGET database as user SYS and execute the following script.
+targ_userview_<db_version>.sql
+Run the following script as user SYS on REPOSITORY database
+sqlplus / as sysdba @config.sql
+and answer all questions. In first part script will create repository owner and whole repository schema. The following questions have to be answered:
+  >repository schema name - default is sash
+  >schema name password
+  >schema name tablespace
+
+Warining:
+-------------
+  If specified username and schema already exist it will be dropped and recreated with new empty repository. 
+  Press Control-C if you don't want to configure target database at that time. 
+
+Next part is a target (monitored) database configuration and the following questions have to be answered:
+ > database name,
+ > number of instances (1 for single instance database or more than one for RAC database),
+ > target database host name
+ > instance(s) name
+ > listener port
+ > password for sash user on target database.
+
+- Configuration script will create a database links from repository database to every instance of target database and will setup a collection jobs for active sessions 
+  (SASH_PKG_COLLECT_%) and jobs for SQL/metrics collection (SASH_PKG_GET_ALL%). 
+- Beside of that repository clean up job and watch dog job will be setup as well. 
+
+See example below
+--------------------
+sys@MCRORAT03> targ_userview_12cPDB.sql
+sys@MCRORAT02> @config
+"------------------------------------------------------------------------------------"
+Creating repository owner and job kill function using SYS user
+"------------------------------------------------------------------------------------"
+Enter user name (schema owner) [or enter to accept username sash] ?
+Enter user password ? sash
+Enter SASH user default tablespace [or enter to accept USERS tablespace] ?
+SASH default tablespace is: users
+"------------------------------------------------------------------------------------"
+Existing sash user will be deleted.
+If you are not sure hit Control-C , else Return :
+"------------------------------------------------------------------------------------"
+New sash user will be created.
+
+Warning: Procedure created with compilation errors.
+
+Connected.
+"------------------------------------------------------------------------------------"
+Installing SASH objects into sash schema
+"------------------------------------------------------------------------------------"
+Create sequence
+Create tables
+Crating SASH_REPO package
+No errors.
+No errors.
+Crating SASH_PKG package
+No errors.
+No errors.
+"------------------------------------------------------------------------------------"
+Instalation completed. Starting SASH configuration process
+Press Control-C if you do not want to configure target database at that time.
+"------------------------------------------------------------------------------------"
+##################################################################################################
+For non multitenant databases use unique database name and instance name
+For multitenant - use PDB name as database name and CDB name as a instance name
+##################################################################################################
+
+Enter database name MCRORAT03
+Enter number of instances [default 1]1
+Enter host name for instance number 1 MCR-ORA-T03
+Enter instance name (or CDB for 12c) for instance number 1 [ default MCRORAT03 ] MCRORAT03
+Enter listener port number [default 1521] 1521
+Enter SASH password on target database sash
+"------------------------------------------------------------------------------------"
+Configuration completed. Exiting.
+You can now connect using user name and password specified above
+"------------------------------------------------------------------------------------"
+Disconnected from Oracle Database 11g Enterprise Edition Release 11.2.0.1.0 - 64bit Production
+With the Partitioning, OLAP, Data Mining and Real Application Testing options
+check repository jobs and log table
+Login as user sash to repository database and run following script - job_stat.sql Output should be similar to this
+SQL> @job_stat.sql
+
+JOB_NAME                       LAST_START_DATE                     NEXT_RUN_DATE                       STATE           FAILURE_COUNT
+------------------------------ ----------------------------------- ----------------------------------- --------------- -------------
+SASH_PKG_GET_ALL_MCRORAT03     24-NOV-11 03.00.30.431000 +00:00    24-NOV-11 03.15.30.300000 +00:00    SCHEDULED                   0
+SASH_REPO_PURGE                                                    25-NOV-11 00.00.00.000000 +00:00    SCHEDULED                   0
+SASH_REPO_WATCHDOG             24-NOV-11 11.00.30.408000 +00:00    24-NOV-11 11.05.30.000000 +00:00    SCHEDULED                   0
+SASH_PKG_COLLECT_MCRORAT03     24-NOV-11 11.00.30.295000 +00:00    24-NOV-11 11.00.30.000000 +00:00    RUNNING                     0
+SASH_REPO_PURGE                                                    18-07-05 00:00:00,000000 -04:00     SCHEDULED                   0
+SASH_REPO_WATCHDOG             18-07-04 11:21:28,100000 -04:00     18-07-04 11:26:28,000000 -04:00     SCHEDULED                   0
+Check repository error log using the following script - checklog.sql
+SQL> @checklog.sql
+
+R START_TIME                ACTION                                           MESSAGE
+- ------------------------- ------------------------------------------------ ---------------------------------------------------------
+W 2011-11-24 11:07:20       add_db                                           no db link - moving forward MCRORAT03
+I 2011-11-24 11:07:20       configure_db                                     get_event_names
+I 2011-11-24 11:07:20       configure_db                                     get_users
+I 2011-11-24 11:07:20       configure_db                                     get_params
+I 2011-11-24 11:07:20       configure_db                                     get_data_files
+I 2011-11-24 11:07:20       configure_db                                     get_metrics
+I 2011-11-24 11:07:20       add_instance_job                                 adding scheduler job sash_pkg_collect_MCRORAT02
+I 2011-11-24 11:07:20       add_instance_job                                 adding scheduler job sash_pkg_get_all_MCRORAT02
+I 2011-11-24 11:07:21       create_repository_jobs                           adding new repository job
+--------------------------- ------------------------------------------------ --------------------------------------------------------ob
+I 2018-07-04 12:35:54       configure_db                                     get_event_names
+I 2018-07-04 12:35:54       configure_db                                     get_users
+I 2018-07-04 12:35:54       configure_db                                     get_params
+I 2018-07-04 12:35:54       configure_db                                     get_data_files
+I 2018-07-04 12:35:54       configure_db                                     get_metrics
+I 2018-07-04 12:35:55       add_instance_job                                 adding scheduler job sash_pkg_collect_1_1856493053
+I 2018-07-04 12:35:55       add_instance_job                                 adding scheduler job sash_pkg_get_all_1_1856493053
+I 2018-07-04 12:35:55       stop_and_remove_rep_jobs                         removed scheduler job SASH_REPO_PURGE
+I 2018-07-04 12:35:55       stop_and_remove_rep_jobs                         removed scheduler job SASH_REPO_WATCHDOG
+I 2018-07-04 12:35:55       create_repository_jobs                           adding new repository job
+I 2018-07-04 12:35:55       start_snap_collecting_jobs                       starting scheduler job SASH_PKG_GET_ALL_1_1856493053
+
++++++++++++++++++++
+Adding new Database
++++++++++++++++++++
+1. using script
+using adddb.sql script when connected to repository using respository owner. The following questions have to be answered:
+
+SQL> @adddb
+Enter database name mcrorat03
+Enter number of instances [default 1]
+Enter host name for instance number 1 mcr-ora-t03
+Enter instance name for instance number 1 [ default mcrorat03 ]
+Enter listener port number [default 1521]
+Enter SASH password on target database sash
+"------------------------------------------------------------------------------------"
+Database added.
+"-----------------
+
+2. Manual Configuration:
+If adddb.sql can't be used. use the following packages to manually configure new database (add database(s)/instance(s)) to repository 
+One instance :
+exec sash_repo.add_db('svr1', 1521, 'sash', 'test', 'test1', 1, '11.2.0.2', 8);
+exec sash_pkg.configure_db('test1');
+exec sash_pkg.set_dbid('test1');
+
+To setup a new jobs following package can be used:
+SQL> exec sash_repo.setup_jobs
+
+=====================================
+
+SQL> set serveroutput on
+SQL> declare
+     cursor c1 is select view_name from user_views;
+     c1rec c1%rowtype;
+     v_rowcount number;
+     begin
+       for c1rec in c1 loop
+          execute immediate 'select count(*) from ' || c1rec.view_name into v_rowcount;
+          dbms_output.put_line('View ' || c1rec.view_name || ' has ' || v_rowcount || ' rows');
+       end loop;
+     end;
+     /
+ ========= AWR ==========================    
+     -- the views 
+     
+VIEW_NAME
+------------------------------
+DBA_AUTO_SEGADV_CTL 
+DBA_AUTO_SEGADV_SUMMARY
+DBA_DATA_FILES
+DBA_HIST_ACTIVE_SESS_HISTORY
+DBA_HIST_EVENT_HISTOGRAM
+DBA_HIST_SNAPSHOT
+DBA_HIST_SQLSTAT
+DBA_HIST_SYSMETRIC_HISTORY
+DBA_HIST_SYSMETRIC_SUMMARY
+DBA_HIST_SYS_TIME_MODEL
+DBA_SDO_MAPS
+DBA_SDO_STYLES
+DBA_SDO_THEMES
+DBA_USERS
+V$ACTIVE_SESSION_HISTORY
+V$DATABASE
+V$INSTANCE
+V$IOSTAT_FUNCTION
+V$OBJECT_USAGE
+V$PARAMETER
+V$SQL
+V$SQLSTATS
+V$SQLTEXT_WITH_NEWLINES  -- table contains the full text of SQL statements for (nearly all) SQL_ID values included in other AWR tables
+V$SQL_PLAN
+V$SYSMETRIC_HISTORY
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Find time ranges of load spikes: Average Active Sessions (AAS)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+example :
+4 sessions 
+Duration of one minute observation each 
+total DB time =  4 minutes. 
+average active sessions = DB Time /elasped time =4/1 = 4 Average Active session
+ if the AAS metric is significantly less than the number of CPUs, then database performance should be fine
+The best approach, as described in detail below, is to use a large elapsed time when possible for convenience, but to also know when to focus in, using small elapsed times to identify brief spikes.
+non-uniformity (skew) : brief spikes that are hiden  calculated using calculating the ratio of the variance to the mean of the observations: a "high" ratio indicates skew.
+     
+SCRIPTS :
+SCENARIO:
+SQL> @aas-per-hour
+Enter value for hours: 12
+old  18:         sample_time > sysdate - (&hours/24)
+new  18:         sample_time > sysdate - (12/24)
+
+SAMPLE_HOUR          CPU_AVG   WAIT_AVG    ACT_AVG ACT_VAR_MEAN
+----------------- ---------- ---------- ---------- ------------
+2008-04-16 07:00         1.4         .4        1.8           .6
+2008-04-16 08:00         1.8         .5        2.3            1
+2008-04-16 09:00         2.3         .5        2.8          1.3
+2008-04-16 10:00         2.6         .6        3.2          2.3
+2008-04-16 11:00         3.5         .6        4.1          2.3
+2008-04-16 12:00         2.4         .6          3          1.1
+2008-04-16 13:00         2.3         .6        2.9            1
+2008-04-16 14:00         3.7        2.7        6.4         95.4   <== spike in variance   (something went wrong performance wise)
+- Investigate the precise minute :
+SQL> aas-per-min-awr
+Enter value for minutes: 300
+old  18:         SAMPLE_TIME > sysdate - (&minutes/1440)
+new  18:         SAMPLE_TIME > sysdate - (300/1440)
+
+SAMPLE_MINUTE           CPU_AVG   WAIT_AVG    ACT_AVG ACT_VAR_MEAN
+-------------------- ---------- ---------- ---------- ------------
+2008-04-16 13:54:00           3          1          4            0
+2008-04-16 13:55:00         3.2         .3        3.5           .7
+2008-04-16 13:56:00         4.2         .3        4.5          3.4
+2008-04-16 13:57:00         3.8         .8        4.7           .7
+2008-04-16 13:58:00         6.3          1        7.3          1.6
+2008-04-16 13:59:00         3.4         .4        3.8           .2
+2008-04-16 14:00:00         8.3         .5        8.8          1.8
+2008-04-16 14:01:00        10.7        2.2       12.8           .5
+2008-04-16 14:02:00         3.5         .7        4.2           .5
+2008-04-16 14:03:00         2.6        1.2        3.8          1.5
+2008-04-16 14:04:00         3.3        1.2        4.5          1.3
+2008-04-16 14:05:00         8.2         .7        8.8          2.1
+2008-04-16 14:06:00         6.7        1.3          8          1.1
+2008-04-16 14:07:00         4.7        3.2        7.8          3.7
+2008-04-16 14:08:00        20.5      109.8      130.3          170  <== spike in AAS (very skew performance) 
+
+A - Find time ranges of load spikes: Average Active Sessions (AAS):
+-----------------------------------------------------------------
+ aas-per-min.sql (ASH)
+ aas-per-hour.sql (AWR)
+ aas-per-min-awr.sql (AWR)
+ aas-exact.sql    (AWR)
+ 
+B - Find specific problem SQLs: Sort by aggregated statistics : This script looks at three metrics only, but it is easy to use other metrics stored by the DBA_HIST_SQLSTAT table
+-------------------------------------------------------------
+ find-expensive.sql (AWR)
+- Find specific problem SQLs: Non-uniform statistics || excellent way to find skew using variance 
+------------------------------
+ high-var-sql.sql (AWR) - var = the variance/mean
+ 
+C - Characterize a problem SQL's behavior over time :
+----------------------------------------------------
+ sql-stat-hist.sql (AWR)
+  
+  
+++++++++++++++++++++++++++++++++++++  
+  DBA_HIST_ACTIVE_SESS_HISTORY :
+++++++++++++++++++++++++++++++++++++
+ one in ten v$active_session_hstory samples are persisted to disk and made available in the DBA_HIST_ACTIVE_SESS_HISTORY view. a sample of a sample. Similar to using the V$ACTIVE_SESSION_HISTORY , 
+ but remember the sample time is now 10 seconds, so use (count*10) to measure time, rather than just the count.
+ 
+  SELECT NVL(a.event, 'ON CPU') AS event,
+       COUNT(*)*10 AS total_wait_time  ------ x 10
+FROM   dba_hist_active_sess_history a
+WHERE  a.sample_time > SYSDATE - 1 
+GROUP BY a.event
+ORDER BY total_wait_time DESC;
+  
+     
+== Shared Pool
+select   sql_id,event,time_waited "time_waited(s)",
+    case when time_waited = 0 then         0
+    else   round(time_waited*100 / sum(time_waited) Over(), 2)
+    end "percentage"
+from  (select sql_id,event, sum(time_waited) time_waited
+        from v$active_session_history
+        group by event,sql_id order by 3 desc )
+order by    time_waited desc;
+     
+-- AWR     
+     
+     select sql_id,event,round(time_waited*100 / sum(time_waited) Over(), 2) waited_PCT
+     from(
+     select sql_id ,event, sum(time_waited) time_waited
+             from dba_hist_active_sess_history h JOIN dba_hist_snapshot sn ON h.snap_id = sn.snap_id 
+               WHERE sn.begin_interval_time BETWEEN TO_DATE('04/07/18 13:00','DD/MM/YY HH24:MI') AND TO_DATE('04/07/18 17:00','DD/MM/YY HH24:MI')            
+             group by event ,sql_id            
+             order by 3  desc    )
+             where rownum<=5;
+             
+ ***-  modules that did the most non idle waiting in a specific time frame:
+             SELECT SUM(TIME_WAITED) total_time,module 
+             FROM dba_hist_active_sess_history h JOIN dba_hist_snapshot sn ON h.snap_id = sn.snap_id 
+             WHERE sn.begin_interval_time BETWEEN TO_DATE('04/07/18 13:00','DD/MM/YY HH24:MI') AND TO_DATE('04/07/18 17:00','DD/MM/YY HH24:MI') 
+             GROUP BY  module 
+             ORDER BY total_time desc ;
+             
+*** - check sql id per wait event 
+      select event, sql_id, count(*),avg(time_waited) avg_time_waited
+      From v$active_session_history
+      Where event like nvl('&event','%more data from%')
+      Group by event, sql_id
+      Order by event, 3
+/
+   
+*** - Check Top ASH sql v$
+select sql_id, count(*),--session_id,
+count(*)*100/sum(count(*)) over() pctload
+from v$active_session_history
+where sample_time > sysdate - 1/24
+and session_id = nvl('&session_id',session_id)
+group by sql_id --,session_id 
+order by count(*) desc;
+   
+   
+   ----PX Deq: Slave Session Stats
+   ===========ASHMON=============
+   Install                                                                         
+                                                                                              
+                                                                                
+   Download: ashmon.zip                                                            
+            Windows Only (portable to UNIX with TCL/TK executable for UNIX)        
+   Unzip ashmon.zip                                                                
+   Run ashmon.bat                                                                  
+            with ashmon\bin\ as the starting directory                             
+   Login as "system"                                                               
+   Supports 10g or 11                                                              
+            can run on earlier versions of Oracle with S-ASH repository S-ASH      
+            need to create some veiws on SASH as well as wait groups               
+                                                                                   
+                                                                                
+   Features                                                                        
+   Based on ASH                                                                    
+   System Load                                                                     
+   measured in AAS - Average Active Sessions                                       
+   broken down into CPU and wait group states                                      
+   window slider (mouse click drag, release)                                       
+   Top SQL in window                                                               
+   ( Top Session in window - not implemented yet)                                  
+   Zoom in on Load (right click start, right click finish, clear with double click)
+   SQL Text for selected SQL                                                       
+   SQL execution time line (click twice on SQL id)                                 

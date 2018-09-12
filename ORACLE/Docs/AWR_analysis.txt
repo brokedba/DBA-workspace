@@ -1,0 +1,371 @@
+Steps to Analyze AWR Report
+
+3. Snap Shot Detail:
+DB Time= session time spent in database.
+DB Time= CPU Time + Non IDLE wait time.
+Next is Cache Sizes, which is just detail about SGA components.
+4. Load Profile:
+
+Here are few important stats for a DBA to look into. Fist is "DB CPU(s)" per second. Before that let's understand how DB CUP's work.
+Suppose you have 6 cores x12 CPUs (AGCMTA) into the system. So, per wall clock second you have 6 seconds to work on CPU. 
+ So, if "DB CPU(s)" per second in this report > cores in (Host Configuration (#2)).means env is CPU bound and either need more CPU's or need
+ to further check is this happening all the time or just for a fraction of time. 
+As per my experience there are very few cases, when system is CPU bound.
+
+In this case, machine has 12 cores and DB CPU(s) per second is 6.8. So, this is not a CPU bound case. 
+Next stat to look at are Parses and Hard parses. If the ratio of hard parse to parse is high, this means
+ Database is performing more hard parse. So, needs to look at parameters like cursor_sharing and application level for bind variables etc.
+
+5. Instance Efficiency Percentages:
+
+In these statistics, you have to look at "% Non-Parse CPU". If this value is near 100% means most of the CPU resources are used into operations other than parsing, which is good for database health.
+
+6. Top 5 Timed Foreground Events:
+Event	                  Waits	          Time(s)     Avg Wait(ms)   %TotalCall Time     Wait Class
+------------------------- -------------- ------------ -------------  ------------------ -----------
+PX Deq Credit: send blkd  60,515,586	  1,990,722	  33	       84.7	         Other
+db file sequential read	  64,461,220	  238,835	   4	       10.2	         User I/O
+CPU time	 	                  33,328                       1.4	 
+direct path read	  1,640,368	  13,775       	   8	        .6	         User I/O
+log file parallel write	  1,599,630	  6,459	           4	        .3	         System I/O
+
+
+its critical to look into this section. If you turn off the statistic parameter, then the Time(s) wont appear. 
+Wait analysis should be done with respect to Time(s) as there could be million of waits but if that happens for a second or so then who cares. 
+Therefore, time is very important component.
+you may see the different waits on your AWR report. So lets discuss the most common waits.
+
+Here, first of all check for wait class if wait class is  User I/O , System I/O,  Others etc this could be fine but if wait class
+has value "Concurrency" then there could be some serious problem. Next to look at is Time (s) which show how many times DB was waiting 
+in this class and then Avg Wait (ms). If Time(s) are high but  Avg Wait (ms) is low then you can ignore this. If both are high or Avg 
+Wait (ms) is high then this has to further investigate.In the above screen shot, most of the resource are taken by DB CPU = 64% DB time.
+Taking resource by DB CPU is a normal situation.
+
+Let's take an example,  In which event is "log file switch (checkpoint incomplete) " which has high waits, huge Time (s) and large values in Avg Wait(ms)
+and wait class is configuration.So, here you have to investigate and resolve log file switch (checkpoint incomplete).Host CPU, Instance CPU and Memory 
+Statistics are self explanatory.Next is RAC Statistics..
+
+7. Time Model Statistics:
+
+Statistic Name	                        Time (s)      % of DB Time
+--------------------------------------- ------------ ---------------
+sql execute elapsed time	        2,341,710.88  99.66
+DB CPU	                                33,328.46     1.42
+PL/SQL execution elapsed time	        8,079.14     0.34
+parse time elapsed	                1,400.83     0.06
+hard parse elapsed time	                1,098.66     0.05
+Java execution elapsed time	        175.50	     0.01
+connection call elapsed time	        63.65	     0.00
+hard parse(sharing criteria)elapsedtime 31.47	     0.00
+PL/SQL compilation elapsed time	        24.13	     0.00
+hard parse (bind mismatch)elapsed time	8.07	     0.00
+repeated bind elapsed time	        2.37	     0.00
+failed parse elapsed time	        1.87	     0.00
+sequence load elapsed time	        0.68	     0.00
+DB time	                                2,349,627.79	 
+background elapsed time	                14,498.43	 
+background cpu time	                975.36	
+
+This is a detailed explanations of system resource consumptions. Stats are order by Time (s) and % of DB Time.
+A noticeable result Sum of all  % of DB time is > 100%. why is this ?
+
+Because this is cumulative time i.e. In this case SQL execute elapsed time is taking 89% of DB time, which includes it sub parts like parse time elapsed,
+hard parse elapsed time etc. So, if you find Hard parse time elapsed is taking more %. So investigate further so on and so forth.
+
+DBA has to look for stat which is taking abnormal % of DB time.  
+
+8. Operating System Statistics - Detail:OS load status on System shown here.
+
+Statistic	        Total
+------------------- -------------------
+NUM_LCPUS	        0
+NUM_VCPUS	        0
+AVG_BUSY_TIME	        1,592,325
+AVG_IDLE_TIME	        17,915,126
+AVG_IOWAIT_TIME         1,144,987
+AVG_SYS_TIME	        1,021,164
+AVG_USER_TIME	        565,189
+BUSY_TIME	        19,180,041
+IDLE_TIME	        215,053,176
+IOWAIT_TIME	        13,812,075
+SYS_TIME	        12,325,494
+USER_TIME	        6,854,547
+LOAD	                1
+OS_CPU_WAIT_TIME        26,112,800
+RSRC_MGR_CPU_WAIT_TIME	0
+VM_IN_BYTES	        2.1E+11
+VM_OUT_BYTES	        2.0E+11
+PHYSICAL_MEMORY_BYTES	17,179,869,184
+NUM_CPU_CORES	        6
+NUM_CPUS	        12                                    
+
+This report shows, system is 62 and 70% idle at time of report taken, So,there is no resource crunch at system level.
+But if, you found very high busy, user or sys % and indeed this will led to low idle %. Investigate what is causing this. OS Watcher is the tool which can help. 
+
+9. SQL Ordered by Elapsed Time:
+
+ In this report, look for query has low executions and high Elapsed time per Exec (s) and this query could be a candidate for troubleshooting or optimizations. 
+ In Important point, if executions is 0, it doesn't means query is not executing, this might be the case when  still executing and you took AWR report. 
+ That's why query completion was not covered in Report. 
+
+10. SQL Ordered by CUP Time:
+
+Queries causing high load on the system. The top few queries could be the candidate query for optimization.
+stat, look for queries using highest CPU Times, If a query shows executions 0,It might be that The query is still executing and you have taken the snapshot.
+
+11. Shared Pool Statistics
+
+                                 Begin	End
+------------------------------- ------ -----
+Memory Usage %:	                 46.12	47.67
+% SQL with executions>1:	 83.15	87.16
+% Memory for SQL w/exec>1:	 68.63	82.13
+
+
+Memory Usage % is the shared pool usage. So here we have use 46.12 per cent of our shared pool and out of that almost 68 percent is being re-used. 
+if Memory Usage % is too large like 90 % it could mean that your shared pool is tool small and if the percent is in 50 for example then this could mean that you shared pool is too large
+
+12. Enqueue Activity
+
+The Enqueue activity report provides information on enqueues (higher level Oracle locking) that occur.
+As with other reports, if you see high levels of wait times in these reports, you might dig further into the nature of the enqueue
+and determine the cause of the delays. Here is an example of this report section:
+Enqueue Type (Request Reason)
+------------------------------------------------------------------------------
+    Requests    Succ Gets Failed Gets       Waits  Wt Time (s) Av Wt Time(ms)
+------------ ------------ ----------- ----------- ------------ --------------
+PS-PX Process Reservation
+         386          358          28         116            0            .43
+US-Undo Segment
+         276          276           0         228            0            .18
+TT-Tablespace
+          90           90           0          42            0            .71
+WF-AWR Flush
+          12           12           0           7            0           1.43
+MW-MWIN Schedule
+           2            2           0           2            0           5.00
+TA-Instance Undo
+          12           12           0          12            0            .00
+UL-User-defined
+           7            7           0           7            0            .00
+CF-Controlfile Transaction
+       5,737        5,737           0           5            0            .00
+       
+       
+13.Undo Segment Summary
+The undo segment summary report provides basic information on the performance of undo tablespaces.
+
+14.Latch Activity
+
+The latch activity report provides information on Oracle's low level locking mechanism called a latch.
+From this report you can determine if Oracle is suffering from latching problems, and if so, which latches are
+causing the greates amount of contention on the system. Here is a partial example of the latch activity report (it is quite long):
+                                           Pct    Avg   Wait                 Pct
+                                    Get    Get   Slps   Time       NoWait NoWait
+Latch Name                     Requests   Miss  /Miss    (s)     Requests   Miss
+------------------------ -------------- ------ ------ ------ ------------ ------
+ASM allocation                      122    0.0    N/A      0            0    N/A
+ASM map headers                      60    0.0    N/A      0            0    N/A
+ASM map load waiting lis             11    0.0    N/A      0            0    N/A
+ASM map operation freeli             30    0.0    N/A      0            0    N/A
+
+as the wait times on the latches are 0, and our get miss pct (Pct Get Miss) is 0 also.
+There is also a latch sleep breakdown report which provides some additional detail if
+a latch is being constantly moved into the sleep cycle, which can cause additional performance issue 
+
+
+***********************************************************
+15.Segments by Logical Reads and Segments by Physical Reads
+***********************************************************
+
+This Provide information on the database segments (tables, indexes)that are receiving the largest number of logical or physical reads.
+These reports can help you find objects that are "hot" objects in the database.review the objects and determine why they are hot,
+and if there are tuning opportunities on those objects (e.g. partitioning),or on SQL accessing those objects.
+For example, if an object is showing up on the physical reads report, it may be that an index is needed on that object.
+Here is an example:
+
+**SEGMENTS BY LOGICAL READS  LIO
+Total Logical Reads: 1,257,694,580
+Captured Segments account for 30.6% of Total
+
+Owner	Tablespace 	 Object                 Subobject Name     Object Type     Logical Reads %Total
+------- ---------- ---------------------------- ---------------- ----------------- ------------- --------
+CMC	CMC	   CMC_CHANNEL_USAGE	        USAGE_PT_1      TABLE PARTITION	   33,647,008	 2.68
+CMC	CMCI	   CMC_CHU_NPERS_HASH_CHANGED_I	INDEX	        28,900,800	   2.30
+SYS	SYSAUX	   WRH$_SEG_STAT_OBJ	 	TABLE	        24,265,664	   1.93
+CMC	CMC	   CMC_PAVE_ECO	 	        TABLE	        23,606,400	   1.88
+SYS	SYSAUX	   WRI$_ADV_OBJECTS	 	TABLE	        19,145,840	   1.52
+  
+**SEGMENTS BY PHYSISCAL READS   PIO                                                                   
+Total Physical Reads: 129,762,479                                                             
+Captured Segments account for 62.1% of Total                                                  
+
+Owner	Tablespace 	 Object                 Subobject Name     Object Type     Logical Reads %Total  
+------- ---------- ---------------------------- ---------------- ----------------- ------------- --------
+CMC	CMC	    CMC_PAVE_ECO	 	                  TABLE	           6,177,401	 4.76                          
+CMC	CMCI	    CMC_CHU_NPERS_HASH_CHANGED_I	 	  INDEX	           4,022,484	 3.10          
+CMC	CMC	    CMC_CUSTOMERS	          MERS_PT_14	  TABLE PARTITION  2,226,925	 1.72          
+CMC	CMC	    CMC_CUSTOMERS	          MERS_PT_12	  TABLE PARTITION  2,216,592	 1.71  
+
+LIO = logical = from/to the buffer cache ( not disk ).LIO *may* have incurred a PIO in order to get into the cache in the                     
+first place.So removing PIO's will come *naturally* by reducing LIO's.        
+PIO - to/from the disk. !physical reads may well be satisfied from the file system cache. 
+
+
+    
+1-Recursive calls: Oracle querying the data dictionary to get information about the objects (tables, indexes, privileges)in the query. 
+If tables haven't been queried before or don't have any information about the query objects in dictionary cache Oracle will have to do queries to
+get information about these objects .second execution doesn't have to query it again so the count shows zero.Other example, if inserted a row into
+a table that does not have enough space to hold that row, then Oracle makes recursive calls to allocate the space dynamically.  
+
+2-db block gets (access type:current mode ): Most current version of the data in block (unique in buffer cache).As it is right now(including uncommitted changes) regardless of SCN.
+used when a DML query is (previously) executed then row-level locks are implicitly taken on the updated rows.Or when it does a full
+table scan or fast full index scan,to allow Oracle to read the segment header.
+
+3-consistent get(access type:consistent mode): serialized SCN consistent data reconstructed from undo segments/before image blocks (inplies lacthes in the undo segments)
+to grab for a select statement.Latches are used to serialize access to many (linked lists pointing to buffers) or (to buffer blocks).Consistent gets
+cannot, will not be affected by any of the optimizer_* settings.
+Each consistent get is a latch(s) (lock) = contention=>more LIO's                                
+
+
+                            FULL SCAN  INDEX      Difference
+                            --------- ----------- ---------------------------------------------------
+LATCH.cache buffers chains  67428      6547789    6480361 (6.4 million more cbc latches)> more LIO's>more cache hit ratio 95+ 
+Statistics
+--------------------------------------------------------------------------------------------------
+          0  recursive calls
+        117  db block gets
+      22861  consistent gets(logical ios)--Full Scan     1,684,470 logical ios!!INDEX ROW SCAN
+             physical reads
+          0  redo size
+          2  sorts (memory)
+          0  sorts (disk)
+    1576192  rows processed
+
+To get block from cache,we latch(prevent someone from modifying the data structures we are currently reading).
+latch=>lock=>serialization devices=>the more you use them,the less concurrency you get.(inhibit scalability)
+
+EXPLANATION:
+--------------
+why INDEX ROW SCAN =>1,684,470 logical ios!!
+
+why so many more?  Well, 
+1-it read the first index leaf block. The 1st row on that leaf block said "read block 55 of the table", 2nd row says "read block 100", 
+3rd = read block 1001, 4th = read block 2134 and so on.Say there were 500 index entries on that first leaf block=>have to read 500 different db blocks
+for this first block alone.
+2-Now, we move onto the second leaf block.It says "read block 2134" -- we'll, we now need to retrieve block 2134 from the buffer cache again.
+We already read it once on the first index block but here we are back at it again.  
+...We'll read and re-read the table blocks over and over again because the index tells us the order of the rows to process --we don't do simple, fast, full table scan.
+
+                                
+select rowid from dual; tatistics
+----------------------------------------------------------
+          0  recursive calls
+          4  db block gets
+          1  consistent gets 
+......
+
+In the above example, Oracle uses four db block gets (current mode reads)to determine how to full scan dual table.
+The blocks read from db block gets are segment headers which instruct Oracle where to locate the data.
+
+
+
+13--Instance Activity Statistics:
+
+Instance Activity Stats
+Instance Activity Stats - Absolute Values
+Instance Activity Stats - Thread Activity
+
+14- IO Stats:
+   Tablespace IO Stats
+   File IO Stats
+
+15- Buffer Pool Statistics :
+Standard block size Pools D: default, K: keep, R: recycle
+Default Pools for other block sizes: 2k, 4k, 8k, 16k, 32k
+
+16- Advisory Statistics:
+
+ -Instance Recovery Stats
+ -Buffer Pool Advisory
+ -PGA Aggr Summary
+ -PGA Aggr Target Stats
+ -PGA Aggr Target Histogram
+ -PGA Memory Advisory
+  ‘Estd PGA Overalloc Count’ : estimate how many times database would need to request from OS more PGA_target memory  ===> 0 
+  “Estd Extra W/A MB Read/Written to Disk” :  estimate work area MB read written to disk ====> need to be reduced 
+  
+  
+                                       Estd Extra    Estd PGA   Estd PGA
+PGA Target    Size           W/A MB   W/A MB Read/      Cache  Overalloc
+  Est (MB)   Factr        Processed Written to Disk     Hit %      Count
+---------- ------- ---------------- ---------------- -------- ----------
+        44     0.1        289,899.2          7,844.9     97.0      1,124
+        88     0.3        289,899.2          7,576.9     97.0      1,073
+       176     0.5        289,899.2              3.3    100.0          0
+       263     0.8        289,899.2              3.3    100.0          0
+       351     1.0        289,899.2              3.3    100.0          0
+       421     1.2        289,899.2              0.0    100.0          0
+       491     1.4        289,899.2              0.0    100.0          0
+       562     1.6        289,899.2              0.0    100.0          0
+       632     1.8        289,899.2              0.0    100.0          0
+       702     2.0        289,899.2              0.0    100.0          0
+     1,053     3.0        289,899.2              0.0    100.0          0
+     1,404     4.0        289,899.2              0.0    100.0          0
+     2,106     6.0        289,899.2              0.0    100.0          0
+     2,808     8.0        289,899.2              0.0    100.0          0
+          -------------------------------------------------------------
+ -Shared Pool Advisory
+ -SGA Target Advisory
+ SGA Target   SGA Size       Est DB     Est Physical
+  Size (M)     Factor     Time (s)            Reads
+---------- ---------- ------------ ----------------
+       528        0.5       25,595          769,539
+       792        0.8       20,053          443,095
+     1,056        1.0       18,443          165,649
+     1,320        1.3       18,354          150,476
+     1,584        1.5       18,345          148,819
+     1,848        1.8       18,345          148,819
+     2,112        2.0       18,345          148,819
+ -Streams Pool Advisory
+ -Java Pool Advisory
+ 
+ 
+ 
+ 
+***********************************************************************************************************************************
+                            db block get
+***********************************************************************************************************************************
+ 
+ 
+-Oracle accesses blocks in one of two modes: current or consistent.
+ 
+A 'db block get' is a current mode get.  That is, it's the most up-to-date
+copy of the data in that block, as it is right now, or currently.  There
+can only be one current copy of a block in the buffer cache at any time.
+Db block gets generally are used when DML changes data in the database.
+In that case, rlevel locks are implicitly taken on the updated rows.
+There is also a     t least one well-known case where a select statement does
+a db block get,d does not take a lock.  That is, when it does a full
+table scan or fast full index scan, Oracle will read the segment header
+in current modeultiple times, the number varies based on Oracle version).
+                    
+A 'consistent get' is when Oracle gets the data in a block which is consistent
+with a given point in time, or SCN.  The consistent get is at the heart of
+Oracle's read consistency mechanism.  When blocks are fetched in order to
+satisfy a query result set, they are fetched in consistent mode.  If no
+block in the buffer cache is consistent to the correct point in time, Oracle
+will (attempt to) reconstruct that block using the information in the rollback
+segments.If it fails to do so, that's when a query errors out with ORA-1555 "snapshot too old".
+
+As to latching, and how it relates, well, consider that the block buffers
+are in the SGA, which is shared memory.  To avoid corruption, latches are 
+used to serialize access to many linked lists and data structures that point
+to the buffers as well as the buffers themselves.  It is safe to say that 
+each consistent get introduces serialization to the system, and by tuning
+SQL to use more efficient access paths, you can get the same answer to the
+same query but do less consistent gets.  This not only consumes less CPU,
+it also can significantly reduce latching which reduces serialization and
+makes your system more scalable.
+     
+                                                                                       

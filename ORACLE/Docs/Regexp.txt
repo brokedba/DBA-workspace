@@ -1,0 +1,82 @@
+REGEXP_REPLACE(source_string, pattern
+[, replace_string [, position
+[,occurrence, [match_parameter]]]])
+ 
+ 
+-- collapse multiple spaces to a single space:
+SELECT 
+REGEXP_REPLACE('some    text    with lots     of    extra spaces', 
+'( ){2,}', ' ') 
+RESULT FROM dual;
+ 
+ 
+ 
+-- The following query replaces any two or more spaces 
+-- with a single space. The ( ) subexpression contains a single 
+-- space, which can be repeated two or more times, as indicated 
+-- by {2,}.
+ 
+SELECT REGEXP_REPLACE('Joe   Smith',
+       '( ){2,}', ' ')
+       AS RX_REPLACE
+  FROM dual
+RX_REPLACE
+----------
+Joe Smith 
+ 
+ 
+ 
+ 
+-- Replace a period with a string to extend the sentence: 
+SELECT REGEXP_REPLACE('I cannot see you.','\.',' in the dark.') 
+REGEXT_SAMPLE
+FROM dual;
+
+
+
+ select REGEXP_REPLACE(CNAL1,'''','') from TCM.TPA249 where CNAL1 like '%''%'and  rownum<10;
+ 
+-- The next example shows the name 'Mike Steven Rogers' transformed 
+-- to Rogers, Mike Steven, by referring to the individual 
+-- subexpressions by number:
+ 
+SELECT REGEXP_REPLACE(
+       'Mike Steven Rogers',
+       '(.*) (.*) (.*)', '\3, \1 \2')
+  FROM dual
+REGEXP_REPLACE('EL
+------------------
+Rogers, Mike Steven
+ 
+ 
+-- The following example shows use of the REGEP_SUBSTR function 
+-- to find any duplicate occurrences of alphanumeric values 
+-- separated by a space. The displayed result shows the 
+-- substring that identifies the duplicated words 'IS'.
+ 
+SELECT REGEXP_SUBSTR(
+       'The final test IS IS the implementation',
+       '([[:alnum:]]+)([[:SPACE:]]+)\1') AS substr
+  FROM dual
+SUBSTR
+------
+is is 
+ 
+ 
+-- With REGEXP_REPLACE it is simple to filter out certain 
+-- parts of data. This example shows how a very simple HTML 
+-- filter could be written.
+SELECT REGEXP_REPLACE (c1, ‘<[^>]+>’)
+FROM t1
+ 
+ 
+-- insert a space between each character. With REGEXP_REPLACE 
+and backreferences, we are able to replace every letter by 
+-- itself followed by a space:
+ 
+CREATE VIEW v1 AS
+SELECT empno,
+REGEXP_REPLACE(email, '(.)', '\1 ‘) email
+FROM emp;
+SELECT email FROM v1 WHERE empno = 7369;
+-> j d o e @ s o m e w h e r e . c o m

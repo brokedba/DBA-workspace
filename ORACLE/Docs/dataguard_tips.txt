@@ -1,0 +1,1836 @@
+The Active Data Guard contains the following features : 
+---------------------------------------------------------------- 
+-Physical Standby with Real-time Query 
+-Fast Incremental Backup on Physical Standby - Automatic Block Repair : transparently repair physical corruptions wherever they occur,  (primary or standby ) 
+-continuous validation -Far Sync -RMAN Block Change Tracking -Active 
+Data Guard Rolling Upgrade -Global Database Services to provide intelligent load 
+balancing and automated service management across replicated databases.  
+-Application Continuity to make outages transparent to users by reliably handling in-flight transactions. See Application Continuity for more information.
+
+What is the difference between Oracle Data Guard and Oracle Active Data Guard?: 
+-------------------------------------------------------------------------------
+The description suggests that "active data guard" is Data Guard with physical 
+standby, opened for read-only transactions -"If a license for the Oracle Active 
+Data Guard option has been purchased, Redo Apply Services can also run on a 
+physical standby database instance that is open."
+
+II- Conversion from Physical standby to Active Data Guard : 
+------------------------------------------------------------
+ We can convert the physical standby 
+into active Data Guard standby . Below are the steps 
+
+1.) Stop Apply Services SQL> alter database recover managed standby database cancel ;
+
+2.) Shut the database and open in mount stage
+
+ SQL> shut immediate  SQL> startup mount SQL> alter database recover managed 
+ standby database using current logfile disconnect ; SQL> alter database open ; 
+ It enables us to have a physical standby read only open, while redo apply is  still done in the background .
+
+------------------------------------------------------- 
+**How to Check if Active Data Guard is  Enabled  or Not 
+-------------------------------------------------------- 
+Use the following query to confirm that Data Guard is in active mode: 
+MTLSTD> select  'Using Active Data Guard' ADG  from 
+v$managed_standby m,v$database d where m.process like 'MRP%'  ; 
+
+ADG 
+----------------------- 
+Using Active Data Guard or from standby datbase
+
+SQL> select open_mode,controlfile_type from v$database; 
+
+OPEN_MODE             CONTROLFILE_type                                 OPEN_MODE CONTROL
+-------------------- ------------------ active  DG                    ---------- ----------- INACTIVE DG
+READ ONLY WITH APPLY   STANDBY                                         MOUNTED   STANDBY
+
+-------------------------- ** SNAPSHOT DATABSE --------------------------
+
+Snapshot DataBase open read write but lose all changes when converted back to 
+standby mode). A snapshot standby cannot be the target of a role transition 
+unless it is converted to physical standby and received all missing redologs
+
+
+Redo Apply Services: 
+--------------------- 
+Redo Apply services run on a physical 
+standby database. Redo Apply reads redo records from a standby redo log file, 
+performs Oracle validation to ensure that redo is not corrupt, and then applies 
+redo changes to the standby database. Redo apply functions independently of redo 
+transport to insure that the primary database performance and data protection 
+(Recovery Point Objective - RPO) is not affected by apply performance at the 
+standby database. Even in the extreme case where apply services have been 
+stopped, Data Guard transport continues to protect primary data by transmitting 
+redo to the standby where it is archived for later use when apply is restarted. 
+
+=============================================== 
+Real-Time Apply to Apply Redo Data Immediately (needs standby redo log) 
+=============================================== 
+If the real-time apply feature 
+is enabled, log apply services can apply redo data as it is received, without 
+waiting for the current standby redo log file to be archived. This results in 
+faster switchover and failover times because the standby redo log files have 
+been applied already to the standby database by the time the failover or 
+switchover begins.
+
+Use the ALTER DATABASE statement to enable the real-time apply :
+
+physical standby databases: SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE 
+USING CURRENT LOGFILE ; // (USING CURRENT LOGFILE is deprecated/not necessary to 
+start real-time apply as 12c Release 1 (12.1), )
+
+Logical  standby databases:  SQL> ALTER DATABASE START LOGICAL STANDBY APPLY 
+IMMEDIATE ;
+
+Note (10g): IF LGWR isn't specified in LOG_ARCHIVE_DEST_2 parameter, ARCH 
+process takes the responsibility to transport redo, and hence it won't be a 
+real-time redo apply. But 'LGWR' keyword is no longer necessary as of 11g.
+
+===========================================================================================================
+ Data Guard broker enhancements available in Oracle Database 12c : 
+============================================================================================================ 
+» Configurable thresholds for transport lag and 
+apply lag allow a user to specify tolerance for data loss, also referred to as 
+recovery point objective or RPO. The broker generates a warning status if 
+transport or apply is affected in any way that creates the potential for data 
+loss to exceed RPO. » A new VALIDATE DATABASE command conducts extensive 
+validation checks to ensure that a Guard configuration is ready for a switchover 
+or failover operations. » Resumable Switchover: In previous releases a failed 
+switchover would require a broker configuration to be deleted and re-created and 
+all actions to extricate from the failed state would be made from the SQL 
+command line. The Resumable Switchover feature allows you the option to address 
+a failed switchover in any of the following ways: » Resolve the problem and re-
+issue broker switchover – broker picks up where it left off » Use broker to 
+switch back to the original primary while the problem is resolved » Use broker 
+to switchover to another standby database in a multi-standby configuration
+
+Fast-Start Failover 
+-------------------- 
+Fast-Start Failover allows Data Guard 
+to automatically failover to a previously chosen standby database without requiring manual intervention to invoke the failover. Data Guard continuously 
+monitors the status of the configuration and initiates a failover if needed. Fast-Start Failover has built-in controls to prevent split-brain (a condition 
+where more than a one database believes it is the primary at the same time). This simple yet tightly controlled architecture makes fast-start failover ideal when both HA and DR are required. 
+- Automating Client Failover The ability to quickly perform a database failover is only the first requirement for HA. 
+Applications must also be able to quickly drop their connections to a failed primary database and quickly reconnect to the new primary database. 
+Effective client failover in a Data Guard context has three components: 
+» Fast database failover 
+» Fast start of database services on the new primary database 
+» Fast notification of clients and reconnection to the new primary database
+
+Active Data Guard Active Data Guard is an Oracle Database Enterprise Edition option. It includes all of the Data Guard functionality described to this point, 
+as well as capabilities described in the following sections.
+ - Real-Time Query 
+ – Performance and ROI 
+ - Automatic Block Repair 
+ – High Availability 
+ - Far Sync 
+ - Zero Data Loss Protection at any Distance 
+ - Database Rolling Upgrades using Active Data Guard : require the use of Data Guard SQL Apply. 
+- Application Continuity: 
+Fast Application Notification (FAN) is a capability of Oracle Database that quickly delivers exception conditions to an application, but it does not report the outcome of the last transaction nor recover 
+an in-progress request from an application perspective. As a result, outages can become visible leading to inconvenience for users and lost revenue. Users could also unintentionally make duplicate purchases and submit 
+multiple payments for the same invoice. Developers would have no alternative other than to write and maintain custom application code to address these shortcomings, complicating support and ongoing development.
+
+Application Continuity is a new application-independent capability for Oracle Database 12c that recovers incomplete requests from an application perspective and masks many system, communication, 
+and hardware failures, and storage outages from the end-user. It also ensures that end-user transactions are executed no more than once. Application Continuity is included with Active Data Guard.
+
+-Global Data Services
+
+
+==========================================================================================================================
+ SQL Statements Relevant to Data Guard:  12c 
+==========================================================================================================================                                             
+
+I-  SESSION Statements: 
+---------------------- 
+SQL> ALTER SESSION [ENABLE|DISABLE] GUARD                      logical standby databases only. allows privileged users to turn the database guard on and off for the current session.
+SQL> ALTER SESSION SYNC WITH PRIMARY                           physical standby databases only // This statement synchronizes a physical standby database with the primary database, by blocking until all 
+                                                               redo data received by the physical standby at the time of statement invocation has been applied.
+II- SYSTEM Statements : 
+---------------------- 
+ALTER SYSTEM FLUSH REDO TO 
+target_db_name [[NO] CONFIRM APPLY]                            This statement flushes redo data from a primary database (Open mode) to a standby database and optionally waits for the 
+                                                               flushed redo data to be applied to physical/logical standby database.
+
+III- DATABASE Statements: 
+------------------------ 
+ALTER DATABASE ACTIVATE [PHYSICAL|LOGICAL] STANDBY DATABASE FINISH APPLY]                // FAILOVER That causes data loss. Instead, use the following best practices: ALTER DATABASE RECOVER MANAGED STANDBY DATABASE FINISH (PHYSICAL) 
+                                                                                            or ALTER DATABASE PREPARE TO SWITCHOVER +COMMIT TO SWITCHOVER (logical standby database)
+
+ALTER DATABASE ADD [STANDBY] LOGFILE [THREAD integer] [GROUP integer] filespec       // Adds one or more online redo log file groups or standby redo log file groups 
+to the specified thread        
+ ALTER DATABASE ADD [STANDBY] LOGFILE MEMBER 'filename' [REUSE] TO logfile-descriptor   // Adds log members to existing 
+redolog groups or standby redolog groups. 
+ALTER DATABASE [ADD|DROP] SUPPLEMENTAL LOG DATA {PRIMARY KEY|UNIQUE INDEX} COLUMNS    // (done before logical standby 
+creation): enable supplemental logging as source of change to a logical standby 
+database 
+ALTER DATABASE COMMIT TO SWITCHOVER // has been replaced by "SWITCHOVER TO" Performs a switchover (change standby to 
+primary and primary to standby) 
+ALTER DATABASE CONVERT TO [[PHYSICAL|SNAPSHOT] STANDBY] DATABASE                    // Converts a physical standby database 
+into a snapshot standby database and vice versa. (snapshot DB open read write 
+but lose all changes when converted back to standby mode). 
+ALTER DATABASE CREATE [PHYSICAL|LOGICAL] STANDBY CONTROLFILE AS 'filename' [REUSE]  // Creates a 
+control file to be used to maintain a physical or a logical standby database. 
+Issue this statement on the primary database. 
+ALTER DATABASE DROP [STANDBY] LOGFILE logfile_descriptor                           // Drops all members of an 
+online redolog group or standby redolog group.        
+ALTER DATABASE DROP [STANDBY] LOGFILE MEMBER 'filename'                           // Drops one or more online redo log file members or standby redo log file members.
+ALTER DATABASE FAILOVER TO target_db_name                                        // (physical standby only): initiates a failover to the specified host database. 
+ALTER DATABASE [NO]FORCE LOGGING                                               // Required to prevent inconsistent standby databases // controls whether or not the Oracle database logs all changes in the database. 
+ALTER DATABASE GUARD                                                          // Controls user access to tables in a logical standby database. Values: [ALL, STANDBY,NONE] 
+ALTER DATABASE MOUNT [STANDBY DATABASE]                                      // Mounts a standby database, allowing to receive redo data from primary instance. 
+ALTER DATABASE OPEN                                                         // Physical standby databases are opened in read-only mode // Logical standby database are opened in read/write mode.  
+ALTER DATABASE PREPARE TO SWITCHOVER                                       // (Logical standby only): Prepares primary database and logical standby database for switchover by building LogMiner dictionary before switching 'ALTER DATABASE COMMIT TO SWITCHOVER'
+
+ALTER DATABASE RECOVER MANAGED STANDBY DATABASE [ { DISCONNECT [FROM SESSION] | PARALLEL n| NODELAY | UNTIL CHANGE integer }...]    // controls Redo Apply on physical standby databases 
+ALTER DATABASE RECOVER MANAGED STANDBY DATABASE CANCEL           // Cancels Redo Apply after applying current archivelog file/ [IMMEDIATE|WAIT|NOWAIT] options are deprecated since redo apply is cancelled immediately. 
+ALTER DATABASE RECOVER MANAGED STANDBY DATABASE FINISH       //Initiates failover on physical standby database + recovers current standby redolog files In case of failure of primary database // [FORCE|NOWAIT|WAIT] are deprecated as it terminates all
+                                                              redo transport sessions before returning the control. it is recomended to ALTER DATABASE RECOVER MANAGED STANDBY DATABASE statement with the FINISH or FINISH SKIP  
+                                                              keywords rather than a forced failover operation 
+ALTER DATABASE REGISTER [OR REPLACE] [PHYSICAL|LOGICAL] LOGFILE filespec   // Allows the registration of manually copied archived redo log files. 
+ALTER DATABASE RECOVER TO LOGICAL STANDBY new_db_name      // Continue applying changes to the physical standby database until ready to convert the database to a logical standby database (db_name, specify a database 
+                                                              name that is different from the primary database to identify the new logical standby database) ,
+ALTER DATABASE RECOVER TO LOGICAL STANDBY KEEP IDENTITY;   // keeps dbid and dbname of primary DB for rolling upgrad /one time switchover) 
+ALTER DATABASE RESET DATABASE TO INCARNATION integer      // Resets the target recovery incarnation for the database to a different incarnation 
+ALTER DATABASE SET STANDBY DATABASE TO MAXIMIZE {PROTECTION|AVAILABILITY|PERFORMANCE}     // level of protection for the data in your Oracle Data Guard 
+ALTER DATABASE START LOGICAL STANDBY APPLY INITIAL [scn-value] ] [NEW PRIMARY dblink]    // (logical standby Only) starts SQL Apply on a logical standby database 
+ALTER DATABASE {STOP|ABORT} LOGICAL STANDBY APPLY                                       //  stop SQL Apply on a logical standby database in an orderly/abrubtly  fashion 
+ALTER DATABASE SWITCHOVER TO target_db_name [verify to check] |FORCE;    --physical standby databases only (switchover of the primary) 
+
+++++++++ 
+Queries: 
+++++++++
+
+- Check the new archived redo log has arrived at the standby server and been 
+applied
+
+SQL> ALTER SESSION SET nls_date_format='DD-MON-YYYY HH24:MI:SS'; 
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT FROM SESSION;   
+o SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE USING CURRENT LOGFILE PARALLEL 8 DISCONNECT ;--deprecated real time apply (standby log) 
+o SQL> ALTER DATABASE START LOGICAL STANDBY APPLY IMMEDIATE;        --  Real time apply For logical standby databases 
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE USING ARCHIVED LOGFILE DISCONNECT;-- #tail -f 
+'c:\u01\app\oracle\diag\rdbms\mtlstd\mtlstd\trace\alert_mtlstd.log
+
+PRIMARY:    
+SQL> Select max(sequence#) from v$log_history;
+SQL> Select max(sequence#) current_log_seg  from v$log; SQL> Select max(sequence#) from 
+v$archived_log;
+
+ STANDBY: 
+SQL> Select MAX (SEQUENCE#), APPLIED FROM V$ARCHIVED_LOG GROUP BY APPLIED;
+SQL> Select TS#,STATUS,ENABLED,file# from v$datafile ; 
+SQL> SELECT * FROM V$ARCHIVE_GAP; no rows selected 
+SQL> select name from v$tempfile; Standby DB  
+SQL> SELECT TO_CHAR(STANDBY_BECAME_PRIMARY_SCN) FROM V$DATABASE; --Check the state in Case of case of failover
+
+ERROR (warining): failed to establish dependency between database mtlstd and 
+diskgroup resource ora.DATA.dg solution: $ srvctl modify database -d mtlstd -a "DATA,FRA"
+srvctl setenv database -db mtlstd -envs NLS_DATE_FORMAT='DD-MM-YYYY HH24:MI:SS'
+
+=========================== 
+Oracle Data Guard Scenarios 
+===========================
+
+======================= 
+SWITCHOVER 
+======================= 
+Switchover  : 
+is the planned role change. It does not require re-installation of a new database. It can be used to test interoperability of standby database, OS and hardware maintenance. 
+--------------- 
+Test SWITCHOVER 
+---------------
+
+1.PREQUISITES
+
+PRIMARY_SQL> select switchover_status from v$database;          
+STANDBY_SQL>  SELECT switchover_status, database_role, open_mode FROM v$database;
+SWITCHOVER_STATUS  DATABASE_ROLE   OPEN_MODE                  SWITCHOVER_STATUS  DATABASE_ROLE  OPEN_MODE      
+-----------------  --------------- ---------------            -----------------  ------------- ---------------
+TO STANDBY         PRIMARY         READ WRITE                  NOT ALLOWED       STANDBY        MOUNTED     
+
+2.PRIMARY switchover verify : 
+---------------------------- 
+PRIMARY_
+SQL> alter database switchover to mtlstd verify; 
+Database altered.   ---- This result means , we can make switchover. 
+---------------------- 
+If There is a misconfiguration in data guard configuration. A warning will Result of verify command. (example we set log_archive_dest_state_2 parameter as DEFER in the standby database)
+
+SQL> alter database switchover to MTLSTD verify;
+ alter database switchover to MTLSTD verify * ERROR at line 1: ORA-16475: succeeded with warnings, check alert log for more details
+
+tail -f 'C:\app\oracle\diag\rdbms\MTLSTD\MTLSTD\trace\alert_MTLSTD.log' 
+SWITCHOVER VERIFY WARNING: switchover target has no standby database defined in 
+LOG_ARCHIVE_DEST_n parameter. If the switchover target is converted to a primary 
+database, the new primary database will not be protected.
+
+3.Execute Switchover                                    
+---------------------
+SQL> alter database switchover to MTLSTD; Database altered.
+
+---------------------------------------------- 
+Primary alert log. tail -f 'C:\app\oracle\diag\rdbms\MTLSTD\MTLDB\trace\alert_MTLDB.log' 
++++++++ 
+alter database switchover to MTLSTD Tue Nov 18 18:37:22 2015 Starting switchover [Process ID: 24174]
+Tue Nov 18 18:37:22 2015 ALTER DATABASE COMMIT TO SWITCHOVER TO PHYSICAL STANDBY [Process Id: 24174] (mtldb) Active, synchronized Physical Standby switchover target has been identified 
+Preventing updates and queries at the Primary Generating and shipping final logs to target standby Switchover End-Of-Redo Log thread 1 sequence 20 has been fixed 
+Switchover:Primary highest seen SCN set to 0x0.0x1cf469 
+Switchover: Primary controlfile converted to standby controlfile succesfully.
+Switchover: Complete – Database shutdown required Sending request(convert to primary database) to switchover target 
+Switchover complete. Database shutdown required 
+
+++++++++ 
+---------------------------------------------- 
+Standby alert log. 
+tail -f 'C:\app\oracle\diag\rdbms\MTLSTD\MTLSTD\trace\alert_MTLSTD.log' ++++++++  
+SWITCHOVER: received request ‘ALTER DATABASE COMMIT TO SWITCHOVER TO PRIMARY’ from primary database. 
+Tue Nov 18 18:37:25 2016 ALTER DATABASE SWITCHOVER TO PRIMARY (mtlstd) Maximum wait for role transition is 15 minutes. 
+Switchover: Media recovery is still active Role Change: Canceling MRP – no more redo to apply 
+Tue Nov 18 18:37:25 2016 MRP0: Background Media Recovery cancelled with status 16037 Tue Nov 18 18:37:25 2016 Errors in file /oracle/diag/rdbms/dg12cs/dg12c/trace/dg12c_pr00_31261.trc: ORA-16037: user 
+requested cancel of managed recovery operation Managed Standby Recovery not using Real Time Apply Recovery interrupte : Switchover: Complete 
+– Database mounted as primary SWITCHOVER: completed request from primary databass 
++++++++++ 
+=== After that : Mounted new primary database must be open + new standby must be mounted (startup mount)  
+  
+The EOR redo is sent to the standby databases, the original primary database is finalized as a standby and its control file backed up to the trace file and converted to the correct type of standby control file.
+The physical standby switchover will wait for the MRP process to exit after processing the EOR(end of redo)logs and then convert the standby control file into a normal production control file.
+The final thing to do is to open the database. 
+
+**************
+USING BROKER : 
+************* 
+DGMGRL> validate database Mtlstd
+  Database Role:     Physical standby database
+  Primary Database:  mtldb
+  Ready for Switchover:  Yes
+  Ready for Failover:    Yes (Primary Running)
+ Current Log File Groups Configuration:                                                    Future Log File Groups Configuration:                                 
+    Thread #  Online Redo Log Groups  Standby  Redo Log Groups Status                          Thread #  Online Redo Log Groups  Standby   Redo Log Groups Status
+              (mtldb)                 (mtlstd)                                                           (mtlstd)                (mtldb)                         
+     1         3                       2        Insufficient SRLs                               1           3                       2         Insufficient SRLs   
+                                                                         
+DGMGRL> switchover to MTLSTD;                                                    $time dgmgrl -silent sys/*** "switchover to mtlstd"
+peration requires a connection to instance "mtlstd" on database "MTLSTD" 
+New primary database "canada" is opening... 
+Operation requires startup of instance "mtlstd" on database "MTLSTD" Database mounted. 
+Database opened. 
+Switchover succeeded, new primary is "MTLSTD" 
+---- 
+SQL> select name from v$tempfile;
+SQL> SELECT NAME,OPEN_MODE,DATABASE_ROLE,DB_UNIQUE_NAME,PROTECTION_MODE FROM V$DATABASE;  ****on both nodes
+
+     NAME      OPEN_MODE  DATABASE_ROLE      DB_UNIQUE_NAME  PROTECTION_MODE ---
+     ------- ---------- ------------------ -------------- ------------------
+     MTLDB     MOUNTED    PHYSICAL STANDBY   mtlstd          MAXIMUM PERFORMANCE
+     
+IF  DATABASE OPEN MODE DOES NOT CHANGE AUTOMATICALLY AFTER DATAGUARD SWITCHOVER THEN WORKAROUND is:
+---------------------------------------------------------------------------------------------------
+Open mode can be changed manually after switchover 
+CREATE OR REPLACE TRIGGER avoid_active_dataguard
+AFTER STARTUP ON DATABASE
+BEGIN
+/* This trigger is created because the startup option in oracle restart is not changed automatically
+after a switchover or failover .
+The result can be that
+1.a standby database is opened read only which should be avoided when no license for active dataguard is purchased
+2.a primary database is mounted and not opened
+*/
+IF sys_context(‘userenv’,’database_role’) = ‘PHYSICAL STANDBY’
+THEN
+EXECUTE IMMEDIATE ‘ALTER DATABASE CLOSE’;
+END IF;
+END;
+/
+
+
+In new standby:
+srvctl modify database -d MTLDB -o C:\APP\ORACLE\product\12.1.0.2\db_1 -s mount 
+In new primary: 
+srvctl modify database -d MTLSTD -n MTLDB -o C:\APP\ORACLE\product\12.1.0.2\db_1 -s open 
+
+============== 
+Test failover 
+============== 
+A failover is a unplanned event when something has happened to hardware, networking, etc. This is when you invoke you DR procedures, and you will have full confidence in getting the new primary up and running as quickly as possible. 
+Unlike the switchover which begins on the primary, no primary is involved which means you will not be able to get the redo from the primary. 
+Depending on what protection mode you have chosen there may be data loss (less you have a Maximum Protection mode enabled), you start by telling Data Guard to apply the remaining redo that it can.
+Once the redo has been applied you run the same command that you do with a physical standby to switchover the standby to a primary standby :
+
+---11G recomanded -------------------
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE FINISH; 
+Or 
+10g--------------------------- (with Data loss)---------------
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE CANCEL;
+SQL> ALTER DATABASE ACTIVATE STANDBY DATABASE; 
+------------------------------------------------------------
+SQL> select TS#,STATUS,ENABLED,file# from v$datafile 
+order by status;
+
+Complete the switchover (new primary) alter database commit to switchover to primary; Once difference is when the switchover has completed the protection mode will be maximum performance regardless what it was before,
+to get it back to your original protection mode you must change the protection mode	
+# Choose what level of protection you require 
+sql> alter database set standby to maximize performance/maximize availability/maximize protection;;
+
+***************
+USING DG BROKER
+***************
+Failover: ///////////////////////////////////////Always connect to the Failover target before failing over the target.////////////////////////////////////////////
+ The original primary can be reinstated and resynchronized as a standby database for the new primary using Flashback Database 
+- Optionally, Data Guard can perform automatic failover in a very controlled manner using Fast-Start Failover (FSFO).
+
+Enabling Flashback Database :
+SQL> alter system set flashback on;
+SQL> Alter system set db_flashback_retention_target=60 scope=both; ---60 minutes
+sys@MTLDB.MEDISOLUTION> select OLDEST_FLASHBACK_SCN, OLDEST_FLASHBACK_TIME,RETENTION_TARGET,FLASHBACK_SIZE/(1024*1024),ESTIMATED_FLASHBACK_SIZE/(1024*1024) from v$flashback_database_log;
+
+OLDEST_FLASHBACK_SCN OLDEST_FLASHBACK_TI RETENTION_TARGET FLASHBACK_SIZE ESTIMATED_FLASHBACK_SIZE
+-------------------- ------------------- ---------------- -------------- ------------------------ 
+             8420457 20-04-2016 04:32:09               60     150                 15             
+
+- The Broker simplifies all of that process for you down into on command “failover to <database name>”. To simulate our failure we will abort the Primary and then failover to the standby
+
+TASK: In the mtldb SQL*Plus window execute: 
+ SQL> shutdown abort;
+ In the DGMGRL window execute:                                       
+ DGMGRL> failover to MTLSTD;
+ SQL> select db_unique_name,database_role from v$database;
+ DGMGRL> REINSTATE DATABASE MTLDB;
+
+MTLDB Reinstate alert LOG 
+------------------
+FLASHBACK DATABASE TO SCN 8196846
+Tue Apr 19 17:45:29 2016
+Flashback Restore Start
+Flashback Restore Complete
+Flashback Media Recovery Start
+
+TROUBESHOOT ERROR :
+-------------------
+ ORA-12514 - TNS:listener does not currently know of service requested in connect descriptor. :  
+
+DGMGRL> edit instance mtldb set property StaticConnectIdentifier='(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=172.25.11.95)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=MTLDB.medisolution)(INSTANCE_NAME=mtldb)(SERVER=DEDICATED)))';
+DGMGRL> edit instance mtlstd set property StaticConnectIdentifier='(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=172.25.11.95)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=MTLSTD.medisolution)(INSTANCE_NAME=mtlstd)(SERVER=DEDICATED)))';
+DGMGRL> switchover to MTLDB
+DGMGRL> SHOW INSTANCE VERBOSE 'instance_name' ON DATABASE db_unique_name;
+DGMGRL> SHOW INSTANCE VERBOSE 'MTLDB' ON DATABASE MTLDB;
+
+------------------------------------
+ V- Performing a Manual Reinstate
+------------------------------------
+
+Using Flashback Database to rewind the failed primary database to a point just before the failover occurred Then it is converted into a Physical standby, restarted and the Redo Apply services restarted. 
+Data Guard will reconnect and resolve the gaps in the redo until the configuration is synchronized again.
+
+In the MTLdb SQL*Plus window execute:
+o startup mount
+DGMGRL> show configuration;
+mtldb - Physical standby database (disabled)
+ORA-16661: the standby database needs to be reinstated
+In the DGMGRL window execute:
+DGMGRL> reinstate database MTLDB;
+DGMGRL>SHOW configuration
+DGMGRL> switchover to MTLDB;
+
+*************************
+USING FAST START FAILOVER
+*************************
+Prerequesit:
+- Before each test, make sure that Flashback Database has at least 30 minutes of history.If Flashback Database history is insufficient, observer won't be able to reinstate 
+  and you will have to manually reinstate from backup/primary duplication. 
+ On the primary to be aborted: 
+  SQL>SELECT (SYSDATE - OLDEST_FLASHBACK_TIME)*24*60 as History  from v$flashback_database_log;
+
+- If you perform a manual failover when fast-start failover is enabled, The failover can only be performed to the pre-selected target standby database (primary must be shutdown).
+  o The broker preserves the protection mode that was in effect prior to the failover.
+    
+    
+o Shutting Down Databases In a Fast-Start Failover Environment
+--------------------------------------------------------------
+   SQL > DISABLE FAST_START FAILOVER [FORCE] ; you should first issue this command on the target standby database.
+   DGMRL> Stop observer; ----And wait for the FS_FAILOVER_OBSERVER_PRESENT=NO column in the V$DATABASE 
+   DGMGRL> SHUTDOWN;    ---- When both databases have been restarted, you may restart the observer.	//  - A normal shutdown will prevent fast-start failover 
+
+==============================
+VI-Fast-Start Failover (FSFO)
+==============================
+
+FSFO allows Data Guard to automatically fail over to a previously chosen, standby database without requiring manual intervention to invoke the failover
+A Data Guard Observer continuously monitors the status of a Fast-Start Failover configuration. If both the Observer and the standby database lose connectivity to the primary database, 
+the Observer attempts to reconnect to the primary database for a configurable amount of time before initiating a fast-start failover (FastStartFailoverThreshold=30)
+It also requires Flashback Database to be enabled on both the primary and target standby database
+
+o Enabling Fast-Start Failover :
+----------------------------
+Now that you have decided where you are going to place the Observer and prepared the system for it, you can start setting up FSFO. 
+You must meet several prerequisites before setting up FSFO, most of which we have implemented already:
+ - Use the broker with all of its prerequisites. Done! 
+ - Enable Flashback Database on both the primary and the standby. Done!
+ - Set up the configuration correctly for the protection mode. Done! 
+ - Standby redo log files on both sides. Done!
+ - Redo transport setup the same in both directions. Done! 
+ - Configure the Broker for FSFO. Not Done! 
+ - Install the Observer system and configure TNSNAMES. Not Done!
+ - (maximum performance)FastStartFailoverLagLimit configuration property is set accordingly // This establishes an acceptable limit, in seconds, that the standby is allowed to fall behind the primary in terms of redo applied,
+    beyond which a fast-start failover will not be allowed.
+ 
+o  Considerations:
+-------------------
+ - IF failed primary cannot be reinstated automatically, you can manually reinstate it using DGMGRL REINSTATE 
+ - A normal shutdown will prevent fast-start failover 
+ - The application can call the DBMS_DG.INITIATE_FS_FAILOVER function to initiate an immediate fast-start failover. 
+ - Ensure that the primary database is shut down prior to performing a manual failover (as observer is started and communicating with target standby database)
+ - For Manual Failover, observer nust be started + communicating with target standby database. Ensure the primary database is shut down prior performing manual failover.
+ -Scenarios :
+ 1) observer dead  + Primary to standby link OK   = Nothing happens =>  error message ORA-16820: fast-start failover observer is no longer observing this database
+ 2) Observer to standby dead + link to primary OK = Nothing happens > no failover possible 
+ 3) Standby database down = Nothing happens  > error msg designated standby database is not up
+ 4) Standby and observer down(primary lost contact/isolated)+FastStartFailoverPmyShutdown=TRUE = Primary shutdown itself after FastStartFailoverThreshold 30 seconds has elapsed and 
+    must be manually restarted before observer attempt reinstatement.
+ - failover triggers
+ . Instance failures (standalone instance or all RAC instances)
+ . The primary database loses its connections with both the observer and target standby database (standalone instance or all RAC instances)
+ . Shutdown abort
+ . When fast-start failover occurs because a user configurable fast-start failover condition is detected or an application triggers a fast-start failover by calling DBMS_DG.INITIATE_FS_FAILOVER function,
+   the former primary DB always shutdown and never automatically reinstated. It's true regardless of values of FastStartFailoverPmyShutdown and FastStartFailoverAutoReinstate configuration properties.
+ 
+    
+TASK: In the DGMGRL window execute:
+  DGMGRL> edit database mtldb set property FastStartFailoverTarget = MTLstd;
+  DGMGRL> edit database mtlstd set property FastStartFailoverTarget= MTLDB ;
+  DGMGRL> edit configuration set property FastStartFailoverThreshold=45;
+  DGMGRL> edit CONFIGURATION SET PROPERTY FastStartFailoverLagLimit=45;
+  DGMGRL> enable fast_start failover;
+From another 3rd host (MCR-ORA-T03) run this: dgmgrl sys@montreal (add needed tns aliases)
+% dgmgrl [<options>] [<logon> [<command>] ]
+<options> ::= -silent | -echo |  -logfile <file-spec> "<dgmgrl-command>"
+<logon>   ::= <usename>/<password>[@<connect_identifier>]
+<command> ::= <one DGMGRL command>	
+% dgmgrl      linux $nohup dgmgrl -silent sys/oracle@prima “start observer” &
+  DGMGRL> -logfile observer_2204.log "start observer file='D:\Oracle\product\12.1.0\dbhome_1\admin\fsfo_mtldg.dat'"   start observer file='D:\Oracle\product\12.1.0\dbhome_1\admin\fsfo_mtldg.dat'  
+  DGMGRL> show fast_start failover;
+
+TASK: Add ORA-error conditions:
+DGMGRL> enable fast_start failover condition "1031" ;
+DGMGRL> enable fast_start failover condition "1578" ;
+DGMGRL> ENABLE FAST_START FAILOVER CONDITION 'Inaccessible Logfile';
+DGMGRL> EDIT CONFIGURATION SET PROPERTY FastStartFailoverThreshold = "15" ;
+Succeeded.     
+
+TASK: In the OBSERVER window execute:            
+   o dgmgrl /@Montreal                           
+  DGMGRL> start observer;                        
+  DGMGRL>  SHOW FAST_START FAILOVER;             
+  
+Fast-Start Failover: ENABLED
+
+  Threshold:          30 seconds
+  Target:             mtlstd
+  Observer:           MCR-ORA-T03
+  Lag Limit:          30 seconds
+  Shutdown Primary:   FALSE
+  Auto-reinstate:     TRUE
+  Observer Reconnect: 30 seconds
+  Observer Override:  FALSE
+
+Configurable Failover Conditions
+  Health Conditions:
+    Corrupted Controlfile          YES
+    Corrupted Dictionary           YES
+    Inaccessible Logfile            NO
+    Stuck Archiver                  NO
+    Datafile Offline               YES
+
+  Oracle Error Conditions:
+    ORA-01031: insufficient privileges
+    ORA-01578: ORACLE data block corrupted (file # %s, block # %s)
+o Force failover when observer disconnects from Primary  
+  DGMGRL> EDIT CONFIGURATION SET PROPERTY ObserverOverride=TRUE; - autofailover even if primamry and standby connected
+  DGMGRL> EDIT CONFIGURATION SET PROPERTY ObserverReconnect=30; - refresh observer connection each 30sec 
+    
+---------------------
+FAST FAILOVER CHECKS
+--------------------
+o Evaluate standby database in terms of [currency of the data in the standby database|time to perform a role transition if all available redo is applied to standby database] 
+SQL_MTLSTD>SELECT NAME, VALUE, DATUM_TIME FROM V$DATAGUARD_STATS; 
+
+NAME                      VALUE                                                            DATUM_TIME
+------------------------- ---------------------------------------------------------------- ------------------------------
+transport lag             +00 00:00:00                                                     04/18/2016 12:57:35
+apply lag                 +00 00:00:00                                                     04/18/2016 12:57:35
+apply finish time         +00 00:00:00.000
+estimated startup time    32
+
+o check failover times
+SQL> SELECT  FS_FAILOVER_OBSERVER_PRESENT,FS_FAILOVER_STATUS,FS_FAILOVER_OBSERVER_HOST  from  V$DATABASE;  --- status [BYSTANDER,DISABLED,LOADING DICTIONARY,PRIMARY UNOBSERVED,REINSTATE FAILED,REINSTATE REQUIRED,STALLED,TARGET OVER LAG LIMIT,TARGET UNDER LAG LIMIT,SUSPENDED,SYNCHRONIZED,UNSYNCHRONIZED] 
+
+FS_FAILOVER_STATUS     FS_FAILOVER_OBSERVER_PRESENT             FS_FAILOVER_OBSERVER_HOST
+---------------------- ---------------------------------------- -------------------------
+TARGET UNDER LAG LIMIT YES                                      MCR-ORA-T03
+
+SQL> SELECT LAST_FAILOVER_TIME, LAST_FAILOVER_REASON FROM V$FS_FAILOVER_STATS;
+DGMGRL> show database canada SendQEntries ---failed log
+DGMGRL> show database india topwaitevents ---top waits
+DGMGRL> show database canada LogXptStatus;
+DGMGRL> show database india inconsistentproperties
+DGMGRL> DISABLE FAST_START FAILOVER [FORCE] -- first issue this FORCE command on the target standby database.
+==================================
+CLIENT FAST FAILOVER CONFIGURATION 
+==================================
+       ***** create and start primary services  *****
+$ srvctl modify database -d MTLSTD -spfile C:\APP\ORACLE\PRODUCT\12.1.0.2\DB_1\DATABASE\SPFILEMTLSTD.ORA    
+$ srvctl add database -d mtlstd -n MTLDB -o c:\app\oracle\product\12.1.0.2\db_1 -r PHYSICAL_STANDBY -s MOUNT
+$ srvctl add service -d mtldb -s virtuo -l PRIMARY -e SELECT -m BASIC -w 1 -z 180 
+$ srvctl add service -d mtlstd -s virtuo -l PRIMARY -e SELECT -m BASIC -w 1 -z 180 
+
+(-s) The dynamic service to which the clients' sessions are connected. 
+(-z) Failover Retries . the clients would have a timeout during a failover so their queries would still fetch from the new primary db. 
+(-w) Failover Delays 
+
+-activate the service on primary for the first time
+$ srvctl start service -d mtldb -s virtuo
+$srvctl modify database -d MTLSTD -spfile C:\APP\ORACLE\PRODUCT\12.1.0.2\DB_1\DATABASE\SPFILEMTLSTD.ORA
+$srvctl modify database -d MTLSTD -domain medisolution.com
+Check  connected sessions
+---------------------------
+SQL> select username,FAILED_OVER,FAILOVER_METHOD,FAILOVER_TYPE from v$session;
+
+USERNAME                       FAI FAILOVER_Methode FAILOVER_TYPE
+------------------------------ --- ---------------- -------------
+KH85124                        NO     BASIC           SELECT
+
+crsctl stat res ora.mtldb.virtuo.svc -p 
+stop and disable oracle restart:
+-------------------------------
+crsctl disable has
+crsctl stop has
+---------------------------------
+
+
+o==========================================++
+ PHYSICAL STANDBY MANUAL FAILOVER /SQLPLUS   
+o==========================================++
+
+Mount, but do not open the primary database 
+Step 1   Flush any unsent redo from the primary database to the target standby database (flushes any unsent redo 
+from primary to standby database and apply it ) 
+SQL> ALTER SYSTEM FLUSH REDO TO MTLSTD;
+
+Step 5  Stop Redo Apply. Issue the following SQL statement on the target standby database:
+
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE CANCEL;
+
+Step 6   Switch the physical standby database to the primary role. 
+Issue the following SQL statement on the target standby database:
+
+SQL> ALTER DATABASE FAILOVER TO MTLSTD;
+
+Step 2   Verify that the standby database has the most recently archived redo log file for each primary database redo thread.
+View on the target standby database to obtain the highest log sequence number for each redo thread. 
+
+MTLSTD> SELECT UNIQUE THREAD# AS THREAD, MAX(SEQUENCE#) OVER (PARTITION BY thread#) AS LAST from V$ARCHIVED_LOG;
+ THREAD  LAST 
+ ------ ---------- 
+ 1        667 
+Copy the most recently archived redo log file for each primary database redo thread to the standby database if it does not exist there, and register it.
+
+SQL> ALTER DATABASE REGISTER PHYSICAL LOGFILE 'filespec1';
+
+Step 3   Identify and resolve any archived redo log gaps. 
+SELECT THREAD#, LOW_SEQUENCE#, HIGH_SEQUENCE# FROM V$ARCHIVE_GAP; (gap=90-91-92) 
+THREAD#    LOW_SEQUENCE# HIGH_SEQUENCE# 
+---------- ------------- --------------     
+1            90               92
+SQL> ALTER DATABASE REGISTER PHYSICAL LOGFILE 'filespec1'; 
+
+Step 4   Repeat Step 3 until all gaps are resolved. then go to step 5
+-------------------------------------------------------------------------------------------------------------------------------------------
+Step 9   Perform a data-loss failover 
+If an error condition cannot be resolved, a failover can still be performed (with some data loss) by following SQL on target standby  : 
+SQL> ALTER DATABASE ACTIVATE PHYSICAL STANDBY DATABASE;         
+
+Step 10   Open the new primary database 
+SQL> ALTER DATABASE OPEN;
+
+Step 11   Back up the new primary database.
+
+Step 12   Restart Redo Apply, if necessary.(If Redo Apply has stopped at any of the other physical standby databases)
+
+Step 13    Optionally, restore the failed primary database. 
+After a failover, original primary database can be converted into a physical standby of the new primary database(
+
+==============================================
+Converting Failed Primary to Physical Standby   
+==============================================
+************
+SQLPLUS
+************
+*It can still be re-created as physical standby database from a backup of the new primary database using RMAN DUPLICATE commande. 
+// Once the original primary database is running in the standby role, a switchover can be performed to restore it to the primary role.
+
+
+I)- FROM RMAN Backups
+---------------------
+SQL> SELECT scn_timestamp(STANDBY_BECAME_PRIMARY_SCN) FROM V$DATABASE;
+SELECT substr(scn_to_timestamp(STANDBY_BECAME_PRIMARY_SCN),1,instr(scn_to_timestamp(STANDBY_BECAME_PRIMARY_SCN),',')-1) FROM V$DATABASE;
+
+2- Restore and recover the entire database.:
+
+RMAN> RUN                                                                               
+    {                                                                                   
+      SET UNTIL SCN <standby_became_primary_scn + 1>;               or user managed            SQL> RECOVER DATABASE USIING BACKUP CONTROLFILE UNTIL CHANGE   
+      RESTORE DATABASE;                                                                        <standby_became_primary_scn + 1>;                              
+      RECOVER DATABASE;
+     }
+3- Convert the database to a physical standby database.
+                                                             
+SQL> ALTER DATABASE CONVERT TO PHYSICAL STANDBY;
+SQL> SHUTDOWN IMMEDIATE;
+SQL> STARTUP MOUNT;
+SQL> ALTER DATABASE OPEN READ ONLY; ----- synchronize the control file with the database by using a dictionary check.Check the alert log for any actions suggested by the dictionary check
+SQL> SHUTDOWN IMMEDIATE;
+SQL> STARTUP MOUNT;
+
+4- Restart transporting redo to the new physical standby database.
+SQL> ALTER SYSTEM SET LOG_ARCHIVE_DEST_STATE_2=ENABLE;
+see current state of LOG_ARCHIVE_destinations on the new primary database:
+SQL> SELECT DEST_ID, DEST_NAME, STATUS, PROTECTION_MODE, DESTINATION, ERROR,SRL FROM V$ARCHIVE_DEST_STATUS;
+     DEST_ID DEST_NAME         STATUS     PROTECTION_MODE     DESTINATION  ERROR  SRL
+---------- ------------------- ---------- ------------------- ----------- ------- -----
+         1 LOG_ARCHIVE_DEST_1   VALID     MAXIMUM PERFORMANCE  +FRA               NO
+         2 LOG_ARCHIVE_DEST_2    ??     MAXIMUM PERFORMANCE    Montreal           YES
+
+5- Start Redo Apply
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE [USING CURRENT LOGFILE] DISCONNECT FROM SESSION;
+SQL> ALTER SYSTEM SWITCH LOGFILE;
+6- switchover to recovered primary 
+
+II) From FLASHBACK 
+-------------------
+SQL> SELECT TO_CHAR(STANDBY_BECAME_PRIMARY_SCN) FROM V$DATABASE; 
+
+2- Flash back the failed primary database.
+SQL> SHUTDOWN IMMEDIATE;
+SQL> STARTUP MOUNT;     
+SQL> FLASHBACK DATABASE TO SCN standby_became_primary_scn;
+ 
+SQL> ALTER DATABASE CONVERT TO PHYSICAL STANDBY;
+
+4-  Restart transporting redo to the new physical standby database.                                                
+SQL> ALTER SYSTEM SET LOG_ARCHIVE_DEST_STATE_2=ENABLE;
+see the current state of the archive destinations On the new primary database:                                     
+SQL> SELECT DEST_ID, DEST_NAME, STATUS, PROTECTION_MODE, DESTINATION, ERROR,SRL FROM V$ARCHIVE_DEST_STATUS;  
+ 
+5- Start Redo Apply                                                                                                                             
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE [USING CURRENT LOGFILE] DISCONNECT FROM SESSION;
+SQL> ALTER SYSTEM SWITCH LOGFILE;
+
+6- switchover to recovered primary 
+
+**********************************
+Using BROKER + FSFO   ( ///////////////////////////////////////Always connect to the Failover target before failing over the target.////////////////////////////////////////////)
+***********************************
+Prequesisit:
+------------
+- Flashback Database enabled on at least the original primary database (prior to failover) + sufficient flashback logs on that database   
+- The database must be started and mounted after the failover
+
+
+DGMGRL> edit database MTLDB set property FastStartFailoverTarget = 'MTLSTD' ;
+Property "faststartfailovertarget" updated
+DGMGRL> edit database MTLSTD set property FastStartFailoverTarget = 'MTLDB' ;
+Property "faststartfailovertarget" updated
+DGMGRL> enable fast_start failover ;
+Enabled.
+
+From another 3rd host run this: dgmgrl /@mtldb
+DGMGRL> start observer file='C:\DBA WorkSpace\TNS\fsfo_mtldg.dat'       
+Observer started
+DGMGRL> show configuration
+## Failover mtldb to mtlstd 
+DGMGRL> connect sys@Montreal
+DGMGRL> Failover to MTLSTD [IMMEDIATE];    --immediate failover : database role is changed to primary without applying any accumulated redo data // all standby databases in the configuration, regardless of their type, are disabled.
+If a failed primary must be re-created from a copy of the new primary database, when one of following occurs:
+ORA-16795: the standby database needs to be re-created
+Any database disabled while multiple role changes performed cannot be reinstated. (must be re-createde manually from a copy)
+
+## Reinstating the new standby database MTLDB
+DGMGRL> reinstate database MTLDB ; -- Do not reinstate old primary DB if ORA-752 or ORA-600 [3020] occured // same type as before (physical or logical standby database)
+DGMGRL> show fast_start failover
+
+Note: bystander standby database is not viable as a standby for new primary DB when : 
+-bystander standby database has applied more redo than new primary database itself applied when it was a standby database.Standby database must be re-created or reinstated before it can be a standby for the new primary DB.
+-The failover was to a logical standby database. The broker disables all physical and snapshot standby bystanders in the configuration. They must be re-created before they can be a standby to the new primary DB.
+
+============================ 
+LOGICAL STANDBY SWITCHOVER : 
+============================ 
+Step 1 on PRIMARY : SQL> SELECT SWITCHOVER_STATUS 
+FROM V$DATABASE; 
+SWITCHOVER_STATUS 
+----------------- 
+TO STANDBY
+
+Step 2  Prepare the current primary database for the switchover: 
+CANCEL : 
+SQL> ALTER DATABASE PREPARE TO SWITCHOVER TO LOGICAL STANDBY; 
+SQL> ALTER DATABASE PREPARE TO SWITCHOVER CANCEL;
+
+Step 3  Prepare the target logical standby database for the switchover. 
+CANCEL: SQL> ALTER DATABASE PREPARE TO SWITCHOVER TO PRIMARY; 
+SQL> ALTER DATABASE PREPARE TO SWITCHOVER CANCEL;
+
+Step 4  Ensure the current primary database is ready for the future primary 
+database's redo stream. 
+SQL> SELECT SWITCHOVER_STATUS FROM V$DATABASE; 
+SWITCHOVER_STATUS 
+----------------- 
+TO LOGICAL STANDBY
+
+Step 5  Switch the primary database to the logical standby database role: SQL> 
+ALTER DATABASE COMMIT TO SWITCHOVER TO LOGICAL STANDBY; 
+
+Step 6   Ensure all available redo has been applied to the target logical 
+standby database (SWITCHOVER_STATUS value is updated to show progress during the 
+switchover) 
+SQL> SELECT SWITCHOVER_STATUS FROM V$DATABASE; 
+SWITCHOVER_STATUS 
+----------------- 
+TO PRIMARY
+
+Step 7 Switch the target logical standby database to the primary database role: 
+SQL> ALTER DATABASE COMMIT TO SWITCHOVER TO PRIMARY;
+
+Step 8   Start SQL Apply on the new logical standby database (Old primary): SQL> 
+ALTER DATABASE START LOGICAL STANDBY APPLY IMMEDIATE;
+
+
+-------------------------------------------------------- 
+Creating a Standby Database That Uses OMF or Oracle ASM 
+--------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------
+Converting a Failed Primary into a Standby Database Using RMAN Backups 
+---------------------------------------------------------------------------
+
+
+
+-----------------------------------------------------------------------------
+Converting a Failed Primary Into a Standby Database Using Flashback Database 
+-----------------------------------------------------------------------------
+ CONN / AS SYSDBA 
+ SQL> ALTER DATABASE FLASHBACK ON;
+ -- Flashback to SCN of the failover . 
+  CHECK SCN ON NEW PRIMARY 
+ SQL> SELECT TO_CHAR(STANDBY_BECAME_PRIMARY_SCN) FROM V$DATABASE; --Check the 
+  state in Case of failover
+
+CONN / AS SYSDBA 
+SQL> SHUTDOWN IMMEDIATE;
+SQL> STARTUP MOUNT EXCLUSIVE;
+SQL> FLASHBACK DATABASE TO SCN $STANDBY_BECAME_PRIMARY_SCN; 
+SQL> ALTER DATABASE OPEN RESETLOGS;
+
+===================================
+
+==================
+DATA GUARD BROKER 
+==================
+ADD listener's entries  (only for <12c)
+To enable broker operations that require restarting instances without manual intervention, Oracle Net Services must be configured on each of the hosts that contain the primary and standby database instances. 
+Specifically, the listener.ora file must contain static configuration information about the instance. The GLOBAL_DBNAME attribute must be set to db_unique_name_DGMGRL.db_domain.
+Example:
+---- Primary server
+(SID_DESC =(GLOBAL_DBNAME = MTLDB_DGMGRL.medisolution.com)
+(ORACLE_HOME =C:\APP\ORACLE\product\12.1.0.2\db_1)(SID_NAME = MTLDB)))                                                                           
+---- Server (standby)
+(SID_DESC =(GLOBAL_DBNAME = MTLSTD_DGMGRL.medisolution.com)
+(ORACLE_HOME = C:\APP\ORACLE\product\12.1.0.2\db_1)(SID_NAME = MTLSTD)))
+
+
+DGMGRL> connect /@Montreal
+Connected as SYSDG.
+in 12c : You must clear any remote redo transport destinations on the standby database before it can be added to the configuration
+
+DGMGRL> sql "alter system set dg_broker_start=true";   both servers
+DGMGRL> sql "alter system set log_archive_dest_2=''" 
+DGMGRL>  connect sys/racattack@Boisbriand           
+DGMGRL> sql "alter system set dg_broker_start=true";
+DGMGRL> sql "alter system set log_archive_dest_2=''"
+Succeeded.
+DGMGRL> connect /
+Connected as SYSDG.
+
+DGMGRL> show configuration
+
+Configuration - dg12
+
+  Protection Mode: MaxPerformance
+  Members:
+  mtldb  - Primary database
+    mtlstd - Physical standby database
+
+Fast-Start Failover: DISABLED
+Configuration Status:
+SUCCESS
+
+
+DGMGRL>create configuration DG12 as primary database is MTLDB connect identifier is Montreal;  //created
+DGMGRL>add database MTLSTD as connect identifier is Boisbriand maintained as physical;  //added
+
+3 Enable the configuration with:
+DGMGRL> enable configuration;
+Enabled.
+
+MTLSTD> select client_process, process, sequence#, status from v$managed_standby;
+
+CLIENT_P PROCESS    SEQUENCE# STATUS
+-------- --------- ---------- ------------
+ARCH     RFS                0 IDLE
+ARCH     ARCH               0 CONNECTED
+ARCH     ARCH               0 CONNECTED
+ARCH     ARCH               0 CONNECTED
+LGWR     RFS              715 IDLE
+ARCH     ARCH               0 CONNECTED
+UNKNOWN  RFS                0 IDLE
+UNKNOWN  RFS                0 IDLE
+N/A      MRP0             715 APPLYING_LOG
+SQL > select group,sequence#,status   from v$logfile where type='STANDBY';
+
+    GROUP#  SEQUENCE# STATUS
+---------- ---------- ----------
+         4        715 ACTIVE
+         5          0 UNASSIGNED
+         6          0 UNASSIGNED
+         7          0 UNASSIGNED
+         
+---From your DGMGRL session you can and MUST effect all changes to your configuration. 
+Once you start using the Broker any changes you make to Data Guard parameters will be reset by the Broker to the last known value in the Broker configuration
+
+
+SQL> show parameter log_archive_max_processes dont change it via alter system but via DGMGRL
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+log_archive_max_processes            integer     4
+
+if transport mode changed via sqlplus #alter database recover managed standby database cancel; error will be reported 
+To set things back to initial configuration  to restart the apply services.
+DGMGRL>enable database mtlstd;
+DGMGRL> edit database MTLSTD set state=apply-on;  Or you can use the ‘EDIT’ command
+  
+ To change a parameter or the ‘state’ of anything in the configuration you must always use the ‘EDIT’ command of DGMGRL or Enterprise manager.
+ In the above case, to stop the redo apply services on NYC you would execute ‘edit database mtlstd set state=apply-off;’ from DGMGRL.
+ modifying the ‘Redo Transport’ method and ‘Protection Modes’.
+ 
+ -DelayMins       : number of minutes log apply services will delay applying the archived redo log data on the standby database >=0
+ -LogXptMode      : How the redo is currently being sent to standbyDB
+ -MaxConnections  : How many ARCn processes will be used in parallel to transmit redo data from a primary single archivedlog to standby archiveLog 
+ -MaxFailure      : Maximum number of contiguous archiving failures before the redo transport services stop trying to transport archived redo log files to standby DB 
+ -NetTimeout      : Number of seconds the LGWR waits for Oracle Net Services to respond to a LGWR request. bypass the long connection timeout in TCP.
+ -RedoCompression : whether redo data is transmitted to a standby database in compressed or 
+ -ReopenSecs      : minimum number of seconds before the archiver process (ARCn, foreground, or log writer process) should try again to access a previously failed destination.
+ -Redoroute 12c   :character string that contains one or more redo routing rules. Each rule contains one or more redo sources and one or more redo destinations. 
+                   A redo routing rule becomes active when one of the redo sources in the rule is in the primary role. This results in redo from the primary database being sent to every redo destination in that rule.
+protection mode : 
+  MAXPROTECTION
+  MAXAVAILABILITY
+  MAXPERFORMANCE
+ DGMGRL> edit database MTLSTD set property LogFileNameConvert='+FRA/mtldb,+FRA/mtlstd,+REDO/mtldb,+REDO/mtlstd' ;
+  
+ In the DGMGRL window execute:                                                     
+The following example shows how to upgrade the broker configuration to the MAXAVAILABILITY protection mode.
+Verify that standby redo log files are configured on the standby database 
+DGMGRL> show database MTLSTD logxptmode;
+   SQL> show parameter log_archive_dest_2 =service="paris", LGWR ASYNC NO AFFIRM
+   
+* Set redo transport service to SYNC:
+DGMGRL> EDIT DATABASE MTLDB SET PROPERTY 'LogXptMode'='SYNC';
+Property "LogXptMode" updated
+@MTLDB.MEDISOLUTION> show parameter log_archive_dest_2
+
+NAME                                  VALUE
+------------------------------------ -----------------------------
+log_archive_dest_2                   service="boisbriand", SYNC AFFIRM delay=0 optional compression=disable max_failure=0 max_connections=1 reopen=300 db_unique_name="mtlstd" net_timeout=30, valid_for=(online_logfile,all_roles)
+
+* Upgrade the broker configuration to the MAXAVAILABILITY 
+DGMGRL> EDIT CONFIGURATION SET PROTECTION MODE AS MAXAVAILABILITY;
+Succeeded.
+
+ALERT LOG MTLDB:
+ALTER SYSTEM SET log_archive_dest_2='service="boisbriand"','SYNC AFFIRM delay=0 optional compression=disable max_failure=0 max_connections=1 reopen=300 db_unique_name="mtlstd" net_timeout=30','valid_for=(online_logfile,all_roles)' SCOPE=BOTH;
+Mon Apr 18 17:35:41 2016
+Destination LOG_ARCHIVE_DEST_2 is SYNCHRONIZED
+
+DGMGRL> EDIT CONFIGURATION SET PROTECTION MODE AS MAXPERFORMANCE;
+ -----------------------
+Data Guard Tracing :
+------------------------
+Turn on Data Guard tracing on primary and standby
+
+DGMGRL> edit configuration set property tracelevel=support;---  DGMGRL> edit configuration reset property tracelevel ;
+DGMGRL> edit database boston set property LogArchiveTrace=8191;
+DGMGRL> edit database chicago set property LogArchiveTrace=8191;   ----reset 
+tail –f <drc<SID> log of primary>
+tail –f <drc<SID> log of standby>
+ 
+ -----------------
+ DEACTIVATION
+ ------------------
+ DGMGRL> EDIT DATABASE 'North_Sales' SET STATE='OFFLINE';
+ DGMGRL> DISABLE CONFIGURATION;
+ DGMGRL> DISABLE DATABASE 'DR_Sales';
+ 
+  
+++++
+
+* Create a redo gap:
+1- TASK Shutdown the standby and then perform a couple of log switches at the Primary database.
+   Archive logs will not be able to be shipped to the standby and will be placed on the ‘Fetch Archive Log (FAL)’ queue
+   Before we begin we will reduce the reopen time from the default of 5 minutes to 15 seconds to enable the gap to be resolved faster.
+   
+    DGMGRL>edit database MTLdb set property reopensecs=‘15’;
+    DGMGRL>edit database MTLstd set property reopensecs=‘15’;
+2-TASK: In the MTLD SQL*Plus window execute:
+   SQL > shutdown abort  
+   
+ In the MTLDB SQL*Plus window execute:
+SQL> select sequence# from v$log where status like ‘CURRENT%’; 56
+SQL> alter system switch logfile;
+SQL> alter system switch logfile;
+SQL> select sequence# from v$log where status like ‘CURRENT%’;
+ SEQUENCE#
+----------
+        58    
++++++
+
+ALERT PRIMARY SWITCHOVER:
+========================
+ new standby alert log mtldb alert log:
+Active, synchronized Physical Standby switchover target has been identified
+Preventing updates and queries at the Primary
+Generating and shipping final logs to target standby
+Switchover End-Of-Redo Log thread 1 sequence 682 has been fixed
+Switchover: Primary highest seen SCN set to 0x0.0x6dce3f
+ARCH: Noswitch archival of thread 1, sequence 682
+ARCH: End-Of-Redo Branch archival of thread 1 sequence 682
+ARCH: LGWR is actively archiving destination LOG_ARCHIVE_DEST_2
+ARCH: Standby redo logfile selected for thread 1 sequence 682 for destination LOG_ARCHIVE_DEST_2
+ARCH: Archiving is disabled due to current logfile archival
+Primary will check for some target standby to have received all redo
+Waiting for target standby to apply all redo
+Archivelog for thread 1 sequence 682 required for standby recovery
+Switchover: Primary controlfile converted to standby controlfile succesfully.
+Switchover: Complete - Database shutdown required
+Sending request(convert to primary database) to switchover target mtlstd
+Switchover complete. Database shutdown required
+Completed: ALTER DATABASE SWITCHOVER TO 'mtlstd'
+----
+ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT  NODELAY
+Starting background process MRP0
+Fri Apr 15 19:58:23 2016
+MRP0 started with pid=45, OS id=5892
+Fri Apr 15 19:58:28 2016
+ Started logmerger process
+Fri Apr 15 19:58:29 2016
+Managed Standby Recovery starting Real Time Apply
+Fri Apr 15 19:58:29 2016
+Parallel Media Recovery started with 4 slaves
+Fri Apr 15 19:58:31 2016
+Waiting for all non-current ORLs to be archived...
+Fri Apr 15 19:58:31 2016
+All non-current ORLs have been archived.
+Completed: ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT  NODELAY
+Clearing online redo logfile 1 +REDO/MTLDB/ONLINELOG/group_1.262.907771999
+--
+Clearing online log 1 of thread 1 sequence number 682
+Fri Apr 15 19:58:46 2016
+Clearing online redo logfile 1 complete
+Clearing online redo logfile 2 +REDO/MTLDB/ONLINELOG/group_2.263.907771999
+Clearing online log 2 of thread 1 sequence number 680
+Fri Apr 15 19:59:00 2016
+Clearing online redo logfile 2 complete
+Clearing online redo logfile 3 +REDO/MTLDB/ONLINELOG/group_3.257.907772001
+Clearing online log 3 of thread 1 sequence number 681
+Fri Apr 15 19:59:14 2016
+Clearing online redo logfile 3 complete
+Fri Apr 15 19:59:14 2016
+Media Recovery Log +FRA/MTLDB/ARCHIVELOG/2016_04_15/thread_1_seq_682.268.909259087
+Fri Apr 15 19:59:15 2016
+Resetting standby activation ID 0 (0x0)
+Fri Apr 15 19:59:15 2016
+Media Recovery End-Of-Redo indicator encountered
+Fri Apr 15 19:59:15 2016
+Media Recovery Continuing
+Fri Apr 15 19:59:15 2016
+Media Recovery Log +FRA/MTLDB/ARCHIVELOG/2016_04_15/thread_1_seq_683.351.909259093
+Fri Apr 15 19:59:15 2016
+Media Recovery Log +FRA/MTLDB/ARCHIVELOG/2016_04_15/thread_1_seq_684.352.909259093
+Fri Apr 15 19:59:15 2016
+Media Recovery Log +FRA/MTLDB/ARCHIVELOG/2016_04_15/thread_1_seq_685.347.909259093
+Media Recovery Waiting for thread 1 sequence 686 (in transit)
+Fri Apr 15 19:59:15 2016
+Recovery of Online Redo Log: Thread 1 Group 5 Seq 686 Reading mem 0
+  Mem# 0: +REDO/MTLDB/ONLINELOG/group_5.260.908907615
+Fri Apr 15 20:13:00 2016
+db_recovery_file_dest_size of 20480 MB is 44.55% used. This is a
+user-specified limit on the amount of space that will be used by this
+database for recovery-related files, and does not reflect the amount of
+space available in the underlying filesystem or ASM diskgroup.
+
+ALERT STANDBY SWITCHOVER:
+=================
+SWITCHOVER: received request 'ALTER DTABASE COMMIT TO SWITCHOVER  TO PRIMARY' from primary database.
+Maximum wait for role transition is 15 minutes.
+Switchover: Media recovery is still active
+Role Change: Canceling MRP - no more redo to apply
+Fri Apr 15 19:55:43 2016
+MRP0: Background Media Recovery cancelled with status 16037
+Fri Apr 15 19:55:43 2016
+Errors in file C:\APP\ORACLE\diag\rdbms\mtlstd\mtlstd\trace\mtlstd_pr00_5060.trc:
+ORA-16037: user requested cancel of managed recovery operation
+Managed Standby Recovery not using Real Time Apply
+Recovery interrupted!
+Fri Apr 15 19:55:43 2016
+Errors in file C:\APP\ORACLE\diag\rdbms\mtlstd\mtlstd\trace\mtlstd_pr00_5060.trc:
+ORA-16037: user requested cancel of managed recovery operation
+Fri Apr 15 19:55:44 2016
+Role Change: Canceled MRP
+Killing 2 processes (PIDS:3788,5016) (all RFS) in order to disallow current and future RFS connections. Requested by OS process 4976
+Backup controlfile written to trace file C:\APP\ORACLE\diag\rdbms\mtlstd\mtlstd\trace\mtlstd_rmi_4976.trc
+SwitchOver after complete recovery through change 7196223
+Online logfile pre-clearing operation disabled by switchover
+Online log +REDO/MTLSTD/ONLINELOG/group_1.258.908886947: Thread 1 Group 1 was previously cleared
+Online log +REDO/MTLSTD/ONLINELOG/group_2.259.908886949: Thread 1 Group 2 was previously cleared
+Online log +REDO/MTLSTD/ONLINELOG/group_3.260.908886951: Thread 1 Group 3 was previously cleared
+Standby became primary SCN: 7196221
+Switchover: Complete - Database mounted as primary
+SWITCHOVER: completed request from primary database.
+
+
+DGMGRL> show database verbose MTLSTD;
+
+Database - mtlstd
+
+  Role:               PHYSICAL STANDBY
+  Intended State:     APPLY-ON
+  Transport Lag:      0 seconds (computed 1 second ago)
+  Apply Lag:          0 seconds (computed 1 second ago)
+  Average Apply Rate: 2.00 KByte/s
+  Active Apply Rate:  398.00 KByte/s
+  Maximum Apply Rate: 1.19 MByte/s
+  Real Time Query:    OFF
+  Instance(s):
+    mtlstd
+
+  Properties:
+    DGConnectIdentifier             = 'boisbriand'
+    ObserverConnectIdentifier       = ''
+    LogXptMode                      = 'ASYNC'
+    RedoRoutes                      = ''
+    DelayMins                       = '0'
+    Binding                         = 'optional'
+    MaxFailure                      = '0'
+    MaxConnections                  = '1'
+    ReopenSecs                      = '300'
+    NetTimeout                      = '30'
+    RedoCompression                 = 'DISABLE'
+    LogShipping                     = 'ON'
+    PreferredApplyInstance          = ''
+    ApplyInstanceTimeout            = '0'
+    ApplyLagThreshold               = '0'
+    TransportLagThreshold           = '0'
+    TransportDisconnectedThreshold  = '30'
+    ApplyParallel                   = 'AUTO'
+    StandbyFileManagement           = 'AUTO'
+    ArchiveLagTarget                = '0'
+    LogArchiveMaxProcesses          = '4'
+    LogArchiveMinSucceedDest        = '1'
+    DbFileNameConvert               = '+DATA/mtldb, +DATA/mtlstd'
+    LogFileNameConvert              = '+FRA/mtldb, +FRA/mtlstd, +REDO/mtldb, +REDO/mtlstd'      
+    FastStartFailoverTarget         = ''
+    InconsistentProperties          = '(monitor)'
+    InconsistentLogXptProps         = '(monitor)'
+    SendQEntries                    = '(monitor)'
+    LogXptStatus                    = '(monitor)'
+    RecvQEntries                    = '(monitor)'
+    StaticConnectIdentifier         = '(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=MCR-ORA-T06)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=mtlstd_DGMGRL.medisolution)(INSTANCE_NAME=mtlstd)(SERVER=DEDICATED)))'
+    StandbyArchiveLocation          = '+FRA'
+    AlternateLocation               = ''
+    LogArchiveTrace                 = '0'
+    LogArchiveFormat                = 'ARC%S_%R.%T'
+    TopWaitEvents                   = '(monitor)'
+
+Database Status:
+SUCCESS
+
+DGMGRL> show database verbose MTLDB;
+
+Database - mtldb
+
+  Role:               PRIMARY
+  Intended State:     TRANSPORT-ON
+  Instance(s):
+    mtldb
+
+  Properties:
+    DGConnectIdentifier             = 'montreal'
+    ObserverConnectIdentifier       = ''
+    LogXptMode                      = 'ASYNC'
+    RedoRoutes                      = ''
+    DelayMins                       = '0'
+    Binding                         = 'optional'
+    MaxFailure                      = '0'
+    MaxConnections                  = '1'
+    ReopenSecs                      = '300'
+    NetTimeout                      = '30'
+    RedoCompression                 = 'DISABLE'
+    LogShipping                     = 'ON'
+    PreferredApplyInstance          = ''
+    ApplyInstanceTimeout            = '0'
+    ApplyLagThreshold               = '0'
+    TransportLagThreshold           = '0'
+    TransportDisconnectedThreshold  = '30'
+    ApplyParallel                   = 'AUTO'
+    StandbyFileManagement           = 'AUTO'
+    ArchiveLagTarget                = '0'
+    LogArchiveMaxProcesses          = '4'
+    LogArchiveMinSucceedDest        = '1'
+    DbFileNameConvert               = '+DATA/mtldb/DATAFILE, +DATA/mtlstd/DATAFILE'
+    LogFileNameConvert              = '+FRA/mtldb/ONLINELOG, +FRA/mtlstd/ONLINELOG, +REDO/mtldb/ONLINELOG, +REDO/mtlstd/ONLINELOG'
+    FastStartFailoverTarget         = ''
+    InconsistentProperties          = '(monitor)'
+    InconsistentLogXptProps         = '(monitor)'
+    SendQEntries                    = '(monitor)'
+    LogXptStatus                    = '(monitor)'
+    RecvQEntries                    = '(monitor)'
+    StaticConnectIdentifier         = '(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=172.25.11.95)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=MTLDB_DGMGRL.medisolution)(INSTANCE_NAME=mtldb)(SERVER=DEDICATED)))'
+    StandbyArchiveLocation          = '+FRA'
+    AlternateLocation               = ''
+    LogArchiveTrace                 = '0'
+    LogArchiveFormat                = 'ARC%S_%R.%T'
+    TopWaitEvents                   = '(monitor)'
+
+Database Status:
+SUCCESS
+
+
+
+
+
+
+
+------------------------------------------------------------------- 
+Using Flashback Database After Issuing an Open Resetlogs Statement 
+--------------------------------------------------------------------
+
+======================================================================
+ Resolve Log gap for standby databases
+======================================================================
+
+DGMGRL> show configuration verbose
+Configuration - dg12
+  Protection Mode: MaxPerformance
+  Members:
+  mtldb  - Primary database
+    Error: ORA-16724: cannot resolve gap for one or more standby databases
+    mtlstd - Physical standby database
+
+- Primary DB SCN Number
+mtldb> select current_scn from gv$database;
+CURRENT_SCN
+-----------
+  135966683  -- march2018  177131635
+  
+- Standby DB SCN Number
+
+mtlstd> select current_scn from gv$database;
+CURRENT_SCN
+-----------
+  114264654  -- March2018 138436321
+ 
+mtlstd> select min (checkpoint_change#) from v$datafile_header;
+MIN(CHECKPOINT_CHANGE#)
+-----------------------
+              114264655  -- MArch2018 138436322
+
+
+STEP #1 STOP THE RECOVERY PROCESS (APPLY OFF)
+  DGMGRL> edit  DATABASE MTLSTD set STATE=APPLY-OFF;
+
+STEP#2 PERFORM A INCREMENTAL BACKUP FROM PRIMARY DB
+
+  RMAN> run
+ {allocate channel ch1 type disk;
+  backup incremental from scn 114264000 database format 'E:\MSSQL_backup\standby_%d_%t_%c_%p';
+  }
+
+STEP#3 RECOVER STANDBY DB
+
+ A) Move the rman backup piece to the standby server => F:\Ora_Backup\standby
+ B) Catalog backup piece on the standby server
+
+$ rman target /   - ---à STANDBY SERVER
+  RMAN> catalog start with 'F:\Ora_Backup\standby';
+   List of Cataloged Files
+   =======================
+   File Name: F:\ORA_BACKUP\STANDBY\STANDBY_MTLDB_955116673_1_1
+   File Name: F:\ORA_BACKUP\STANDBY\STANDBY_MTLDB_955116718_1_1
+
+C) Recover the standby database using the backup piece which has taken from the PRIMARY DB
+-- RUN FROM STANDBY SERVER
+RMAN> run
+ { allocate channel ch1 type disk;
+   recover database noredo;}
+ 
+STEP#4 Create standby control from primary DB
+ 
+  SQL> alter database create standby controlfile as 'E:\MSSQL_backup\standby.ctl';
+ 
+STEP#5 Restore the Control file in the STANDBY DB
+
+-- Below steps are in the standby server
+A) STOP THE STANDBY DATBASE( Both instances)
+   $ srvctl stop database -d mtlstd
+   sqlplus / as sysdba
+B) START ONLY ONE INSTANCE OF THE STANDBY DATBASE
+
+   $ sqlplus / as sysdba
+   SQL> startup nomount
+C) IDENTIFY THE CONTROL FILE LOCATION
+   SQL> show parameter control_files
+D) past the copied standby control file from primary DB
+E) RESTORING CONTROL FILE TO STANDBY DATABASE
+   RMAN> restore controlfile from 'F:\Ora_Backup\standby\standby.ctl';
+   RMAN> alter database mount;
+STEP#6 CHANGING CONTROLFILE CONFIGURATION
+   $ rman target /    à STANDBY DB
+   RMAN> CATALOG START WITH '+DATA/MTLSTD/DATAFILE/';
+
+/* STEP#7 Check for New Datafile added in primary DB
+
+-- IN STANBDY DB
+   SQL> SELECT FILE#, NAME FROM V$DATAFILE WHERE CREATION_CHANGE# > 114264655;
+   No rows ..
+   NOTE: if any files available, we have to copy it from primary to the standby database using RMAN
+   copy the datafile from the primary database.
+
+ run
+  {allocate channel a1 type disk; backup datafile 10 format 'E:\MSSQL_backup\datafile_%d_%U_%p_%c';}
+  
+ Transfer the rman backup datafile to standby database location then catalog the backup piece in the standby database.
+run
+ {allocate channel a1 type disk; Restore datafile 10;}
+
+STEP#8 Switch the datafile USING RMAN
+ This process will change the datafile details of the standby database in the controlfile
+  RMAN> SWITCH DATABASE TO COPY;
+*/
+
+STEP#9 Clear the standby log files
+    SQL> ALTER DATABASE CLEAR LOGFILE GROUP 4; 
+    SQL> ALTER DATABASE CLEAR LOGFILE GROUP 5; 
+    SQL> ALTER DATABASE CLEAR LOGFILE GROUP 6;
+    SQL> ALTER DATABASE CLEAR LOGFILE GROUP 7;
+
+STEP#10 START THE RECOVEY PROCESS ON STANDBY
+    $ dgmgrl     -----à On standby server
+    DGMGRL> edit database 'mtlstd' set state='APPLY-ON';
+ 
+ ** FINAL RESULT
+  DGMGRL> show configuration
+
+=======================================================	
+Recovering From Lost-Write Errors on a Primary Database 
+=======================================================
+
+
+
+
+
+
+============================ 
+LOSS of standby datafile : 
+============================
+
+@standby> rm /u02/app/oracle/oradata/mcdb/rdgcdb01.dbf RMAN> list failure;
+
+using target database control file instead of recovery catalog
+
+Database Role: PHYSICAL STANDBY
+
+List of Database Failures
+
+=========================
+
+Failure ID Priority Status   Time Detected Summary
+
+---------- -------- --------- ------------- -------
+
+283       CRITICAL OPEN     09-JUL-15     One or more non-system datafiles are 
+missing
+
+262       HIGH     OPEN     09-JUL-15     Datafiles are mutually inconsistent 
+DGMGRL> show database india statusreport
+
+STATUS REPORT
+
+       INSTANCE_NAME   SEVERITY ERROR_TEXT
+
+                   *     ERROR ORA-16839: one or more user data files are 
+                   missing stop SQL> ALTER DATABASE RECOVER MANAGED STANDBY 
+                   DATABASE CANCEL; OR if brocker DGMGRL> edit database india 
+                   set state='APPLY-OFF';    
+
+STANDBY_RMAN> restore datafile 11 from service primary_MTL;
+
+Starting restore at 09-JUL-15
+
+Finished restore at 11-JUL-15
+
+
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE; OR if brocker 
+DGMGRL> edit database india set state='APPLY-ON';
+
+STANDBY_SQL> select file#,status,error from v$datafile_header where file#=11
+
+     FILE#      STATUS ERROR 
+     ---------- ------- ------------ 
+     11         ONLINE
+
+
+RECOVER STANDBY DATABASE controlfile :
+=====================================
+
+Obtain the names of the data files and the temp files in the physical standby database using the following command: This command also implicitly 
+resynchronizes the recovery catalog and ensures that it contains all the file names of the standby database. 
+RMAN> REPORT SCHEMA;
+
+--- Note the names of the online redo log files and standby redo log files of the physical standby database. You may require these names in a later step.
+
+The following command lists the names and group identifiers of the redo log files: 
+SELECT type, group#, member FROM v$logfile;
+
+Note the current SCN of the physical standby database. This is required to determine, in a later step, if new data files were added to the primary database.
+ using the following command:
+
+SQL>SELECT CURRENT_SCN FROM V$DATABASE;
+SQL> SHUTDOWN IMMEDIATE; 
+SQL> STARTUP MOUNT; SQL> RESTORE STANDBY CONTROLFILE FROM SERVICE primary_db;  
+- Mount the standby database using the following command: 
+SQL> ALTER DATABASE MOUNT;  - Update the names of the data files and 
+the temp files in the standby control file.
+
+If you are connected to a recovery catalog, then use the following command to 
+update the file names: 
+SQL> RECOVER DATABASE NOREDO; 
+If you are not connected to a recovery catalog, then use the CATALOG command and the SWITCH command to update all the data file names.
+SQL> CATALOG START WITH '/disk2/datafiles/';
+  ---+
+  DATA/MTLSTD/DATAFILES SWITCH DATABASE TO COPY; 
+  --- If the data files are in different locations, then use the 
+ALTER DATABASE RENAME FILE command to rename data fi
+Refresh the data files on the physical standby database by using an incremental backup of the data 
+files on the primary database. The NOREDO clause specifies that the archived 
+redo log files must not be applied during recovery.
+
+ SQL>   RECOVER DATABASE FROM SERVICE primary_db NOREDO SECTION SIZE 120M;   
+
+- Use the current SCN returned in Step 6 35806 to determine if new data files 
+were added to the primary database since the standby database was last refreshed 
+SQL> SELECT file# FROM V$DATAFILE WHERE creation_change# >= 35806; 
+
+  ** restore data files that were added to the primary after the standby was 
+  last refreshed (data files 15 and 17 were added to the primary):    RMAN >RUN 
+  { SET NEWNAME FOR DATABASE TO '/oracle/database'; # +DATA/MTLSTD/DATAFILES 
+  RESTORE DATAFILE 15, 17 FROM SERVICE primary_db; }
+
+   14-If no files are returned Update the names of the online redo logs and 
+   standby redo logs in the standby control file using one of the following 
+   methods:    The GROUP# column of the V$LOGFILE view queried in Step 4 
+   provides the redo log group identifiers of the log groups that must be 
+   cleared SQL>ALTER DATABASE CLEAR LOGFILE GROUP 2; You can delete the old redo 
+   log files after clearing all the redo log groups Use the ALTER DATABASE 
+   RENAME FILE command to rename the redo log files. Use a separate command to 
+   rename each log file listed in Step 4. Renaming log files is recommended when 
+   the number of online redo logs files and standby redo log files is the same 
+   in the primary database and the physical standby database.
+
+   15- On the primary database, switch the archived redo log files using the 
+   following command:    SQL> ALTER SYSTEM ARCHIVE LOG CURRENT;
+
+   16- For Active Data Guard only) Perform the following steps to recover redo 
+   data and open the physical standby database in read-only mode: 
+   SQL>ALTER DATABASE RECOVER MANAGED STANDBY DATABASE UNTIL CONSISTENT; SQL> 
+   ALTER DATABASE OPEN READ ONLY;
+
+   17-Start the managed recovery processes on the physical standby database. 
+   SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT FROM SESSION; 
+   OR  DGMGRL> edit database standby_db set state='APPLY-ON';
+
+
+      RECOVER DATABSE FROM SERVICE PRIMARY_DB;
+
+============================ 
+Loss of Primary CDB datafile 
+============================
+
+PRIMARY_SQL> select database_role from v$database;
+
+DATABASE_ROLE 
+---------------- 
+PRIMARY
+
+SQL> !rm /u02/app/oracle/oradata/mcdb/users01.dbf 
+RMAN> sql 'alter database datafile 6 offline'; 
+RMAN> restore datafile 6 from service standby_paris; 
+Starting restore at 11-JUL-15 allocated channel: 
+ORA_DISK_1 channel ORA_DISK_1: 
+SID=75 device type=DISK 
+Finished restore at 11-JUL-15
+
+RMAN> recover datafile 6;
+ Starting recover at 11-JUL-15 
+ Finished recover at 11-JUL-15
+ RMAN> sql 'alter database datafile 6 online'; 
+ sql statement: alter database datafile 6 online
+ 
+ 
+ 
+ 
+ ======================================
+ Transparent Application Failover (TAF)
+ ======================================
+ is a client-side feature of OCI, OCCI, Java Database Connectivity (JDBC) OCI driver, and ODP.NET designed to minimize disruptions to end-user applications that occur when database connectivity.TAF enables client applications to automatically (transparently) reconnect to a preconfigured secondary instance, creating a fresh7 identical  connection,
+
+What is TAF? 
+-------------
+TAF is a database session-level connection failover mechanism: it works via the OCI interface only so applies to applications using thick JDBC drivers and those using the OCI libraries (e.g. written in C, like OID). During failover a new session will be started on an alternative node (though it can be pre-connected ahead of the failure) and this can optionally re-open a cursor and advance it to the point it was at prior to failure (providing underlying data hasn't changed).
+
+What is FCF? 
+------------
+FCF is an application-level failover mechanism: the database-tier notifies the application-tier by means of a FAN (fast application notification) message, distributed via the ONS (Oracle Notification Service) daemons. Where database connections are pooled, as offered by Oracle JDBC, the driver then has the opportunity to clean up stale connections if a node fails. One very nice feature is that when a node comes back online (i.e. a FAN message is sent out) the JDBC driver will automatically make new connections to the node to re-balance the pool. 
+
+When can I use TAF or FCF?
+--------------------------- 
+Stating the obvious, but only when you have a database that can failover: this typically is RAC, but it could also be a Data Guard Primary-Standby site or even a single instance cold failover cluster. For both mechanisms you need to connect using database services (rather than traditional SIDs) since it's important that the service is not tied to an instance. TAF has been around since 8.1.5 whereas FCF is newer (10.1 onwards).
+
+Now to less obvious questions:
+Will I have to change my application? 
+To get the highest levels of reliability, yes, you will need to add additional error handling to re-apply your database work.This is true for both TAF (assuming you're not just doing read-only transactions) and FCF.
+If you have short lived transactions and don't want (or can't) change your application, then FCF can quickly clean up stale connections in the pool and your application will only suffer failures 
+where it has a connection checked out from the pool (e.g. is in the middle of database activity).
+
+I have a java application that uses JDBC and a RAC database - should I use FCF? Well, the answer is probably yes, providing you're on a recent Oracle JDBC driver (e.g. 10.2.0.4.0). 
+There's no performance penalty to using it - you just need to set it up. 
+Even if your application doesn't take account of failures flagged by the FCF mechanism at least you will always ensure that the connection pool has live connections.
+
+
+you can think of TAF as geared towards client-server connections whereas FCF is aimed at Java multi-tier architectures. Therefore TAF would be very suitable for batch jobs, long running sessions and the like, whereas FCF suits pooled connections where database transactions are very short lived (like your typical web app).
+Hopefully this gives a useful outline. For more information about TAF and FCF in the java environment the best place to start is the Oracle® Database JDBC Developer's Guide and Reference, Chapters 26 (TAF) and 27 (FCF).
+
+
+Delphi app :devart ODAC  (For correct work with Instant Client, the data about the client must be recorded to the registry or the Path environment variable, or Instant Client files(including tnsnames.ora) must be located in the application directory.)
+Component/Class : TCustomDAConnection.ConnectString 
+dotnet app :devart dotconnectUniversal 
+Component/Class : Devart.Data.Oracle.OracleConnection.ConnectionString property
+public void CreateOraConnection() 
+{ 
+    string oracleConnectionString1 = "User ID=GRH1; Password=tiger; Data Source=PROD_DG"; +
+      "Min Pool Size=10;Connection Lifetime=120;Connection Timeout=60;" +  "HA Events=true;Incr Pool Size=5;Decr Pool Size=2";
+  
+   
+    ...}
+if Direct is set to False, Server/Data Source assumes TNS alias name for the requested database
+
+================================
+ Configure TAF
+=================================
+ Configuring Transparent Application Failover
+TAF can be configured on both the client side and server side with the server side taking precedence if both client and server sides are configured.
+On the client side, you configure TAF by including the FAILOVER_MODE parameter in the CONNECT_DATA portion of a connect descriptor.
+On the server side, you configure TAF by modifying the target service with the DBMS_SERVICE.MODIFY_SERVICE packaged procedure.
+
+Using TAF callbacks makes possible:
+
+- Notifying users of the status of failover throughout the failover process; when failover is underway, when failover is successful, and when failover is unsuccessful
+- Replaying of ALTER SESSION commands when that is needed
+- Reauthenticating a user handle besides the primary handle for each time a session begins on the new connection. Because each user handle represents a server-side session, 
+
+
+================================
+ Configure FCF
+=================================
+
+A. FCF for JDBC(thin/thick)
+---------------------------
+FCF devient effectif à l'activation du FAN sur la Connection Pool d'Oracle qui pourra recevoir et réagir aux évènements FAN.  Il suffit d'assigner 'TRUE' au paramètre FastConnectionFailoverEnabled dans le Datasource. Exemple :
+PoolDataSource pds = PoolDataSourceFactory.getPoolDataSource();
+pds.setONSConfiguration("nodes=primaryhost:6200,standbyhost:6200");
+pds.setFastConnectionFailoverEnabled(true);
+pds.setURL("jdbc:oracle:thin:@(DESCRIPTION= 
+  (LOAD_BALANCE=on) 
+  (ADDRESS=(PROTOCOL=TCP)(HOST=primaryhost)(PORT=1521)) 
+  (ADDRESS=(PROTOCOL=TCP)(HOST=standbyhost)(PORT=1521))         (CONNECT_DATA=(service_name=virtuo.medisolution)))");
+
+B. FCF for  Dotnet
+---------------------
+Pour activer FCF procédez aux étapes suivantes :
+
+o	Activation des notifications de file d'attente avancée (Advanced Queuing Notification):
+# srvctl modify service -db MTLDB -service virtuo -notification true -clbgoal long
+
+o	Assigner le privilège file d'attente à l'utilisateur applicatif:
+ DBMS_AQADM.GRANT_QUEUE_PRIVILEGE('DEQUEUE','SYS.SYS$SERVICE_METRICS', GRH1);
+
+o	Définir l'attribut  HA events  à True pour activer FCF pour le client ODP.net
+/ C#
+using System;
+using Oracle.DataAccess.Client;
+class HAEventEnablingSample
+{static void Main()
+  {   OracleConnection con = new OracleConnection();
+    // Open a connection using ConnectionString attributes
+    // Also, enable "load balancing"
+    con.ConnectionString =
+      "User Id=GRH1;Password=password;Data Source=oracle;" +
+      "Min Pool Size=10;Connection Lifetime=120;Connection Timeout=60;" +  "HA Events=true;Incr Pool Size=5;Decr Pool Size=2";
+  con.Open(); 
+     // Create more connections and perform work against the database here.   
+     // Dispose OracleConnection object                                                con.Dispose();}}
+o	Confirmer que les serveurs primaire/de secours  sont présent dans l'entrée TNS  
+PROD_DG =
+(DESCRIPTION =
+ (CONNECT_TIMEOUT=10)(RETRY_COUNT=3)
+   (ADDRESS_LIST =
+     (ADDRESS = (PROTOCOL = TCP)(HOST = mcr-Ora-t05)(PORT = 1521))
+     (ADDRESS = (PROTOCOL = TCP)(HOST = mcr-Ora-t06)(PORT = 1521))
+     (LOAD_BALANCE = yes))
+(CONNECT_DATA=
+  (SERVICE_NAME= virtuo.medisolution)))
+
+C.  FCF For OCI (oracle client interface)
+------------------------------------------ 
+
+o Activation des notifications de file d'attente avancée (Advanced Queuing Notification):
+# srvctl modify service -db MTLDB -service virtuo -notification true     -clbgoal long -role primary -failovertype select -failovermethod basic           -failoverretry 5 -failoverdelay 180 -clbgoal long
+
+o	Activation les évènements OCI sur l'environnement client 
+( OCIEnvCreate(...) )
+
+o	Relier l'application client avec thread client ou la librairie du SE 
+
+o	Confirmer que les serveurs primaire/de secours  sont présent dans l'entrée TNS
+PROD_DG =
+(DESCRIPTION =
+ (CONNECT_TIMEOUT=10)(RETRY_COUNT=3)
+   (ADDRESS_LIST =
+     (ADDRESS = (PROTOCOL = TCP)(HOST = mcr-Ora-t05)(PORT = 1521))
+     (ADDRESS = (PROTOCOL = TCP)(HOST = mcr-Ora-t06)(PORT = 1521))
+     (LOAD_BALANCE = yes))
+(CONNECT_DATA=
+  (SERVICE_NAME= virtuo.medisolution)))
+
+
+============================
+Application Continuity for Java. 
+============================
+This feature supports the commit outcome and recovery of active requests allowing JDBC-based applications in (HA)infrastructures to avoid application errors from system failures by providing an immediate implicit recovery and resubmission of all active requests as soon as failover occurs and connectivity is restored to database service
+
+
+
+
+
+
+FAL_CLIENT and FAL_SERVER only need to be defined in the initialization parameter file for the standby database(s). 
+It is possible; however, to define these two parameters in the initialization parameter for the primary database server
+ to ease the amount of work that would need to be performed if the primary database were required to transition its role.
+
+In Primary site:
+
+FAL_SERVER=STANDBY
+FAL_CLIENT=PRIMARY
+
+In Standby site:
+
+FAL_SERVER=PRIMARY
+FAL_CLIENT=STANDBY
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Alert log MTLDB at broker creation  :
+=====================================
+ALTER SYSTEM SET dg_broker_start=TRUE SCOPE=BOTH;
+Fri Apr 15 19:18:58 2016
+DMON started with pid=59, OS id=5508
+Fri Apr 15 19:19:01 2016
+Starting Data Guard Broker (DMON)
+Starting background process INSV
+Fri Apr 15 19:19:06 2016
+INSV started with pid=60, OS id=3644
+Fri Apr 15 19:20:12 2016
+Using STANDBY_ARCHIVE_DEST parameter default value as +FRA
+Fri Apr 15 19:20:12 2016
+ALTER SYSTEM SET log_archive_dest_2='' SCOPE=BOTH;
+Starting background process NSV1
+Fri Apr 15 19:21:58 2016
+NSV1 started with pid=62, OS id=5848
+ALTER SYSTEM SET log_archive_dest_2='' SCOPE=BOTH;
+Starting background process NSV1
+Fri Apr 15 19:21:58 2016
+NSV1 started with pid=62, OS id=5848
+Starting background process RSM0
+Fri Apr 15 19:26:11 2016
+RSM0 started with pid=68, OS id=4616
+Fri Apr 15 19:26:15 2016
+Using STANDBY_ARCHIVE_DEST parameter default value as +FRA
+Fri Apr 15 19:26:15 2016
+ALTER SYSTEM SET log_archive_dest_2='service="boisbriand"','ASYNC NOAFFIRM delay=0 optional compression=disable max_failure=0 max_connections=1 reopen=300 db_unique_name="mtlstd" net_timeout=30','valid_for=(online_logfile,all_roles)' SCOPE=BOTH;
+Fri Apr 15 19:26:15 2016
+ALTER SYSTEM SET log_archive_dest_state_2='ENABLE' SCOPE=BOTH;
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET log_archive_trace=0 SCOPE=BOTH SID='mtldb';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET log_archive_format='ARC%S_%R.%T' SCOPE=SPFILE SID='mtldb';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET standby_file_management='AUTO' SCOPE=BOTH SID='*';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET archive_lag_target=0 SCOPE=BOTH SID='*';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET log_archive_max_processes=4 SCOPE=BOTH SID='*';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET log_archive_min_succeed_dest=1 SCOPE=BOTH SID='*';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET db_file_name_convert='+DATA/mtldb/DATAFILE','+DATA/mtlstd/DATAFILE' SCOPE=SPFILE;
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET log_file_name_convert='+FRA/mtldb/ONLINELOG','+FRA/mtlstd/ONLINELOG','+REDO/mtldb/ONLINELOG','+REDO/mtlstd/ONLINELOG' SCOPE=SPFILE;
+Fri Apr 15 19:26:18 2016
+Thread 1 advanced to log sequence 682 (LGWR switch)
+  Current log# 1 seq# 682 mem# 0: +REDO/MTLDB/ONLINELOG/group_1.262.907771999
+  Current log# 1 seq# 682 mem# 1: +FRA/MTLDB/ONLINELOG/group_1.348.908384663
+Fri Apr 15 19:26:19 2016
+Archived Log entry 713 added for thread 1 sequence 681 ID 0x4e6adda1 dest 1:
+Fri Apr 15 19:26:19 2016
+******************************************************************
+TT00: Setting 'active' archival for destination LOG_ARCHIVE_DEST_2
+******************************************************************
+TT00: Standby redo logfile selected for thread 1 sequence 682 for destination LOG_ARCHIVE_DEST_2
+
+
+Alert log MTLSTB at Broker creation:
+==================
+ALTER SYSTEM SET dg_broker_start=TRUE SCOPE=BOTH;
+Fri Apr 15 19:19:26 2016
+DMON started with pid=39, OS id=4736
+Fri Apr 15 19:19:29 2016
+Starting Data Guard Broker (DMON)
+Starting background process INSV
+Fri Apr 15 19:19:34 2016
+INSV started with pid=40, OS id=2972
+Fri Apr 15 19:20:37 2016
+Using STANDBY_ARCHIVE_DEST parameter default value as +FRA
+Fri Apr 15 19:20:37 2016
+ALTER SYSTEM SET log_archive_dest_2='' SCOPE=BOTH;
+NSV0 started with pid=37, OS id=4684
+Starting background process RSM0
+Fri Apr 15 19:26:11 2016
+RSM0 started with pid=41, OS id=3928
+Fri Apr 15 19:26:15 2016
+ALTER SYSTEM SET log_archive_trace=0 SCOPE=BOTH SID='mtlstd';
+Fri Apr 15 19:26:15 2016
+ALTER SYSTEM SET log_archive_format='ARC%S_%R.%T' SCOPE=SPFILE SID='mtlstd';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET standby_file_management='AUTO' SCOPE=BOTH SID='*';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET archive_lag_target=0 SCOPE=BOTH SID='*';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET log_archive_max_processes=4 SCOPE=BOTH SID='*';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET log_archive_min_succeed_dest=1 SCOPE=BOTH SID='*';
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET db_file_name_convert='+DATA/mtldb','+DATA/mtlstd' SCOPE=SPFILE;
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET log_file_name_convert='+FRA/mtldb','+FRA/mtlstd','+REDO/mtldb','+REDO/mtlstd' SCOPE=SPFILE;
+Fri Apr 15 19:26:16 2016
+ALTER SYSTEM SET fal_server='montreal' SCOPE=BOTH;
+ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT  NODELAY
+Starting background process MRP0
+Fri Apr 15 19:26:16 2016
+MRP0 started with pid=43, OS id=2984
+Fri Apr 15 19:26:19 2016
+Archived Log entry 51 added for thread 1 sequence 681 ID 0x4e6adda1 dest 1:
+Fri Apr 15 19:26:20 2016
+Network Resource Management enabled for Process  (pid 1848) for Exadata I/O
+Primary database is in MAXIMUM PERFORMANCE mode
+RFS[3]: Assigned to RFS process (PID:1848)
+RFS[3]: Selected log 4 for thread 1 sequence 682 dbid 1314256858 branch 907771998
+Fri Apr 15 19:26:21 2016
+ Started logmerger process
+Fri Apr 15 19:26:21 2016
+Managed Standby Recovery starting Real Time Apply
+Fri Apr 15 19:26:21 2016
+NOTE: ASMB mounting group 1 (DATA)
+NOTE: Assigning number (1,0) to disk (\\.\ORCLDISKDATA1)
+NOTE: Assigning number (1,1) to disk (\\.\ORCLDISKDATA2)
+NOTE: Assigning number (1,2) to disk (\\.\ORCLDISKDATA3)
+SUCCESS: mounted group 1 (DATA)
+NOTE: grp 1 disk 0: DATA_0000 path:\\.\ORCLDISKDATA1
+NOTE: grp 1 disk 1: DATA_0001 path:\\.\ORCLDISKDATA2
+NOTE: grp 1 disk 2: DATA_0002 path:\\.\ORCLDISKDATA3
+Fri Apr 15 19:26:22 2016
+ERROR: failed to establish dependency between database mtlstd and diskgroup resource ora.DATA.dg
+Fri Apr 15 19:26:22 2016
+Parallel Media Recovery started with 4 slaves
+Fri Apr 15 19:26:24 2016
+Waiting for all non-current ORLs to be archived...
+Fri Apr 15 19:26:24 2016
+All non-current ORLs have been archived.
+Completed: ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT  NODELAY
+Clearing online redo logfile 1 +REDO/MTLSTD/ONLINELOG/group_1.258.908886947
+
+Clearing online log 1 of thread 1 sequence number 676
+Fri Apr 15 19:26:36 2016
+Clearing online redo logfile 1 complete
+Clearing online redo logfile 2 +REDO/MTLSTD/ONLINELOG/group_2.259.908886949
+
+Clearing online log 2 of thread 1 sequence number 677
+Fri Apr 15 19:26:48 2016
+Clearing online redo logfile 2 complete
+Clearing online redo logfile 3 +REDO/MTLSTD/ONLINELOG/group_3.260.908886951
+
+Clearing online log 3 of thread 1 sequence number 678
+Clearing online redo logfile 3 complete
+Fri Apr 15 19:26:58 2016
+Media Recovery Log +FRA/MTLSTD/ARCHIVELOG/2016_04_15/thread_1_seq_678.296.909236827
+Fri Apr 15 19:26:58 2016
+Resetting standby activation ID 0 (0x0)
+Fri Apr 15 19:26:58 2016
+Media Recovery End-Of-Redo indicator encountered
+Fri Apr 15 19:26:58 2016
+Media Recovery Continuing
+Fri Apr 15 19:26:58 2016
+Media Recovery Log +FRA/MTLSTD/ARCHIVELOG/2016_04_15/thread_1_seq_679.297.909236831
+Fri Apr 15 19:26:58 2016
+Media Recovery Log +FRA/MTLSTD/ARCHIVELOG/2016_04_15/thread_1_seq_680.298.909236831
+Fri Apr 15 19:26:59 2016
+Media Recovery Log +FRA/MTLSTD/ARCHIVELOG/2016_04_15/thread_1_seq_681.299.909257179
+Resize operation completed for file# 3, old size 1157120K, new size 1167360K
+Media Recovery Waiting for thread 1 sequence 682 (in transit)
+Fri Apr 15 19:27:00 2016
+Recovery of Online Redo Log: Thread 1 Group 4 Seq 682 Reading mem 0
+  Mem# 0: +REDO/MTLSTD/ONLINELOG/group_4.261.908908503
+                            

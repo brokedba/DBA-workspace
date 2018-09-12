@@ -1,0 +1,169 @@
+in mixed mode the new unified auditing is enabled, and AUDIT_TRAIL is not ignored:
+
+When you upgrade to 12c:
+
+1- If you want to manage only the old audit, then you should disable ORA_LOGON_FAILURES and ORA_SECURECONFIG.
+2- If you want to manage both, then add a job to purge the unified audit trail (audit_trail_type=>dbms_audit_mgmt.audit_trail_unified).
+3- If you don’t use the old auditing, then enable the ‘pure mode’. But then, AUDIT_TRAIL=NONE is ignored, so:
+4-If you don’t use the new unified auditing, then disable ORA_LOGON_FAILURES and ORA_SECURECONFIG.
+5- Or use the new unified auditing and set a job to purge it regularly.
+
+
+This is the mode to use until you have migrated all your policies and audit trail queries to the new one. 
+However you can see that in mixed mode, there is no double auditing but only new default policies. The old policies are only logged to the old audit trail.
+
+SQL> select parameter,value from v$option where parameter='Unified Auditing';    SQL> show parameter audit                                            
+PARAMETER         VALUE                                                          NAME                         TYPE    VALUE                                                        
+---------------- ------                                                          ---------------------------- ------- --------------------------------                             
+Unified Auditing  FALSE                                                          audit_trail                  string  DB                                                           
+                                                                                                          
+
+Even with Unified Auditing set to off, some operations are audited when AUDIT_TRAIL=DB. If you don’t want them you have to disable them:
+SQL> noaudit policy ORA_SECURECONFIG;
+SQL> noaudit policy ORA_LOGON_FAILURES;
+
+— Query to Check the SYSAUX Tablespace Occupants —
+
+COLUMN “Item” FORMAT A25
+COLUMN “Space Used (GB)” FORMAT 999.99
+COLUMN “Schema” FORMAT A25
+COLUMN “Move Procedure” FORMAT A40
+
+SELECT occupant_name “Item”,
+space_usage_kbytes/1048576 “Space Used (GB)”,
+schema_name “Schema”,
+move_procedure “Move Procedure”
+FROM v$sysaux_occupants
+ORDER BY 2
+/
+— Query to Check the SYSAUX Tablespace Largest Segments–
+
+col owner for a6
+col segment_name for a50
+select * from
+(select owner,segment_name||’~’||partition_name segment_name,bytes/(1024*1024) size_m
+from dba_segments
+where tablespace_name = ‘SYSAUX’ ORDER BY BLOCKS desc) where rownum < 11;
+
+— Clean Up the Unified Audit Trail —
+ @PRD1> select AUDIT_TRAIL,PARAMETER_NAME,PARAMETER_VALUE from DBA_AUDIT_MGMT_CONFIG_PARAMS where AUDIT_TRAIL='UNIFIED AUDIT TRAIL' order by 1;
+
+AUDIT_TRAIL                  PARAMETER_NAME                 PARAMETER_VALUE
+---------------------------- ------------------------------ ------------------------------
+UNIFIED AUDIT TRAIL          AUDIT FILE MAX SIZE            10000
+UNIFIED AUDIT TRAIL          AUDIT FILE MAX AGE             5
+UNIFIED AUDIT TRAIL          DB AUDIT TABLESPACE            SYSAUX
+UNIFIED AUDIT TRAIL          AUDIT WRITE MODE               QUEUED WRITE MODE
+
+select * from DBA_AUDIT_MGMT_CLEANUP_JOBS;  
+select * from DBA_AUDIT_MGMT_CLEAN_EVENTS 
+
+
+1. First set the Date, starting from where you need to have the Unified Auditing Records
+
+BEGIN
+DBMS_AUDIT_MGMT.SET_LAST_ARCHIVE_TIMESTAMP(
+audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+last_archive_time => TO_TIMESTAMP(’15-SEP-2016 00:00:10.0',’DD-MON-RRRR HH24:MI:SS.FF’),
+rac_instance_number => 2);
+END;
+/
+2. Since Unified Auditing caches the audit trail in memory to implement a ‘lazy write’ feature that helps performance, some of the records eligible for deletion may still linger in the cache, to also first flush this cache
+
+BEGIN
+DBMS_AUDIT_MGMT.FLUSH_UNIFIED_AUDIT_TRAIL;
+END;
+/
+
+3. Execute the Purge Procedure
+
+BEGIN
+DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL(
+audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+use_last_arch_timestamp => TRUE);
+END;
+/
+
+
+3.2 Purge all 
+BEGIN
+DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL(
+   audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+   use_last_arch_timestamp => FALSE);
+END;
+/
+
+4. Create Purge Job Procedure
+
+BEGIN
+DBMS_AUDIT_MGMT.CREATE_PURGE_JOB(
+  audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+  audit_trail_purge_interval => 100 /* hours */,  
+  audit_trail_purge_name => 'CLEANUP',
+  use_last_arch_timestamp => TRUE);
+END;
+/
+
+
+5. initialize cleanup property
+
+BEGIN
+DBMS_AUDIT_MGMT.INIT_CLEANUP(
+              audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_ALL,
+      default_cleanup_interval => 12 /* hours */);
+END;
+/
+
+BEGIN
+DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_PROPERTY(
+       audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+       audit_trail_property  =>  DBMS_AUDIT_MGMT.CLEAN_UP_INTERVAL,
+       audit_trail_property_value =>  12 /* hours */ );
+END;
+/
+
+
+noaudit policy ORA_SECURECONFIG;
+noaudit policy ORA_LOGON_FAILURES;
+
+
+audit_trail_type     Value	  Description
+-------------------  ------ -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+AUDIT_TRAIL_ALL       15    All audit trail types. This includes the standard database audit trail (SYS.AUD$ and SYS.FGA_LOG$ tables), operating system (OS) audit trail, and XML audit trail.
+AUDIT_TRAIL_AUD_STD    1    database audit records in the SYS.AUD$ table
+AUDIT_TRAIL_DB_STD          Both standard audit (SYS.AUD$) and FGA audit(SYS.FGA_LOG$) records
+AUDIT_TRAIL_FGA_STD         Standard database fine-grained auditing (FGA) records in the SYS.FGA_LOG$ table
+AUDIT_TRAIL_FILES           Both operating system (OS) and XML audit trails
+AUDIT_TRAIL_OS              Operating system audit trail. This refers to the audit records stored in operating system files.
+AUDIT_TRAIL_XML             XML audit trail. This refers to the audit records stored in XML files.
+View	                           Description
+------------------------------- --------------------------------------------------------------------
+DBA_AUDIT_MGMT_CLEAN_EVENTS      Displays the cleanup event history
+DBA_AUDIT_MGMT_CLEANUP_JOBS      Displays the currently configured audit trail purge jobs
+DBA_AUDIT_MGMT_CONFIG_PARAMS     Displays the currently configured audit trail properties
+DBA_AUDIT_MGMT_LAST_ARCH_TS      Displays the last archive timestamps set for the audit trails
+
+Useful Links:
+
+https://docs.oracle.com/database/121/DBSEG/audit_admin.htm#DBSEG474
+
+How To Purge The UNIFIED AUDIT TRAIL (Doc ID 1582627.1)  
+
+
+1.	If you want to manage only the old audit, then you should disable ORA_LOGON_FAILURES and ORA_SECURECONFIG.
+2.	If you want to manage both, then add a job to purge the unified audit trail (audit_trail_type=>dbms_audit_mgmt.audit_trail_unified).
+3.	If you don't use the old auditing, then enable the 'pure mode'. But then, AUDIT_TRAIL=NONE is ignored, so:
+4.	If you don't use the new unified auditing, then disable ORA_LOGON_FAILURES and ORA_SECURECONFIG.
+5.	Or use the new unified auditing and set a job to purge it regularly.
+           
+   
+   
+SQL>  select audit_type,unified_audit_policies,action_name,return_code,count(*) from unified_audit_trail group by audit_type,unified_audit_policies,action_name,return_code order by 1,2,3 /
+  
+                      
+           AUDIT_TYPE               UNIFIED_AUDIT_POLICIES              ACTION_NAME               RETURN_CODE   COUNT(*)
+----------------------------------- ----------------------------------- ------------------------- ----------- ----------
+Standard                            ORA_SECURECONFIG                    LOGOFF                           0          3398
+Standard                            ORA_SECURECONFIG                    LOGON                            0          3454
+Standard                            ORA_SECURECONFIG                    LOGON                         2002             1
+Standard                                                                LOGOFF BY CLEANUP                0           256                       

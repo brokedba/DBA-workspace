@@ -1,0 +1,127 @@
+U S O O S L S E B P I S T A B D L T R I I R L I O S M U T N F A I T D L D B P C S R P T M B M R O P M F L
+    10g:
+    
+UNBOUND_CURSOR		         The existing child cursor was not fully built (in other words, it was not optimized)
+SQL_TYPE_MISMATCH		 The SQL type does not match the existing child cursor
+OPTIMIZER_MISMATCH		 The optimizer environment does not match the existing child cursor
+OUTLINE_MISMATCH		 The outlines do not match the existing child cursor
+STATS_ROW_MISMATCH		 The existing statistics do not match the existing child cursor
+LITERAL_MISMATCH		 Non-data literal values do not match the existing child cursor
+SEC_DEPTH_MISMATCH		 Security level does not match the existing child cursor
+EXPLAIN_PLAN_CURSOR		 The child cursor is an explain plan cursor and should not be shared
+BUFFERED_DML_MISMATCH		 Buffered DML does not match the existing child cursor
+PDML_ENV_MISMATCH		 PDML environment does not match the existing child cursor
+INST_DRTLD_MISMATCH		 Insert direct load does not match the existing child cursor
+SLAVE_QC_MISMATCH		 The existing child cursor is a slave cursor and the new one was issued by the coordinator (or, the existing child cursor was issued by the coordinator and the new one is a slave cursor)
+TYPECHECK_MISMATCH		 The existing child cursor is not fully optimized
+AUTH_CHECK_MISMATCH		 Authorization/translation check failed for the existing child cursor (AUTH_CHECK_MISMATCH)
+BIND_MISMATCH		         The bind metadata does not match the existing child cursor
+DESCRIBE_MISMATCH		 The typecheck heap is not present during the describe for the child cursor
+LANGUAGE_MISMATCH		 The language handle does not match the existing child cursor
+TRANSLATION_MISMATCH		 The base objects of the existing child cursor do not match
+ROW_LEVEL_SEC_MISMATCH		 The row level security policies do not match
+INSUFF_PRIVS		         Insufficient privileges on objects referenced by the existing child cursor
+INSUFF_PRIVS_REM		 Insufficient privileges on remote objects referenced by the existing child cursor
+REMOTE_TRANS_MISMATCH		 The remote base objects of the existing child cursor do not match
+LOGMINER_SESSION_MISMATCH	 LogMiner Session parameters mismatch
+INCOMP_LTRL_MISMATCH		 Cursor might have some binds (literals) which may be unsafe/non-data. Value mismatch.
+OVERLAP_TIME_MISMATCH		 Mismatch caused by setting session parameter ERROR_ON_OVERLAP_TIME
+SQL_REDIRECT_MISMATCH		 SQL redirection mismatch
+MV_QUERY_GEN_MISMATCH		 Internal, used to force a hard-parse when analyzing materialized view queries
+USER_BIND_PEEK_MISMATCH		 Cursor is not shared because value of one or more user binds is different and this has a potential to change the execution plan
+TYPCHK_DEP_MISMATCH		 Cursor has typecheck dependencies
+NO_TRIGGER_MISMATCH		 Cursor and child have no trigger mismatch
+FLASHBACK_CURSOR		 Cursor non-shareability due to flashback
+ANYDATA_TRANSFORMATION		 Is criteria for opaque type transformation and does not match
+INCOMPLETE_CURSOR		 Cursor is incomplete: typecheck heap came from call memory
+TOP_LEVEL_RPI_CURSOR		 Is top level RPI cursor
+DIFFERENT_LONG_LENGTH		 Value of LONG does not match
+LOGICAL_STANDBY_APPLY		 Logical standby apply context does not match
+DIFF_CALL_DURN	         	 If Slave SQL cursor/single call
+BIND_UACS_DIFF		         One cursor has bind UACs and one does not
+PLSQL_CMP_SWITCHS_DIFF		 PL/SQL anonymous block compiled with different PL/SQL compiler switches
+CURSOR_PARTS_MISMATCH		 Cursor was compiled with subexecution (cursor parts were executed)
+STB_OBJECT_MISMATCH		 STB has come into existence since cursor was compiled
+ROW_SHIP_MISMATCH		 Session does not support row shipping, but cursor built in one that did
+PQ_SLAVE_MISMATCH		 Top-level slave decides not to share cursor
+TOP_LEVEL_DDL_MISMATCH		 Is top-level DDL cursor
+MULTI_PX_MISMATCH		 Cursor has multiple parallelizers and is slave-compiled
+BIND_PEEKED_PQ_MISMATCH		 Cursor based around bind peeked values
+MV_REWRITE_MISMATCH		 Cursor needs recompilation because an SCN was used during compile time due to being rewritten by materialized view
+ROLL_INVALID_MISMATCH		 Marked for rolling invalidation and invalidation window exceeded
+OPTIMIZER_MODE_MISMATCH		 Parameter OPTIMIZER_MODE mismatch (for example, all_rows versus first_rows_1)
+PX_MISMATCH		         Mismatch in one parameter affecting the parallelization of a SQL statement. For example, one cursor was compiled with parallel DML enabled while the other was not.
+MV_STALEOBJ_MISMATCH		 Cursor cannot be shared because there is a mismatch in the list of materialized views which were stale at the time the cursor was built
+FLASHBACK_TABLE_MISMATCH	 Cursor cannot be shared because there is a mismatch with triggers being enabled and/or referential integrity constraints being deferred
+LITREP_COMP_MISMATCH		 Mismatch in use of literal replacement    
+    
+    
+    
+    
+    12c
+U UNBOUND_CURSOR		The existing child cursor was not fully built (in other words, it was not optimized)
+S SQL_TYPE_MISMATCH		The SQL type does not match the existing child cursor
+O OPTIMIZER_MISMATCH		The optimizer environment does not match the existing child cursor
+O OUTLINE_MISMATCH		The outlines do not match the existing child cursor
+S STATS_ROW_MISMATCH		The existing statistics do not match the existing child cursor
+L LITERAL_MISMATCH		Non-data literal values do not match the existing child cursor
+F FORCE_HARD_PARSE		For internal use
+E EXPLAIN_PLAN_CURSOR		The child cursor is an explain plan cursor and should not be shared
+B BUFFERED_DML_MISMATCH		Buffered DML does not match the existing child cursor
+P PDML_ENV_MISMATCH		PDML environment does not match the existing child cursor
+I INST_DRTLD_MISMATCH		Insert direct load does not match the existing child cursor
+S SLAVE_QC_MISMATCH		The existing child cursor is a slave cursor and the new one was issued by the coordinator (or, the existing child cursor was issued by the coordinator and the new one is a slave cursor)
+T TYPECHECK_MISMATCH		The existing child cursor is not fully optimized
+A AUTH_CHECK_MISMATCH		Authorization/translation check failed for the existing child cursor
+B BIND_MISMATCH		        The bind metadata does not match the existing child cursor
+D DESCRIBE_MISMATCH		The typecheck heap is not present during the describe for the child cursor
+L LANGUAGE_MISMATCH		The language handle does not match the existing child cursor
+T TRANSLATION_MISMATCH		The base objects of the existing child cursor do not match
+B BIND_EQUIV_FAILURE		The bind value's selectivity does not match that used to optimize the existing child cursor
+D INSUFF_PRIVS		        Insufficient privileges on objects referenced by the existing child cursor
+I INSUFF_PRIVS_REM		Insufficient privileges on remote objects referenced by the existing child cursor
+R REMOTE_TRANS_MISMATCH		The remote base objects of the existing child cursor do not match
+L LOGMINER_SESSION_MISMATCH	LogMiner Session parameters mismatch
+I INCOMP_LTRL_MISMATCH		Cursor might have some binds (literals) which may be unsafe/non-data. Value mismatch.
+O OVERLAP_TIME_MISMATCH		Mismatch caused by setting session parameter ERROR_ON_OVERLAP_TIME
+E EDITION_MISMATCH		Cursor edition mismatch
+M MV_QUERY_GEN_MISMATCH		Internal, used to force a hard-parse when analyzing materialized view queries
+U USER_BIND_PEEK_MISMATCH	Cursor is not shared because value of one or more user binds is different and this has a potential to change the execution plan
+T TYPCHK_DEP_MISMATCH		Cursor has typecheck dependencies
+N NO_TRIGGER_MISMATCH		Cursor and child have no trigger mismatch
+F FLASHBACK_CURSOR		Cursor non-shareability due to flashback
+A ANYDATA_TRANSFORMATION	Is criteria for opaque type transformation and does not match
+I INCOMPLETE_CURSOR 		Cursor is incomplete: typecheck heap came from call memory
+P PDDL_ENV_MISMATCH  		Environment setting mismatch for parallel DDL cursor (that is, one or more of the following parameter values have changed: PARALLEL_EXECUTION_ENABLED, PARALLEL_DDL_MODE, PARALLEL_DDL_FORCED_DEGREE, or PARALLEL_DDL_FORCED_INSTANCES)
+T TOP_LEVEL_RPI_CURSOR		Is top level RPI cursor
+D DIFFERENT_LONG_LENGTH		Value of LONG does not match
+L LOGICAL_STANDBY_APPLY		Logical standby apply context does not match
+D DIFF_CALL_DURN		If Slave SQL cursor/single call
+B BIND_UACS_DIFF		One cursor has bind UACs and one does not
+P PLSQL_CMP_SWITCHS_DIFF	PL/SQL anonymous block compiled with different PL/SQL compiler switches
+C CURSOR_PARTS_MISMATCH		Cursor was compiled with subexecution (cursor parts were executed)
+S STB_OBJECT_MISMATCH		STB is an internal name for a SQL Management Object Mismatch. A SQL Management Object Mismatch means that either a SQL plan baseline, or a SQL profile, or a SQL patch has been created for your SQL statement between the executions. Because a cursor is a read-only entity, a hard parse is forced to be able to create a new cursor that contains information about the new SQL management object related to this SQL statement.
+C CROSSEDITION_TRIGGER_MISMATCH	The set of crossedition triggers to execute might differ
+P PQ_SLAVE_MISMATCH		Top-level slave decides not to share cursor
+T TOP_LEVEL_DDL_MISMATCH	Is top-level DDL cursor
+M MULTI_PX_MISMATCH		Cursor has multiple parallelizers and is slave-compiled
+B BIND_PEEKED_PQ_MISMATCH	Cursor based around bind peeked values
+M MV_REWRITE_MISMATCH		Cursor needs recompilation because an SCN was used during compile time due to being rewritten by materialized view
+R ROLL_INVALID_MISMATCH		Marked for rolling invalidation and invalidation window exceeded
+O OPTIMIZER_MODE_MISMATCH	Parameter OPTIMIZER_MODE mismatch (for example, all_rows versus first_rows_1)
+P PX_MISMATCH		        Mismatch in one parameter affecting the parallelization of a SQL statement. For example, one cursor was compiled with parallel DML enabled while the other was not.
+M MV_STALEOBJ_MISMATCH		Cursor cannot be shared because there is a mismatch in the list of materialized views which were stale at the time the cursor was built
+F FLASHBACK_TABLE_MISMATCH	Cursor cannot be shared because there is a mismatch with triggers being enabled and/or referential integrity constraints being deferred
+L LITREP_COMP_MISMATCH		Mismatch in use of literal replacement
+P PLSQL_DEBUG		        Value of the PLSQL_DEBUG parameter for the current session does not match the value used to build the cursor
+L LOAD_OPTIMIZER_STATS		A hard parse is forced in order to initialize extended cursor sharing
+A ACL_MISMATCH		        Cached ACL evaluation result stored in the child cursor is not valid for the current session or user
+F FLASHBACK_ARCHIVE_MISMATCH    Value of the FLASHBACK_DATA_ARCHIVE_INTERNAL_CURSOR parameter for the current session does not match the value used to build the cursor
+L LOCK_USER_SCHEMA_FAILED	User or schema used to build the cursor no longer exists N Note: This sharing criterion is deprecated
+R REMOTE_MAPPING_MISMATCH	Reloaded cursor was previously remote-mapped and is currently not remote-mapped. Therefore, the cursor needs to be reparsed.
+L LOAD_RUNTIME_HEAP_FAILED      Loading of runtime heap for the new cursor (or reload of aged out cursor) failed
+H HASH_MATCH_FAILED		No existing child cursors have the unsafe literal bind hash values required by the current cursor
+P PURGED_CURSOR		        Child cursor is marked for purging
+B BIND_LENGTH_UPGRADEABLE	Bind length(s) required for the current cursor are longer than the bind length(s) used to build the child cursor
+U USE_FEEDBACK_STATS		A hard parse is forced so that the optimizer can reoptimize the query with improved cardinality estimates
+R REASON                  	Child number, id, and reason the cursor is not shared. The content of this column is structured using XML.

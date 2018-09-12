@@ -1,0 +1,1240 @@
+explain plan : The PX BLOCK ITERATOR row source represents the splitting up of the table EMP into pieces so as to divide the scan workload between the parallel scan slaves. 
+The PX SEND and PX RECEIVE row sources represent the pipe that connects the two slave sets as rows flow up from the parallel scan, get repartitioned through the HASH table queue, and then read by and aggregated on the top slave set.
+The PX SEND QC row source represents the aggregated values being sent to the QC (Query Coordinator) in random (RAND) order. 
+The PX COORDINATOR row source represents the QC or Query Coordinator which controls and schedules the parallel plan appearing below it in the plan tree.
+--------------------------------------------------------------------------------------------------------
+| Id  | Operation                | Name     | Rows  | Bytes | Cost (%CPU) |    TQ  |IN-OUT| PQ Distrib |
+--------------------------------------------------------------------------------------------------------  
+    1 |  PX COORDINATOR          |          |       |       |             |        |      |            |
+|   2 |   PX SEND QC (RANDOM)    | :TQ10001 |   107 |  2782 |     3 (34)  |  Q1,01 | P->S | QC (RAND)  |
+|   3 |    HASH GROUP BY         |          |   107 |  2782 |     3 (34)  |  Q1,01 | PCWP |            |
+|   4 |     PX RECEIVE           |          |   107 |  2782 |     3 (34)  |  Q1,01 | PCWP |            |
+|   5 |      PX SEND HASH        | :TQ10000 |   107 |  2782 |     3 (34)  |  Q1,00 | P->P | HASH       |
+|   6 |       HASH GROUP BY      |          |   107 |  2782 |     3 (34)  |  Q1,00 | PCWP |            |
+|   7 |        PX BLOCK ITERATOR |          |   107 |  2782 |     2 (0)   |  Q1,00 | PCWP |            |
+|   8 |         TABLE ACCESS FULL| EMP2     |   107 |  2782 |     2 (0)   |  Q1,00 | PCWP |            |
+--------------------------------------------------------------------------------------------------------
+ 
+********************************************************************************************
+Parallel Features
+********************************************************************************************
+
+Operations That Can Be Parallelized:
+
+Oracle can parallelize operations that involve processing an entire table or an entire partition. These operations include:
+
+1-SQL queries requiring at least one full table scan or queries involving an index range scan spanning multiple partitions.
+2-Operations as Creating or Rebuilding an Index or Rebuilding one or more Partitions of an Index.
+3-Partition Operations such as Moving or Splitting Partitions.
+
+-CREATE TABLE AS SELECT operations, if the SELECT involves a full table or partition scan.
+-INSERT INTO ... SELECT operations, if the SELECT involves a full table or partition scan.
+-UPDATE and DELETE operations on partitioned tables
+
+On systems where parallel execution will never be used, PARALLEL_MAX_SERVERS can be set to zero.
+
+On large systems with abundant SGA memory, PARALLEL_EXECUTION_MESSAGE_SIZE can be increased to improve throughput.
+
+
+*************************************************************************************************************   
+HOW PARALLEL EXECUTION WORKS
+*************************************************************************************************************
+
+Oracle divides the task of executing a SQL statement into multiple smaller units, each of which is executed by a separate process.When parallel 
+execution is used, the user's shadow process takes on the role of the parallel coordinator. The parallel coordinator=(parallel execution coordinator/query coordinator.
+
+The parallel coordinator does the following:
+--------------------------------------------
+-Dynamically divides the work into smaller units that can be parallelized.Acquires a sufficient number of parallel processes to execute smaller units.
+-Assigns each unit of work to a slave process.Collects and combines the results from the slave processes, and returns those results to the user process.
+-Releases the slave processes after the work is done.
+
+The Pool of Parallel Slave Processes
+------------------------------------
+Oracle maintains a pool of parallel slave processes for each instance. The parallel coordinator for a SQL statement assigns parallel tasks to slave 
+processes from this pool. These parallel slave processes remain assigned to a task until its execution is complete. After that, these processes return
+to the pool and can be assigned tasks from some other parallel operation. A parallel slave process serves only one SQL statement at a time.
+
+-If sorting is taking place, then these table queues are read by consumer slaves and sorted data is placed on fresh table queues associated with the consumer slaves. These queues are then read by the QC process. 
+ If no sorting is taking place, then the QC reads the producer queues directly.
+   SORTING PX            NO SORTING PX  
+  -------------------   -------------------
+   Query Coordinator    Query Coordinator
+          |                     |                
+     Table Queue           Table Queue      
+          |                     |                
+    Consumer Slaves             |                
+      |X| |X| |X|               |                
+      Table Queue               |                
+      |X| |X| |X|               |                
+    Producer Slaves      Producer Slaves  
+        ||   ||             ||    ||         
+      Disks Disks          Disks Disks      
+A) Slaves - Slaves read data either straight from disk or from table queue structures (which are populated by other slaves) and write it to their own queues.
+Producers slaves:given ROWID ranges/partitions from QC & visit data blocks to retrieve relevant data.  
+Consumer slaves :Generated when required and dequeue data from the table queues filled by producer slaves.Then processed data returned to QC.
+B)Table Queues - (TQ) are queues that allow processes to send rows to other processes. Like data are sent from the produces slaves to the consumer slaves. Also the consumer slaves can send data to the query coordinator.
+
+The following parameters control the number of parallel slave processes in the pool (of Slave Processes):
+------------------------------------------------------------------------------------------------------------------
+1-PARALLEL_MIN_SERVERS :
+ Specifies the minimum number of parallel slave processes for an instance. When an instance starts up, it creates the specified number of parallel slave processes. The default value for this parameter is 0, meaning that no slave processes would be created at startup.
+ -Since parallel slave processes can serve only one statement at a time, you should set PARALLEL_MIN_SERVERS to a relatively high value if you need to 
+ run lots of parallel statements concurrently. That way, performance won't suffer from the need to constantly create slave processes.
+
+2-PARALLEL_MAX_SERVERS:
+ Specifies the maximum number of parallel slave processes that an instance is allowed to have at one time. The default value for PARALLEL_MAX_SERVERS 
+ is platform-specific.It takes time and resources to create parallel slave processes. (AGCMTA/ABCMTA=240)
+ -Consider how to set PARALLEL_MAX_SERVERS.Each parallel slave process consumes memory. Setting PARALLEL_MAX_SERVERS too high may lead to memory shortages
+ during peak usage times. On the other hand, if PARALLEL_MAX_SERVERS is set too low, some operations may not get a sufficient number of parallel slave processes.
+  PARALLEL_MAX_SERVERS=2 x DOP x NUMBER_OF_CONCURRENT_USERS (64 enables to run 4 queries of 8 processs each set(16).   
+  PARALLEL_MAX_SERVERS= CPU_COUNT x PARALLEL_THREADS_PER_CPU x (2 if PGA_AGGREGATE_TARGET > 0; otherwise 1) x 5 Or 20 times CPU_COUNTS 
+  DEAFULT OPTIMIZER DOP = DOPPARALLEL_THREADS_PER_CPU * CPU_COUNT (number of CPU cores) * ACTIVE_INSTANCE_COUNT
+
+
+3-PARALLEL_EXECUTION_MESSAGE_SIZE: Defines size of the memory area for parallel query messages (in bytes) server If the database shares the server with other software (example,SAP central/other Oracle instances), only the part of the CPU Cores that 
+is mathematically available to the database should be considered in the calculation (for example, 8 CPU Cores, the SAP central instance and the Oracle
+database are to share resources 50:50 -> PARALLEL_MAX_SERVERS = 8 * 0.5 * 10 = 40).
+Increase to 4k or 8k to improve parallel execution performance if sufficient SGA memory exists.
+
+4-PARALLEL_THREADS_PER_CPU: Determines the default degree of parallelism or number of parallel query processes that can be executed in parallel for each CPU.(AGCMTA/ABCMTA)=2
+5-PARALLEL_MIN_PERCENT : 
+   If not set and resources are unavailable then queries will serialize/
+   If set and the desired percentage of query slaves are unavailable,  then an error(ORA-12827) is raised rather than serializing.                                  
+
+***-If there is a skew in the distribution of work between parallel servers in one parallel server set then you have not achieved optimal performance.
+The statement will have to wait for the parallel server performing most work to complete.
+
+-The number of virtual connections between parallel execution servers increases as the square of the DOP.Example DOP=3 sets=2 servers=6 connections=9
+A large percentage of the memory used in data warehousing operations is more dynamic. This memory comes from process memory (PGA), and both the size of 
+process memory and the number of processes can vary greatly. Use the PGA_AGGREGATE_TARGET parameter to control both the process memory and the number 
+of processes.
+
+Parameters Affecting Resource Consumption for Parallel DML and Parallel DDL:
+1-TRANSACTIONS:Maximum number of concurrent transactions. QC uses the two-phase commit protocol to commit transactions => may increase the parameter set TRANSACTION=xxx/2482
+DOP =20->20 more new server transactions /(or 40, if you have two server sets) ignore if UNDO_management=AUTO
+2-FAST_START_PARALLEL_ROLLBACK:controls the DOP used when recovering terminated transactions before failure.The DOP=<2xCPU_COUNT.If DOP too low set parameter to HIGH.
+3-LOG_BUFFER:If "redo buffer allocation retries" value is high relative to redo blocks written in V$SYSSTAT increase LOG_BUFFER size. 
+4-DML_LOCKS( on objects): Parallel DML holds many more locks, so you should increase the value of the ENQUEUE_RESOURCES(hidden) and DML_LOCKS parameters by equal
+ amounts. to avoid my contention issues on objects that are concurrently changed by many oracle sessions.
+Enqueues are serialization mechanisms. When you encounter enqueue contention, it's because multiple concurrent sessions are trying to access the same resource (table, transaction, etc) in incompatible modes. Throwing all the enqueue_resources in the world at this problem will not help the situation.
+
+#define KJUSERNL 0         /* no permissions */   (Null)               
+#define KJUSERCR 1         /* concurrent read */ (Row-S (SS))        S and X are Shared and eXclusive locks concerning the whole table (if talking about TM locks)                     
+#define KJUSERCW 2         /* concurrent write */ (Row-X (SX))       SS/RS and SX/RX are Shared and eXclusive locks concerning only a Subset of the table (just some Rows)             
+#define KJUSERPR 3         /* protected read */    (Share)           SSX/SRX is a Shared lock for whole table + eXclusive lock concerning only a Subset of the table (just some Rows)
+#define KJUSERPW 4         /* protected write */ (S/Row-X (SSX))  
+#define KJUSEREX 5         /* exclusive access */ (Exclusive) 
+
+5-Parameters Related to I/O :
+DB_CACHE_SIZE:
+DB_BLOCK_SIZE:
+DB_FILE_MULTIBLOCK_READ_COUNT:Maximum values generally range from 64 KB to 1 MB.
+*** Try increasing the statistical sample size: better statistics can give you a better plan.
+
+****************************************************************************************************************************************************************************
+The Degree of Parallelism :
+-------------------------
+The number of parallel slave processes associated with an operation is called its degree of parallelism . Don't confuse this term with the DEGREE keyword.
+They aren't exactly the same thing. In Oracle, the degree of parallelism consists of two components, the number of instances to use and the number of 
+slave processes to use on each instance. In Oracle's SQL syntax, the keywords INSTANCES and DEGREE are always used to specify values for these two 
+Components as follows:
+-INSTANCES: Specifies the number of instances to use.Applies only to the Oracle Parallel Server configuration. Unless you are using OPS,the value of
+ Instances should be set to 1; any other value is meaningless. 
+-DEGREE: Specifies the number of slave processes to use on each instance.
+
+Level of parallel execution :
+-----------------------------
+The degree of parallelism used for a SQL statement can be specified at three different levels:
+1-Statement level 
+-----------------
+Using hints or the PARALLEL clause.
+2-Object level
+----------------
+Found in the definition of the table, index, or other object.
+3-Instance level 
+-----------------
+Using default values for the instance.
+
+-Oracle determines the degree of parallelism to use for a SQL statement by checking each item in this list in the order shown.
+	1-Oracle first checks degree of parallelism specification at the statement level. If it can't find one, it then checks the table or index definition.
+	2-If the table or index definition does not explicitly specify values for DEGREE and INSTANCES, Oracle uses the default values established for the instance(parallel_threads_per_cpu).
+-Oracle retrieves the DEGREE and INSTANCES specifications from the definition of all tables and indexes involved in the query and chooses the highest 
+values found for those settings.
+-Oracle checks the statement for a parallel hint. If such a hint is found, the hint overrides the degree of parallelism obtained as a result of the 
+previous step.
+
+Insert/Select the degree of prallelism (order precedence): Insert hint directive > Session> Parallel declaration specification of the inserting table > Maximum query directive
+----------------------------------
+SPECIFYING DEGREE OF PARALLELISM
+-----------------------------------
+
+1-Specifying the degree of parallelism at the statement level
+You can specify the degree of parallelism at the statement level by using hints or by using a PARALLEL clause.PARALLEL and PARALLEL_INDEX hints are used
+to specify the degree of parallelism used for queries and DML statements. 
+However, DDL statements that support parallel execution provide an explicit PARALLEL clause in their syntax.
+
+SELECT /*+ PARALLEL(orders,4,1) */ COUNT(*) FROM orders;
+
+2-Specifying the degree of parallelism at the object definition level
+You can specify degree of parallelism to use for a table or an index when you create it.By using the PARALLEL clause on CREATE/TABLE/INDEX statements.
+You also can specify a PARALLEL clause when you alter a table or an index.
+ALTER TABLE order_items PARALLEL (DEGREE 4); ALTER INDEX orders_idx parallel (DEGREE 4)
+
+When you specify DEGREE and INSTANCES values at the table or index level, those values are used for all SQL statements involving the table or index unless overridden by a hint.
+
+3-Specifying the degree of parallelism at the instance level
+
+Each instance has associated with it a set of default values for DEGREE and INSTANCES. The default DEGREE value is either the number of CPUs available 
+or the number of disks upon which a table or index is stored, whichever is less.Oracle will use the instance-level defaults whenever the keyword DEFAULT 
+is used in a hint or in a table or index definition. Oracle also will use the instance-level defaults when there are no hints and when no degree of 
+parallelism has been specified at the table or index level.   
+
+
+********************************************************************************************************
+-PARALLEL QUERY
+********************************************************************************************************
+
+TEMPORARY TABLES:
+You can perform DDL operations (such as ALTER TABLE, DROP TABLE, CREATE INDEX) on a temporary table only when no session is bound to it.A session is bound
+to a temporary table by performing an INSERT operation on the table and unbound by issuing a TRUNCATE statement or at session termination, or, for a 
+transaction-specific temporary table, by issuing a COMMIT or ROLLBACK statement.
+-Parallel DML and parallel queries are not supported for temporary tables. Parallel hints are ignored. Specification of the parallel_clause returns 
+an error.But you can always create index on relevant columns(used on WHERE clauses/joins of your query).As DDL operations are allowed on temporary tables.
+
+-Parallel query is the most commonly used of Oracle's parallel execution features.It was the first parallel execution feature to be developed.
+
+We have the following hints to influence the use of parallel execution
+
+PARALLEL/NOPARALLEL  -PARALLEL_INDEX/NOPARALLEL_INDEX
+PQ_DISTRIBUTE
+
+
+Also note that if the Rule Based Optimizer code has already been entered, then any parallel hints in the query will be ignored
+
+To parallelize a SELECT statement, the following conditions must be met:
+
+1-At least one of the tables is accessed through a full table scan, or an index is accessed through a range scan involving multiple partitions.
+2-If the execution involves a full table scan, the statement must contain a PARALLEL hint specifying the corresponding table, or the corresponding table
+must have a parallel declaration in its definition.
+3-If the execution involves an index range scan spanning multiple partitions, the statement must contain a PARALLEL_INDEX hint specifying the 
+corresponding index, or the corresponding index must have a parallel declaration in its definition.
+
+The following 2 sections explain how the degree of parallelism is chosen for a SELECT and restrictions on parallel query feature use.
+----------------------------------------
+II-  Setting the Degree of Parallelism
+----------------------------------------
+
+Once Oracle decides to execute a SELECT statement in parallel, the degree of parallelism is determined by following precedence rules:
+
+-Oracle retrieves the DEGREE and INSTANCES specifications from the definition of all tables and indexes involved in the query and chooses the highest 
+values found for those settings.
+-Oracle checks the statement for a parallel hint. If such a hint is found, the hint overrides the degree of parallelism obtained as a result of the 
+previous step.
+
+-You can use the PARALLEL and PARALLEL_INDEX hints to specify the degree of parallelism for a SELECT statement.
+-You can use the NOPARALLEL and NOPARALLEL_INDEX hints to ensure that parallel execution is not performed.
+
+Example :
+---------
+alter table emp parallel (degree 4);
+select degree from user_tables where table_name = 'EMP';
+select count(*) from emp;
+alter table emp noparallel;
+
+SELECT /*+ PARALLEL(emp,4) */ COUNT(*) 
+FROM emp;
+---------------------------------------------------------------------------------
+RULES:
+---------------------------------------------------------------------------------
+
+The general rules of thumb for determining the appropriate DOP for an object are:
+• Objects smaller than 200 MB should not use any parallelism
+• Objects between 200 MB and 5GB should use a DOP of 4
+• Objects beyond 5GB use a DOP of 32
+
+
+-If there is a skew in the distribution of work between parallel servers in one parallel server set then you have not achieved optimal performance.
+The statement will have to wait for the parallel server performing most work to complete.
+
+- "Servers highwater" greater than cpu_count. Optimal degree of parallelism is rarely more than the CPU count because if you have more processes than CPU's they will enqueue, waiting their turn for processing cycles, 
+   and slowing down the query.
+
+++++++++++++++++++++++++++++++++++++++++
+II-b PARALLEL WAIT EVENTS
+++++++++++++++++++++++++++++++++++++++++
+
+- The common PX events deal with the message (data) exchange between the parallel servers themselves and with the query coordinator. 
+- PX Deq Credit: send blkd, which is due to one set of parallel servers(another set of parallel servers) to accept data. occurs when a Query Slave is ready to post a message, but must wait until the Query Coordinator has finished processing a message sent earlier so send the next message. Indicates that the receiver has not dequeued and/or completely consumed the prior message yet.
+Or PX Deq Credit: need buffer, which is caused by consumers (the producers or data readers) waiting for consumers data waiting for producers to produce data.
+ PX wait events are unavoidable to a large extent and don't really hurt performance as these wait events fall in the “idle” wait class. 
+Generally it is not parallel execution specific wait events that may cause slow system performance but rather waits caused by I/O,High CPU utilization.
+ 
+-In a predominantly parallel query environment you expect the majority of the throughput (in MB/s or GB/s) to come from large reads. If parallel SQL
+operations are bottlenecked by IO it is usually because the maximum througput(MB/s)has been reached rather than the maximum I/O operations per second(IOPS).
+
+- PX qref latch is the bottleneck "before" the PX Deq Credit: send blkd - You may find that when you decrease the degree you start to get more 'send blkd'. 
+- "PX Deq: Table Q Normal" consumer slaves have to wait for rows (data) from producer slaves set so they can start their work on its input table queue. 
+- When the first slave has supplied all its rows, it will go into "PX Deq: Execution Msg" waiting for the QC to tell it do die (after all data is sent to the front end)   
+- Producer slave set: works on data (read data from disk , do a join) and consumer slave waits for data to start the work. 
+- Cursor: pin S wait on X: A session waits for this event when it requests a shared mutex pin and another session is holding exclusive 'mutex pin' on the same cursor object.
+  When we can’t find a suitable match between the cursor children, we need to create a new child (hard parsing :syntax,semantic check of the SQL, user privileges on query's objects) hence hold an exclusive lock on the cursor child mutex  
+  high number of cursor children being generated would require a higher number of hard parsing hence increasing ocurence of event cursor: pin S wait on X.
+  reason :  possible bugs that causes long waits on the cursor:pin S wait on X wait event and long hard parsing.
+-Waits for: "PX Deq: Slave Session Stats"
+  When a query that is using parallel execution finishes, the Query Coordinator (QC) process signals to the slaves, and waits for them to send back all their session statistics. 
+  While these are being sent the QC waits on the "PX Deq: Slave Session Stats" event.  The request for session statistics happens for all the slaves in a particular parallel query at the same time.  
+  If you have a lot of high Degree of Parallelism (DOP) queries and a lot of queries starting/ending during this time period, the aggregated information in an AWR report for this period could be significant.
+  If you encounter performance issues, and this is the top wait, then it may be worth investigating the cause.(parallel processes are being timed concurrently, the wait time can easily exceed the elapsed).
+
+Resolution :
+Reason : inefficient SQL. Possible correlated subquery that runs in parallel while the main query runs serially, making setup and teardown of the slaves happen thousands or millions of times; 
+          it can also be caused by a very small main query executing in parallel many times in a short period of time (look for a high number of executions in the section "Top SQL by Execution" in the AWR.) 
+           In this case, you can try adding a /*+ no_parallel */ hint to the subquery (or main query if there is no subquery), and make sure that the column predicates of the subquery 
+           (or main query if there is no subquery) are indexed; that should also help resolve the high io. 
+- 'latch: parallel query alloc buffer' 
+   Parallel query slaves and coordinators allocate message buffers; what may be surprising is the sheer number of these message buffers that can be allocated for a given parallel execution. 
+   calculate the number of buffers required based POD call that value p. 
+     for non-RAC databases : p(p+1)*3   (pod 4=60 message buffers for parallel query)       - for RAC installations: p(p+1)*4 . 
+   reason : 1- stored in shared pool instead large pool. 
+   select * from v$sgastat where pool = 'large pool' or name like '%PX%' or name like '%para%' order by pool, name; 
+   POOL         NAME                            BYTES     CON_ID
+------------ -------------------------- ---------- ----------
+large pool   PX msg pool                 213909504          0           
+
+*****************************************************************************************************
+PARALLEL DML
+*****************************************************************************************************
+
+Data Manipulation Language (DML) operations such as INSERT, UPDATE, and DELETE can be parallelized by Oracle. Parallel execution can speed up large DML 
+operations and is particularly advantageous in data warehousing environments.In OLTP systems, parallel DML sometimes improves long-running batch 
+jobs performance.
+The UPDATE or DELETE operation will be parallelized if and only if at least one of the following is true:
+
+-The table being updated or deleted has a PARALLEL specification.
+
+-The PARALLEL hint is specified in the DML statement.
+
+-An ALTER SESSION FORCE PARALLEL DML statement has been issued previously during the session.
+
+---------------------------------------
+Deciding to Parallelize a DML Statement
+---------------------------------------
+
+When you issue INSERT, UPDATE, or DELETE, Oracle applies a set of rules to determine whether statement can be parallelized. 
+For UPDATE and DELETE statements, the rules are identical. INSERT statements, however, have their own set of rules.
+
+Enabling Parallel DML
+A DML statement can be parallelized only if you have explicitly enabled parallel DML in the session with the ENABLE PARALLEL DML clause of the 
+ALTER SESSION statement. This mode is required because parallel DML and serial DML have different locking, transaction, and disk space requirements.
+The default mode of a session is DISABLE PARALLEL DML. When parallel DML is disabled, no DML will be executed in parallel even if the PARALLEL hint 
+is used.
+
+When parallel DML is enabled in a session, all DML statements in this session will be considered for parallel execution. However, even if parallel DML 
+is enabled, the DML operation may still execute serially if there are no parallel hints or no tables with a parallel attribute or if restrictions on 
+parallel operations are violated.The session's PARALLEL DML mode does not influence the parallelism of SELECT statements, DDL statements, and the query 
+portions of DML statements. Thus, if this mode is not set, the DML operation is not parallelized, but scans or join operations within the DML statement
+ may still be parallelized.
+
+
+1-Rules for UPDATE and DELETE statements:
+
+a-Oracle can parallelize UPDATE or DELETE : on partitioned tables, but only when multiple partitions are involved.
+b-You cannot parallelize UPDATE or DELETE : on nonpartitioned table or when such operations affect only a single partition.
+
+2-Rules for INSERT statements:
+ a-Standard INSERT statements using a VALUES clause cannot be parallelized.
+ b-Oracle can parallelize only INSERT . . . SELECT . . . FROM statements.
+
+Examples:
+---------
+alter session enable parallel dml;
+insert /*+ parallel (emp_big,4,1) */
+  into emp_big select * from emp;
+commit;
+alter session disable parallel dml;
+
+
+
+
+
+*******************************************************************************************************
+Parallel DDL
+*******************************************************************************************************
+
+Parallel DDL works for both tables and indexes, whether partitioned or nonpartitioned.
+1-Nonpartitioned tables and indexes: only the following types of DDL statements can be parallelized:
+CREATE TABLE...AS SELECT
+CREATE INDEX
+ALTER INDEX...REBUILD
+
+2-Partitioned tables and indexes, the scope of Oracle's parallel DDL support broadens. The following statements can be parallelized for partitioned tables and indexes:
+
+CREATE TABLE...AS SELECT
+ALTER TABLE...MOVE PARTITION
+ALTER TABLE...SPLIT PARTITION
+CREATE INDEX
+ALTER INDEX...REBUILD PARTITION
+ALTER INDEX...SPLIT PARTITION
+Not all tables allow these operations to be executed in parallel. Tables with object columns or LOB columns don't allow parallel DDL.
+
+EXAMPLE
+--------
+create table big_emp parallel (degree 4)  as select * from emp;
+
+CREATE INDEX emp_ix ON emp (emp_id) TABLESPACE USER_I STORAGE (INITIAL 1M NEXT 1M PCTINCREASE 0 MAXEXTENTS 20)
+   PARALLEL (DEGREE 4);
+ 
+ When the CREATE operation is not parallelized, the SELECT can be parallelized if it has a PARALLEL hint or if the selected table 
+ (or partitioned index) has a parallel declaration.
+ 
+   
+*******************************************************************
+PARALLEL DOWNGRADING
+*******************************************************************
+Oracle Database provides several ways to manage resource utilization in conjunction with parallel execution environments, including:
+
+-The adaptive multiuser algorithm, which is enabled by default, reduces the degree of parallelism as the load on the system increases.
+-User resource limits and profiles, which allow you to set limits on the amount of various system resources available to each user as part of a user's security domain.
+-The Database Resource Manager, which lets you allocate resources to different groups of users.
+
+                                                 //------------------------------\\
+                                                 Parallel_adaptive_multi_user:
+                                                 \\------------------------------//
+                                                 
+                                                ———— PARALLEL_ADAPTIVE_MULTIUSER = TRUE ——————
+ enables an adaptive algorithm, which automatically reduces the requested degree of parallelism based on the system load at query 
+startup time.Hence the value is not constant and can be lower than the one of parallel_max_servers(240). 
+Note:ALTER SYSTEM set parallel_adaptive_multi_user =true, it forces calculation of large pool size is over-ridden if size manually set.
+
+                                      |—- No. of slave processes assigned –| 
+
+No. of sessions        sess1       sess2     sess3      sess4      
+—————————————————  ——————————— —————————– ————————— —————————————     
+
+ 1                      8           –           –       –
+                                                        
+ 2                      8           8           –       –
+                                                        
+ 3                      8           8           6       –
+                                                        
+ 4                      8           8           6       0              
+
+                                              ———— PARALLEL_ADAPTIVE_MULTIUSER = FALSE —————————
+-If total px servers allocated on the instance  = parallel_max_servers which in AGCMTA= 240.Any subsequent session is executed serially i.e. it is 
+silently downgraded as maximum no. of px slaves have already been used.Hence, when PARALLEL_ADAPTIVE_MULTI_USER = FALSE, as many px slaves are allocated
+as are requested as long as they are available.that total px servers allocated = parallel_max_servers = 40.
+                                                          PARALLEL_ADAPTIVE_MULTI_USER = FALSE
+|————– No. of slave processes assigned ————–|40
+No. of sessions        sess1         sess2         sess3      sess4      sess5      sess6
+———————-            ———        ——–        ———      ——–      ——–       ——–
+
+          1                                    8                   –                   –                 –                –                 -
+
+          2                                    8                   8                   –                 –                –                 -
+
+          3                                    8                   8                   8                 –                –                 -
+
+          4                                    8                   8                   8                 8                –                 -
+
+          5                                    8                   8                   8                 8                8                 -
+
+          6                                    8                   8                   8                 8                8                 0
+ 
+trace parallel process sessions> 
+ ALTER SESSION SET events '10391' trace name context forevre,level 128';                                                          
+CHECK  Last query parallel process used :(Current user stat)
+----------------------------------------                  
+V$PQ_SESSTAT :lists session statistics for parallel queries and Display status of all current server groups .
+                                                          
+Select statistic,last_query from v$pq_sesstat where statistic='Server Threads';
+                                                          
+STATISTIC              LAST_QUERY                         
+----------------       ----------                         
+Server Threads            6                               
+Queries Parallelized      1                               
+DML Parallelized          0                               
+DDL Parallelized          0                               
+Allocation Height         6                               
+Allocation Width          1 instance#                     
+Local Msgs Sent          34
+Distr Msgs Sent           0
+Local Msgs Recv'd        34
+Distr Msgs Recv'd         0
+
+Check the px server process available : (Overall stat)
+-----------------------------------------
+Select * from V$PX_PROCESS_SYSSTAT where statistic like '%Server%';
+   
+STATISTIC                      VALUE
+----------------------------- ----------
+Servers In Use                   0
+Servers Available               16 . 16 parallel processes are available now (Servers Available = 16)      
+Servers Started                  8 . 8 more parallel processes have started (Servers Started  =  8)
+Servers Shutdown                 0
+Servers Highwater               16 . Servers highwater has been updated to 16 (same as Available severs)
+Servers Cleaned Up               0
+Server Sessions                 24
+ 
+>>Scenario:with session using 8 parallel degree operation parallel max server =40    
+
+PARALLEL_ADAPTIVE_MULTI_USER = FALSE                                                     PARALLEL_ADAPTIVE_MULTI_USER = TRUE                       
+                                                                                                                                                   
+                   |----- No of slave processes assigned -----|                                            |-- No of slave processes assigned --|  
+No of sessions    sess1    sess2       sess3       sess4   sess5   sess6                 No of sessions    sess1    sess2       sess3       sess4  
+----------------  -------  --------    ---------   ------  ------  ------                ----------------  -------  --------    ---------   ------ 
+                                                                                                                                                   
+  1                 8       -           -           -       -       -                      1                 8       -           -           -     
+                                                                                                                                                   
+  2                 8       8           -           -       -       -                      2                 8       8           -           -     
+                                                                                                                                                   
+  3                 8       8           8           -       -       -                      3                 8       8           6           -     
+                                                                                                                                                   
+  4                 8       8           8           8       -       -                      4                 8       8           6           0     
+                                                                                                                                                   
+  5                 8       8           8           8       8       -    
+ 
+***********************************************************************************
+PX PARAMETERS
+***********************************************************************************
+
+PARALLEL_FORCE_LOCAL TRUE/FALSE: force paralelism on a single Oracle RAC instance  
+
+- If the PARALLEL clause is specified but no degree of parallelism is listed, the object gets the default DOP
+- Default DOP = PARALLEL_THREADS_PER_CPU * sum(CPU_COUNT). 16vcpu=16
+
+
+Limiting the Number of Resources for a User using a Consumer Group:set the user's limit to 11. This would allow one session for the parallel coordinator and 10 sessions for the parallel execution processes.
+- PARALLEL_DEGREE_LIMIT       : PARALLEL_DEGREE_LIMIT determines the maximum DOP which is <= default DOP. The value AUTO has the same functionality as the value CPU.
+- PARALLEL_MIN_TIME_THRESHOLD : Minimum execution time before the statement is considered for automatic degree of parallelism. PARALLEL_MIN_TIME_THRESHOLD = { AUTO(10s) | integer }
+- PARALLEL_SERVERS_TARGET     : PARALLEL_SERVERS_TARGET is 4 X CPU_COUNT X PARALLEL_THREADS_PER_CPU X ACTIVE_INSTANCES. 11g  
+- PARALLEL_DEGREE_POLICY      : MANUAL= disables Auto DOP run only explicitly DOP object or parallel hint specified statement.  
+                                LIMITED= Run on statements accessing objects declared PARALLEL without an explicit DOP . 
+                                AUTO= Auto DOP for all statements, also enables parallel statement queuing and in-memory parallel execution.
+                                ADAPTIVE= enables Auto DOP, parallel statement queuing, and in-memory parallel execution with performance feedback is enabled
+
+ SQL> select name, value from v$parameter
+    where name in ('parallel_degree_limit','cpu_count','parallel_threads_per_cpu');
+
+NAME                      VALUE
+------------------------- --------
+cpu_count                 16
+parallel_threads_per_cpu  1
+parallel_degree_limit     4
+
+- SHARED_POOL_SIZE:         You can then monitor the number of buffers used by parallel execution and compare the shared pool PX msg pool to 
+the current high water mark reported in output from the view V$PX_PROCESS_SYSSTAT*parallel_message_size.  
+- Parallel Statement Queuing: In some situations, parallel statements are queued while waiting for resources.
+- In-Memory Parallel Execution:In-memory features provide techniques for parallel execution.
+ 
+*********************************************************************************************************************************
+PX MONITORING
+*********************************************************************************************************************************
+ 
+ Monitoring System Statistics
+------------------------------
+SELECT NAME, VALUE FROM GV$SYSSTAT 
+WHERE UPPER (NAME) LIKE '%PARALLEL OPERATIONS%'
+OR UPPER (NAME) LIKE '%PARALLELIZED%' 
+OR UPPER (NAME) LIKE '%PX%';
+ 
+CHECK global downgrading statustisc:
+------------------------------------
+SELECT * FROM GV$SYSSTAT WHERE name LIKE 'Parallel operation%';
+                                                                                             
+ID STATISTIC# Name                                        CLASS  VALUE    STAT_ID  STATISTIC               VALUE
+-- ---------- ------------------------------------------- ----- ------ ----------- ---------------------- ------
+ 1        326 Parallel operations not downgraded             32     25 2410168744  Servers Busy               0
+ 1        327 Parallel operations downgraded to serial       32      3 4286011915  Servers Idle               0
+ 1        328 Parallel operations downgraded 75 to 99 pct    32      0  322858058  Servers Highwater         64
+ 1        329 Parallel operations downgraded 50 to 75 pct    32      0 3281923117  Server Sessions          384
+ 1        330 Parallel operations downgraded 25 to 50 pct    32      0 3330456527  Servers Started           64
+ 1        331 Parallel operations downgraded 1 to 25 pct     32      0 3721245209  Servers Shutdown          64
+
+**Note:When PARALLEL_ADAPTIVE_MULTIUSER =TRUE the downgrading is gradual (75 to Serial),while when it is set to false downgrading means that execution get serialized as the maximum parallel servers are allocated.     
+
+
+
+-----------------------------------------
+Adjusting Memory After Processing Begins                                                                                        
+-----------------------------------------
+
+A) Monitor the number of buffers used by parallel execution and compare the shared pool PX msg pool to the current high water mark 
+
+1) Select POOL,NAME,BYTES/1024/1024 "size MB" from v$sgastat where  upper(name) like '%PX%MSG%%POOL';
+
+POOL         Name              BYTES
+------------ ------------ ----------
+large pool   PX msg pool     491520
+
+
+2) V$PX_PROCESS_SYSSTAT: shows the status of query servers and provides buffer allocation statistics.
+
+SELECT * FROM V$PX_PROCESS_SYSSTAT WHERE STATISTIC LIKE 'Buffers%';
+
+STATISTIC                           VALUE
+------------------------------ ----------
+Buffers Allocated                 6171338
+Buffers Freed                     6170426
+Buffers Current                       912
+Buffers HWM                          5050
+
+2.2- V$PX_BUFFER_ADVICE: stat on statistics on historical and projected maximum buffer usage by all parallel queries . You can consult this view to reconfigure SGA size in response to insufficient memory problems for parallel queries.
+------------------------
+select * from V$PX_BUFFER_ADVICE;
+STATISTIC                           VALUE
+------------------------------ ----------
+Servers Highwater                     144
+Buffers HWM                          5050
+Estimated Buffers HWM               15984
+Servers Max                           256
+Estimated Buffers Max               49920
+Buffers Current Free                 1088
+Buffers Current Total                2000
+
+
+//Note//---Compare the high water mark to the parallel execution message pool size to determine if you allocated too much memory.
+For example, in the first output (v$sgastat), the value for large pool as shown in px msg pool is 1076000 or 38 MB. The Buffers HWM from the second 
+output(V$PX_PROCESS_SYSSTAT) is 3,620, which when multiplied by parallel_execution_message_size of 4,096 is 14,827,520 = +-15 MB. 
+In this case, the high water mark has reached approximately 40% of its capacity.                              
+
+AGMDPA:=> Buffers HWM x (Parallel_Execution_Message_size)= 16384*4138=64.66MB  >PX msg pool=56.64MB
+
+
+
+3-V$PQ_SYSSTAT :
+----------------
+Lists system statistics for parallel queries.After you have run a query or DML operation,you can use the information derived from 
+V$PQ_SYSSTAT to view the number of slave processes used, and other information for the system.
+
+SELECT * FROM V$PQ_SYSSTAT where STATISTIC not like 'Distr%';    
+
+STATISTIC                                 VALUE
+------------------------------ ----------------
+Servers Busy                                  0
+Servers Idle                                  0
+Servers Highwater                             6
+Server Sessions                            2976
+Servers Started                              72
+Servers Shutdown                             72
+Servers Cleaned Up                            0
+Queries Initiated                           479
+DML Initiated                                17
+DDL Initiated                                 0
+DFO Trees                                   496
+Sessions Active                               0
+Local Msgs Sent                           62980
+Local Msgs Recv'd                         62137
+
+4-V$PQ_SESSTAT:
+---------------
+
+SELECT * FROM v$pq_sesstat where STATISTIC not like 'Distr%';
+STATISTIC                      LAST_QUERY SESSION_TOTAL
+------------------------------ ---------- -------------
+Queries Parallelized                    1            28
+DML Parallelized                        0             0
+DDL Parallelized                        0             0
+DFO Trees                               1            28
+Server Threads                          6             0
+Allocation Height                       6             0
+Allocation Width                        1             0
+Local Msgs Sent                       180          5000
+Local Msgs Recv'd                     180          5000
+
+5-V$PQ_SLAVE:
+-------------
+SELECT * from V$PQ_SLAVE order by 1;
+
+SLAV STAT   SESSIONS IDLE_TIME_CUR BUSY_TIME_CUR CPU_SECS_CUR MSGS_SENT_CUR MSGS_RCVD_CUR IDLE_TIME_TOTAL BUSY_TIME_TOTAL CPU_SECS_TOTAL MSGS_SENT_TOTAL MSGS_RCVD_TOTAL
+---- ---- ---------- ------------- ------------- ------------ ------------- ------------- --------------- --------------- -------------- --------------- ---------------
+P000 BUSY        463             0            10            0             4             2              22              19             45            7203            3155
+P001 BUSY        463             0            10            0             4             2              22              19             54            7168            3102
+P002 BUSY        463             0            10            0             4             2              22              19             53            7180            3118
+P003 BUSY        463             0            10            0             4             2              22              19             38            7196            2707
+P004 BUSY        463             0            10            0             4             2              22              19             36            7238            2714
+P005 BUSY        463             0            10            0             4             2              22              19             64            6978            2544
+                                                              
+
+Monitoring Parallel Execution Performance with Dynamic Performance Views
+------------------------------------------------------------------------
+
+1- V$PX_SESSION :Data about query server sessions, groups, sets, and server numbers.includes information about the requested DOP and the actual DOP granted
+ -----------------
+select USERNAME,osuser,program,status,QCSID , QCSERIAL#,QCINST_ID,SERVER_GROUP, SERVER_SET,SERVER# ,DEGREE, REQ_DEGREE,sql_id
+ from V$PX_SESSION Natural Join V$SESSION  ;
+ 
+USERNAME                  QCSID  QCSERIAL#  QCINST_ID SERVER_GROUP SERVER_SET    SERVER#     DEGREE REQ_DEGREE SQL_ID
+-------------------- ---------- ---------- ---------- ------------ ---------- ---------- ---------- ---------- -----------
+U700827727                 2149       9431          1            1          1          1         16      16 44bhw167a4ja6
+U700827727                 2149       9431          1            1          1          2         16      16 44bhw167a4ja6
+
+>>>PLUS WAIT EVENT and SPID:<<<
+following query shows the current wait state of each slave and query coordinator process on the system
+
+Break on sql_id:
+
+SELECT s.USERNAME,s.osuser,px.SID "SID", p.PID,p.SPID "SPID" --px.INST_ID "Inst"
+       ,s.status,px.SERVER_GROUP "Group", px.SERVER_SET "Set",px.SERVER#,
+       px.DEGREE "DOP", px.REQ_DEGREE "Req DOP", w.event "Wait Event",s.sql_id
+FROM GV$SESSION s, GV$PX_SESSION px, GV$PROCESS p, GV$SESSION_WAIT w
+WHERE s.sid (+) = px.sid AND s.inst_id (+) = px.inst_id AND
+      s.sid = w.sid (+) AND s.inst_id = w.inst_id (+) AND
+      s.paddr = p.addr (+) AND s.inst_id = p.inst_id (+)
+ORDER BY DECODE(px.QCINST_ID,  NULL, px.INST_ID,  px.QCINST_ID), px.QCSID, 
+DECODE(px.SERVER_GROUP, NULL, 0, px.SERVER_GROUP), px.SERVER_SET, px.SERVER#;
+
+USERNAME        SID    PID  SPID      Group    Set  Degree Req Degree   Wait Event                    SQL_ID       
+------------ ------- ------ --------- ------ ------ ---------- ------ ------------------------------ --------------
+STO_MDPIDS1    2197     44  22020186                                     SQL*Net message from client  dfkeb5el3nn72        
+STO_MDPIDS1    2174     57  35258468      1      1          6      8     PX Deq Credit: send blkd     fq1ncvq7jp9ga
+STO_MDPIDS1    2185     59  18808866      1      1          6      8     PX Deq Credit: send blkd     fq1ncvq7jp9ga
+STO_MDPIDS1    2186     62  8650814       1      1          6      8     PX Deq Credit: send blkd     fq1ncvq7jp9ga
+STO_MDPIDS1    2171     63  30933178      1      1          6      8     PX Deq Credit: send blkd     fq1ncvq7jp9ga
+STO_MDPIDS1    2176     53  31064076      1      1          6      8     PX Deq Credit: send blkd     fq1ncvq7jp9ga
+STO_MDPIDS1    2230     61  9044062       1      1          6      8     PX Deq Credit: send blkd     fq1ncvq7jp9ga                  
+                                                                                                      
+2-V$PX_SESSTAT:
+---------------
+All session statistics available to a normal session are available for all sessions performed using parallel execution.
+SELECT * from 
+      (select username,osuser,QCSID, QCINST_ID,SERVER_GROUP, SERVER_SET,SERVER#,REQ_DEGREE,DEGREE,name,value 
+       from V$PX_SESSTAT join v$statname using(STATISTIC#) join V$SESSION using (SID,SERIAL#)
+WHERE name not like '%connect%' 
+order by SERVER# desc NULLS LAST) where rownum<40;
+
+
+ QCSID  SID  Group Set  NO    DOP REQ_DOP  Stat Name                                                           VALUE
+USERNAME     OSUSER          QCSID  QCINST_ID SERVER_GROUP SERVER_SET    SERVER# REQ_DEGREE     DEGREE NAME                                                    VALUE
+------------ ---------- ---------- ---------- ------------ ---------- ---------- ---------- ---------- -------------------------------------------------- ----------
+GRH1         durj005754       1085          1            1          2          8          8          8 messages received                                           0
+GRH1         durj005754       1085          1            1          2          8          8          8 messages sent                                               0
+GRH1         durj005754       1085          1            1          2          8          8          8 session uga memory max                                 224376
+GRH1         durj005754       1085          1            1          2          8          8          8 session uga memory                                     224376
+GRH1         durj005754       1085          1            1          2          8          8          8 process last non-idle time                         1472134956
+GRH1         durj005754       1085          1            1          2          8          8          8 user I/O wait time                                          0
+GRH1         durj005754       1085          1            1          2          8          8          8 application wait time                                       0
+GRH1         durj005754       1085          1            1          2          8          8          8 concurrency wait time                                       0
+GRH1         durj005754       1085          1            1          2          8          8          8 cluster wait time                                           0
+GRH1         durj005754       1085          1            1          2          8          8          8 DB time                                                     2
+GRH1         durj005754       1085          1            1          2          8          8          8 CPU used by this session                                    0
+GRH1         durj005754       1085          1            1          2          8          8          8 CPU used when call started                                  0
+GRH1         durj005754       1085          1            1          2          8          8          8 session stored procedure space                              0
+GRH1         durj005754       1085          1            1          2          8          8          8 session logical reads                                     179
+GRH1         durj005754       1085          1            1          2          8          8          8 pinned cursors current                                      1
+GRH1         durj005754       1085          1            1          2          8          8          8 recursive cpu usage                                         0
+GRH1         durj005754       1085          1            1          2          8          8          8 recursive calls                                             1
+GRH1         durj005754       1085          1            1          2          8          8          8 user calls                                                  3
+GRH1         durj005754       1085          1            1          2          8          8          8 user rollbacks                                              0
+GRH1         durj005754       1085          1            1          2          8          8          8 user commits                                                0
+GRH1         durj005754       1085          1            1          2          8          8          8 opened cursors current                                      1
+GRH1         durj005754       1085          1            1          2          8          8          8 opened cursors cumulative                                   1
+GRH1         durj005754       1085          1            1          2          8          8          8 logons current                                              1
+GRH1         durj005754       1085          1            1          2          8          8          8 logons cumulative                                           1
+GRH1         durj005754       1085          1            1          2          8          8          8 prefetch clients - default                                  0
+GRH1         durj005754       1085          1            1          2          8          8          8 prefetch clients - recycle                                  0
+GRH1         durj005754       1085          1            1          2          8          8          8 prefetch clients - keep                                     0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR fusion writes                                          0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR checkpoints                                            0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR lru scans                                              0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR make free requests                                     0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR revisited being-written buffer                         0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR undo block writes                                      0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR transaction table writes                               0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR object drop buffers written                            0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR parallel query checkpoint buffers written              0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR tablespace checkpoint buffers written                  0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR thread checkpoint buffers written                      0
+GRH1         durj005754       1085          1            1          2          8          8          8 DBWR checkpoint buffers written                             0
+                   
+        
+        
+        
+>>>>>>>>> Repeat this query as often as required during execution
+	SELECT USERNAME,c.osuser,C.SID||','||c.serial# SID_SERIAL,c.status,QCSID,a.SID,SERVER_GROUP "Group", SERVER_SET "Set",SERVER# No,DEGREE,REQ_DEGREE,NAME "Stat Name", VALUE  --INST_ID "Inst",
+	FROM GV$PX_SESSTAT A, V$STATNAME B,V$SESSION C
+	WHERE A.STATISTIC# = B.STATISTIC# 
+	AND NAME LIKE '%physical%'
+	AND VALUE > 0 
+	AND A.SID=C.SID
+	AND A.SERIAL#=C.SERIAL#
+	 ORDER BY QCSID, QCINST_ID, SERVER_GROUP NULLS FIRST, SERVER_SET NULLS FIRST,SERVER# NULLS FIRST;
+        
+USERNAME      QCSID    SID   Group   Set    NO     DEGREE  REQ_DEGREE Stat Name                                     VALUE
+------------ ------- ----- ------- ----- ----- ---------- ---------- ---------------------------------------- ----------
+HF53ES          2165  2125       1     1     1          6         16 physical read IO requests                        67
+HF53ES          2165  2125       1     1     1          6         16 physical reads direct                          3441
+HF53ES          2165  2125       1     1     1          6         16 physical reads                                 3441
+HF53ES          2165  2125       1     1     1          6         16 physical read bytes                        56377344
+HF53ES          2165  2125       1     1     1          6         16 physical read total bytes                  56377344
+HF53ES          2165  2125       1     1     1          6         16 physical read total multi block requests         67
+HF53ES          2165  2125       1     1     1          6         16 physical read total IO requests                  67
+                   
+                   
+                   
+3-V$PX_PROCESS: contains status, session ID, process ID, 
+---------------    
+SELECT s.username,s.osuser,s.sql_id,s.status,p.server_name,p.status,p.spid,''||s.SID|| ','||s.SERIAL#||'' from V$PX_PROCESS p, v$session s  
+WHERE p.sid=s.sid and p.serial#=s.serial# order by p.server_name ;                        
+                   
+USERNAME             SERV STATUS    SPID         'SID,SERIAL'
+-------------------- ---- --------- ------------ ---------------
+HF53ES               P000 IN USE    28442636     2151,3231
+HF53ES               P001 IN USE    7602230      2208,3558
+HF53ES               P002 IN USE    6422752      2206,1153
+HF53ES               P003 IN USE    13172788     2187,2311
+HF53ES               P004 IN USE    33292290     2125,4538
+HF53ES               P005 IN USE    28508320     2218,4260
+
+
+
+4-V$PQ_TQSTAT: (From "SAME SESSION" > 11g V$PX_TQSTSAT) 
+-------------
+Hash join between two tables, with a join on a column with only two distinct values.The hash will have one hash value to parallel 
+execution server A and the other to parallel execution server B. DOP=2,but if it is 4, then at least two parallel execution servers have no work.
+The best way to resolve this problem might be to choose a different join method; a nested loop join might be the best option.To discover this 
+type of skew use below query: 
+1-"SAME SESSION"
+SELECT DFO_number, TQ_id, server_type, process, num_rows,bytes/1024 "KB"
+FROM V$PQ_TQSTAT 
+ORDER BY dfo_number DESC,TQ_id, server_type, process,num_rows;
+
+DFO_NUMBER      TQ_ID SERVER_TYP PROCESS      NUM_ROWS         KB
+---------- ---------- ---------- ---------- ---------- ----------
+         1          0 Consumer   QC                  6   .2109375
+         1          0 Producer   P000                1  .03515625
+         1          0 Producer   P001                1  .03515625
+         1          0 Producer   P002                1  .03515625
+         1          0 Producer   P003                1  .03515625
+         1          0 Producer   P004                1  .03515625
+         1          0 Producer   P005                1  .03515625
+         
+-QT_id =table-queue..A table queue is the pipeline between the parallel coordinator and a query server group.
+*A table queue connecting 10 consumer processes to 10 producer processes has 20 rows. 
+
+2.1-Compute Sum the bytes column and group by TQ_ID to obtain the total number of bytes sent through each table queue.Compare this with the optimizer 
+estimates; IF large variations => need to analyze the data using a larger sample. 
+  SELECT  TQ_ID "TABLE",sum(bytes)/1024 "KB treated" from 
+   v$PQ_TQSTAT group by TQ_ID;
+
+2.2-Compute the variance of bytes grouped by TQ_ID:
+Large variances indicate workload imbalances=>producers start out with unequal distributions of data/
+or distribution itself is skewed = low cardinality, or low number of distinct values.
+ SELECT TQ_ID "TABLE",VARIANCE (Bytes) "Variance" FROM v$PQ_TQSTAT  group by TQ_ID;
+
+    TABLE   Variance
+--------- ----------
+        0 4628.57143
+
+
+-If one of the join tables is small relative to the other, a BROADCAST distribution method can be hinted using PQ_DISTRIBUTE hint.The table queues
+are represented explicitly in the operation column by PX SEND <partitioning type> (for example, PX SEND HASH) and PX RECEIVE.
+
+>><<The following query shows the current wait state of each slave and QC process on the system:>><<
+
+SELECT px.SID "SID", p.PID, p.SPID "SPID", px.INST_ID "Inst",
+       px.SERVER_GROUP "Group", px.SERVER_SET "Set",
+       px.DEGREE "Degree", px.REQ_DEGREE "Req Degree", w.event "Wait Event"
+FROM GV$SESSION s, GV$PX_SESSION px, GV$PROCESS p, GV$SESSION_WAIT w
+WHERE s.sid (+) = px.sid AND s.inst_id (+) = px.inst_id AND
+      s.sid = w.sid (+) AND s.inst_id = w.inst_id (+) AND
+      s.paddr = p.addr (+) AND s.inst_id = p.inst_id (+)
+ORDER BY DECODE(px.QCINST_ID,  NULL, px.INST_ID,  px.QCINST_ID), px.QCSID, 
+DECODE(px.SERVER_GROUP, NULL, 0, px.SERVER_GROUP), px.SERVER_SET, px.INST_ID;
+
+
+4. Trace the Query coordinator using Event 10046 Level 12:
+
+-----------------------------------------------
+V$FILESTAT:
+-----------------------------------------------
+Sums read and write requests, the number of blocks, and service times for every datafile in every tablespace
+ SELECT tablespace_name,FILE#,PHYRDS,PHYWRTS,PHYBLKRD,PHYBLKWRT,SINGLEBLKRDS,READTIM, WRITETIM,AVGIOTIM,MAXIORTM, MAXIOWTM 
+ FROM V$FILESTAT natural join dba_data_Files ORDER BY 1;
+
+-----------------------
+performance sumary
+-----------------------
+-Additionally queries may just run quicker in serial. Typically queries that use index look-ups are not suited to PX. 
+
+ Nested Loops vs. Hash/Sort Merge Joins
+Typically parallel query tries to use FTS to access data lookups are divided between slaves on a ROWID range basis. Usually nested loop joins are not really efficient with FTS (unless the inputs are small). Hash Joins and Sort Merge are usually much more efficient at processing large amounts of data. However, there is a down side: HJ & SMJ do not allow row elimination based on data from a driving row source. This elimination can drastically reduce the data sets involved. This can mean that a serial access path using index look-ups is quicker than a parallel one simply because of the volume of data eliminated.
+ Cost of slave generation, dividing the data up, passing it through multiple processes and collating the results, may be greater than retrieving the data serially.
+ Data skew
+Parallel queries divide data between reader slaves on a ROWID range basis. Just because the same number of blocks are given to each slave does not mean that these blocks contain an identical number of rows. In fact, some of the blocks couple are completely empty. This can be especially problematical where large quantities of data are archived and deleted, as this results in many empty or sparsely filled blocks.
+The effect of this non-uniform data distribution is to cause queries to run slower than they might otherwise, because one slave does a work (i.e. the data distribution serializes access on one slave causing a bottleneck). There is little that can be done about this other than to reorganize the data. 
+
+Performance summary: 
+It cannot be stressed strongly enough that parallel query is not always quicker than serial. Some queries are more suited to parallel operations than others. If you are using parallel execution, then you should endeavour to maximize I/O throughput to your disk. Ensure that:
+
+-You have enough slaves to retrieve the data efficiently
+-You do not have too many slaves (avoid maxing out the CPU)
+-You set realistic memory parameters (sort_area_size etc.) so that you do not max out memory and cause swapping
+-The data is spread over multiple disk spindles so that slaves do not contend for I/O resource
+-The type of query your are attempting to execute in parallel is suitable for parallelisation.
+-Watch for non-uniform loading on slave processes as this could indicate data skew.
+
+
+
+V$PARAMETER  
+-----------
+V$SESSTAT and V$SYSSTAT
+-----------------------
+The statistics include total number of queries, DML and DDL statements executed in a session and the total number of intrainstance and 
+interinstance messages exchanged during parallel execution during the session
+
+
+***********************************************
+Miscellaneous Parallel Execution Tuning Tips
+**********************************************
+1-Setting Buffer Cache Size for Parallel Operations
+--------------------------------------------------
+Only Update and delete parallel operations benefit from larger buffer cache sizes.Other parallel operations can benefit only if you increase the size of the buffer pool and thereby accommodate the inner table or index for a nested loop join.
+2-Overriding the Default Degree of Parallelism
+
+----------------------------------------------
+You can adjust the DOP by :
+---------------------------
+-changing the value for the PARALLEL_THREADS_PER_CPU parameter.By using ALTER TABLE, ALTER SESSION, or by using hints.increase concurrent parallel operations Nbr or set the parameter PARALLEL_ADAPTIVE_MULTI_USER to TRUE
+
+3-Rewriting SQL Statements:
+----------------------------
+Use EXPLAIN PLAN to verify that all plan steps have an OTHER_TAG of PARALLEL_TO_PARALLEL, PARALLEL_TO_SERIAL, PARALLEL_COMBINED_WITH_PARENT, or PARALLEL_COMBINED_WITH_CHILD.Any other keyword (or null) indicates serial/biottleneck.
+verify that such plan steps end in the operation PX SEND <partitioning type> node (for example, PX SEND HASH).
+push the optimizer to use parallelism converting subqueries, especially correlated subqueries, into joins.Oracle can parallelize joins better than subqueries.
+
+4-Creating and Populating Tables in Parallel
+--------------------------------------------
+user process can only receive the rows serially even though query is run in parallel.
+When combined with the NOLOGGING option, the parallel version of CREATE TABLE ... AS SELECT provides a very efficient intermediate table facility.
+ CREATE TABLE summary PARALLEL NOLOGGING AS SELECT dim_1, dim_2 ..., SUM (meas_1) 
+ FROM facts GROUP BY dim_1, dim_2;
+ 
+These tables can also be incrementally loaded with parallel INSERT. You can take advantage of intermediate tables using below techniques:
+-Common subqueries can be computed once and referenced many times.Allows star queries(without where clause) to be better parallelized. the one with where clause is auto efectivly paralelized.
+-Decompose complex queries into simpler steps in order to provide application-level checkpoint or restart:
+a complex multitable join can be replaced by many CREATE TABLE ... AS SELECT or PARALLEL INSERT AS SELECT, allowing rewriting the query as a sequence of simpler queries of few hours each.
+If failure occurs can be restarted from last ok step.
+-Implement manual parallel deletes efficiently by creating new table omitting unwanted data then drop original . or parallelly delete from the original table.
+-Create summary tables for efficient multidimensional drill-down analysis:exmple:sumary table containing sum(revenue) per month/region/salesman. 
+-Reorganize tables, eliminating chained rows, compressing free space, and so on, by copying the old table to a new table (better than datapump/sqloader)
+Note:To avoid fragmentation, the number of files in a tablespace should be a multiple of the number of CPUs.
+
+5-Creating Temporary Tablespaces for Parallel Sort and Hash Join :should use locally managed temporary tablespaces.
+-----------------------------------------------------------------
+Size of Temporary Extents(locally manged): all the same size because this helps avoid fragmentation and should be smaller than permanent(1-10MB)to avoid unused allocated space.Large enough to not cause waits.use less overhead than permanent tbs but temporary extent still requires the overhead of acquiring a latch(browse sort extent pool on SGA)
+
+6-Executing Parallel SQL Statements
+-----------------------------------
+Besides query performance, monitor parallel load, parallel index creation, and parallel DML, and look for good utilization of I/O and CPU resources.
+
+7-Using EXPLAIN PLAN to Show Parallel Operations Plans
+------------------------------------------------------
+-Verify optimizer selectivity estimates:if the plan says only one row is produced from any particular stage and this is incorrect(nested table), consider hints or gather statistics.
+-Use hash join on low cardinality join keys (not optimal if few distinct value. not work if distinct value les than DOP).
+-Consider data skew.If exessive skewness some hash join process works harder on buckets.Tips: use a hint to cause a BROADCAST distribution method. 
+
+8-Additional Considerations for Parallel DML:
+--------------------------------------------
+-PDML and Direct-Path Restrictions:If a parallel restriction is violated, the operation is performed serially(direct-path INSERT violated =>APPEND 
+hint ignored and exec=serial)
+-Limitation on the Degree of Parallelism:UPDATE, MERGE, or DELETE operations, the DOP =< Nbr of partitions in the table.
+
+-Using Local and Global Striping: Parallel updates and deletes work only on partitioned tables.In local index maintenance, local striping reduce I/O contention and increase availability in case of failure.
+for global index maintenance,globally striping the index across many disks =best way to distribute I/O.
+
+-Increasing INITRANS: global index segment/blocks are shared by server processes of the same parallel DML statement(even if it is not the same row)
+set INITRANS=maximum DOP against this index.
+-Limitation on Available Number of Transaction Free Lists for Segments:in dictionary-managed tablespaces,re/create the segment header with limited number of process free lists;this leaves more room for 
+transaction free lists in the segment header.For UPDATE and DELETE operations, each server process can require its own transaction free list
+The parallel DML DOP = smallest number of transaction free lists available on the table/or any of the global indexes.
+-Using Multiple Archivers:parallel DML/DDL generate a lot of redo.single arch can't keep up .Solution =mulptiply archivers manually or by using Job queues.
+-DBWr workload: paralell DML gives a lot of durty bloks on buffer cache and undo .Check "FREE BUFFER WAITS" in v$SYSTEM_EVENT and increase DBWrn if there are rows.
+SELECT TOTAL_WAITS FROM V$SYSTEM_EVENT WHERE EVENT = 'FREE BUFFER WAITS';
+-[NO]LOGGING Clause: Table/partition/tablespace/indexe.no log generated using "NoLoGGing".If specified at object ALTER/CREATE level no log generated for /parallel insert.
+log never generated(negligible amount:range-invalidation redo) for Direct-path INSERT(except for dictionary updates).NOLOGGING affects only redo not undo.
+When Logging is changed at Tablespace level(alter): all new objects created after will have new logging mode(unless the old ones).
+if DB is NOARCHIVELOG mode all what can be done without logging won't generate logs.
+9-Creating Indexes in Parallel
+first set of query processes scans the table, extracts key-rowid pairs, and sends each pair to a process in a second set of query processes based 
+on key. Parallel coordinator concatenates the pieces (which are ordered) to form final index.
+Parallel local index creation uses a single server set,run with a higher DOP because it runs with half as many servers as DOP(DOP=<Nbr partition).
+PARALLEL clause on create Index with init extent 5Mb and 12 process  consumes 60MB but QC combines subindexes to final index <60MB.
+CONTRAINTS:Preferablly "create index parallel"  first then  link the constraint to it.Multiple constraints on the same table enablable if ENABLE NOVALIDATE state. 
+CREATE TABLE a (a1 NUMBER CONSTRAINT ach CHECK (a1 > 0) ENABLE NOVALIDATE)
+PARALLEL; 
+INSERT INTO a values (1);
+COMMIT;
+ALTER TABLE a ENABLE CONSTRAINT ach;  
+ 
+10-Parallel DML Tips
+----------------------
+
+A)-Direct-path INSERT 
+APPEND->Parallel requires =ALTER SESSION ENABLE PARALLEL DML /Table PARALLEL attribute or PARALLEL hint APPEND hint (optional).
+NOLOGGING=requires NOLOGGING attribute set for partition or table.
+B)Parallel DML Tip 3: Parallelizing INSERT, MERGE, UPDATE, and DELETE=if the session is in a PARALLEL DML enabled mode & not affect parallelization of queries.
+C)Parallelizing INSERT ... SELECT:FULL PARALLELISM =PARALLEL hint after the INSERT +PARALLEL hint after the SELECT. 
+if enabled parallel DML on the session +parallel at Table level =INSERT ... SELECT will have parallelism on both select and insert operation.
+The APPEND keyword is not required in this example because it is implied by the PARALLEL hint.
+D-Parallelizing UPDATE and DELETE:Tables must be partitioned in order to support parallel UPDATE and DELETE.
+The PARALLEL hint is applied to the UPDATE operation as well as to the scan.
+*)UPDATE /*+ PARALLEL(employees) */ employees................*)DELETE /*+ PARALLEL(PRODUCTS) */ FROM PRODUCTS  
+
+11-Incremental Data Loading in Parallel 
+---------------------------------------
+Refresh the data warehouse after sqloading  temporary table diff_customer in parallel and direct option. then 
+1-(adding index on temptable)
+CREATE UNIQUE INDEX diff_pkey_ind ON diff_customer(c_key) PARALLEL NOLOGGING;
+ALTER TABLE diff_customer ADD PRIMARY KEY (c_key);
+
+2-Updating the Table custommers in Parallel 
+UPDATE /*+ PARALLEL(cust_joinview) */
+(SELECT /*+ PARALLEL(customers) PARALLEL(diff_customer) */
+CUSTOMER.c_name AS c_name CUSTOMER.c_addr AS c_addr,
+diff_customer.c_name AS c_newname, diff_customer.c_addr AS c_newaddr
+   FROM diff_customer
+   WHERE customers.c_key = diff_customer.c_key) cust_joinview
+   SET c_name = c_newname, c_addr = c_newaddr;
+   ****UPDATE IS parallelized only if the customers table is partitioned.
+
+3- Inserting the New Rows into the Table in Parallel: inserting the new rows from the diff_customer.*Parallel INSERT is applicable even if the table is not partitioned. you can guarantee that the subquery is transformed into an anti-hash join by using the HASH_AJ hint execute parallel efficiently.
+ INSERT /*+PARALLEL(customers)*/ INTO customers SELECT * FROM diff_customer s);  
+
+4- Merging in Parallel
+MERGE INTO customers USING diff_customer
+ON (diff_customer.c_key = customer.c_key) WHEN MATCHED THEN
+  UPDATE SET (c_name, c_addr) = (SELECT c_name, c_addr 
+  FROM diff_customer WHERE diff_customer.c_key = customers.c_key) 
+WHEN NOT MATCHED THEN
+  INSERT VALUES (diff_customer.c_key,diff_customer.c_data);
+  
+5- Using Hints with Query Optimization
+6-FIRST_ROWS(n) Hint 10 rows 
+ SELECT /*+ FIRST_ROWS(10) */ article_id
+FROM articles_tab WHERE CONTAINS(article, 'Oracle')>0 ORDER BY pub_date DESC;
+
+6- Enabling Dynamic Sampling: have a small cost in DWH environment
+warehousing environments or when you expect long transactions or queries. recursive SQL statement is issued to scan a small, random sample of the table's 
+blocks, and to apply the relevant single table predicates to estimate predicate selectivities. 
+Dynamic sampling is controlled with the initialization parameter OPTIMIZER_DYNAMIC_SAMPLING, between 0 and 10, inclusive. Increasing =agressive application of dynamic sampling, for both the type (unanalyzed/analyzed) of tables sampled 
+and the amount of I/O spent on sampling.Oracle also provides the table-specific hint DYNAMIC_SAMPLING. If the table name is omitted, 
+the hint is considered cursor-level. The table-level hint forces dynamic sampling for the table.
+
+http://docs.oracle.com/cd/B19306_01/server.102/b14223/usingpe.htm#i1007334 spawn=engender
+                              
+ Parallel Operation	         PARALLEL Hint	        PARALLEL Clause	   ALTER SESSION           Parallel Declaration
+ --------------------------    ------------------------ ------------------ ----------------------- ---------------------------
+Parallel query table scan
+ (partitioned or
+  nonpartitioned table)          1) PARALLEL                               2)FORCE PARALLEL QUERY     3)of table
+                                                                           
+Parallel queryindex range                                                  
+scan (partitioned index)         1) PARALLEL_INDEX                         2)FORCE PARALLEL QUERY     2) of index
+                                                                           
+Parallel UPDATE or DELETE                                                  
+(partitioned table only)         1) PARALLEL	                           2) FORCE PARALLEL DML    3) of table being updated or deleted from
+                                                                           
+INSERT operation of parallel                                               
+ INSERT... SELECT (partitioned/  1) PARALLEL of insert                     2) FORCE PARALLEL DML    3) of table being inserted into
+nonpartitioned table)
+
+SELECT of INSERT ... SELECT 
+when INSERT is parallel          Takes degree from INSERT    //               Takes degree from INSERT       //
+
+SELECT operation of INSERT ... 
+SELECT when INSERT is serial      1) PARALLEL 	            2) of table being 
+                                                               selected from
+                                                               
+CREATE operation of parallel      Note: Hint in the SELECT  2)              1) FORCE PARALLEL DDL  
+CREATE TABLE ... AS SELECT        clause does not affect the 
+(partitioned/nonpartitioned tb)   CREATE operation
+ 
+SELECT operation of CREATE TABLE...  Takes degree from CREATE statement  Takes degree from CREATE statement Takes degree from CREATE statement Takes degree from CREATE statement   
+AS SELECT when CREATE is parallel    
+
+
+
+SELECT operation of CREATE TABLE...       1) PARALLEL or PARALLEL_INDEX                                2) of querying tables or partitioned indexes                   
+AS SELECT when CREATE is serial
+	 	
+
+Parallel CREATE INDEX(partitioned1)                                                                    1)FORCE PARALLEL DDL
+ or nonpartitioned index)  	
+
+
+ Parallel REBUILD INDEX (nonpartitioned index)                                   2)                    1) FORCE PARALLEL DDL
+ 
+REBUILD INDEX (partitioned index)—never parallelized
+ 	 	 	 
+Parallel REBUILD INDEX partition                                                 2)                    1) FORCE PARALLEL DDL
+                                                                                 
+Parallel MOVE or SPLIT partition                                                 2)                    1) FORCE PARALLEL DDL  
+
+Table 25-4 Locks Acquired by Parallel DML Statements
+
+******************************************************************************************************************************************
+Type of Statement	                                                     Coordinator Process Acquires:	                Each Parallel Execution Server Acquires:
+---------------------------------------------------------------------------- -------------------------------------------------- ----------------------------------------
+Parallel UPDATE or DELETE into partitioned table; WHERE clause pruned to     1 table lock SX                                     1 table lock SX
+a subset of partitions or subpartitions.                                     1 partition lock X for each pruned (sub)partition   1 partition lock NULL for each pruned (sub)partition owned by the query server process  
+                                                                                                                                 1 partition-wait lock S for each pruned (sub)partition owned by the query server process
+
+Parallel row-migrating UPDATE into partitioned table; WHERE clause pruned    1 table lock SX                                     1 table lock SX                                                                       
+to a subset of sub(partition)s                                               1 partition X lock for each pruned (sub)partition   1 partition lock NULL for each pruned (sub)partition owned by the query server process
+                                                                             1 partition lock SX for all other (sub)partitions   1 partition-wait lock S for each pruned partition owned by the query server process   
+                                                                                                                                 1 partition lock SX for all other (sub)partitions                                     
+
+Parallel UPDATE, MERGE, DELETE, or INSERT into partitioned table             1 table lock SX                                     1 table lock SX                                
+                                                                             Partition locks X for all (sub)partitions           1 partition lock NULL for each (sub)partition  
+                                                                                                                                 1 partition-wait lock S for each (sub)partition
+Parallel INSERT into partitioned table; destination table with partition     1 table lock SX                                      
+or subpartition clause                                                       1 partition lock X for each specified(sub)partition 1 table lock SX                                             
+                                                                                                                                 1 partition lock NULL for each specified (sub)partition     
+                                                                                                                                 1 partition-wait lock S for each specified (sub)partition   
+
+Parallel INSERT into nonpartitioned table                                    1 table lock X                                      None   
+
+
+===============================================================
+SELECT NAME, SUM(BYTES) FROM V$SGASTAT WHERE POOL='SHARED POOL' 
+  GROUP BY ROLLUP (NAME); 
+  
+Computing Additional Memory Requirements for Message Buffers :
+To calculate the amount of memory required, use one of the following formulas:
+For SMP systems:
+                 Mem in bytes = (3 x size x users x groups x connections)   
+SIZE = PARALLEL_EXECUTION_MESSAGE_SIZE
+USERS =  the number of concurrent parallel execution users that you expect to have running with the optimal DOP
+GROUPS = the number of query server process groups used for each query  (More if parallel subqueries)
+CONNECTIONS = (DOP2 + 2 x DOP)   LOCAL = CONNECTIONS/INSTANCES    ***RAC (REMOTE = CONNECTIONS - LOCAL)
+
+Calculating Additional Memory for Cursors
+------------------------------------------
+Parallel execution plans consume more space in the SQL area than serial execution plans. You should regularly monitor shared pool resource use to ensure 
+that the memory used by both messages and cursors can accommodate your system's processing requirements. 
+-Adjusting Memory After Processing Begins:
+ To ensure the correct memory size, tune the shared pool using the following query:
+ SELECT POOL, NAME, SUM(BYTES) FROM V$SGASTAT WHERE POOL LIKE '%PX%pool%'
+  GROUP BY ROLLUP (POOL, NAME);  
+  
+  To obtain more memory usage statistics, execute the following query:
+  SELECT * FROM V$PX_PROCESS_SYSSTAT WHERE STATISTIC LIKE 'Buffers%';
+  
+STATISTIC                           VALUE
+------------------------------ ----------
+Buffers Allocated                  538236
+Buffers Freed                      538140
+Buffers Current                        96
+Buffers HWM                          3620
+
+ Calculate a value in bytes by multiplying the number of buffers by the value for PARALLEL_EXECUTION_MESSAGE_SIZE
+ Compare the high water mark to the parallel execution message pool size to determine if you allocated too much memory. 
+ For example, in the first output, the value for large pool as shown in px msg pool is 38,092,812 or 38 MB. The Buffers HWM
+  from the second output is 3,620, which when multiplied by a parallel execution message size of 4,096 is 14,827,520, or approximately 15 MB. 
+  In this case, the high water mark has reached approximately 40% of its capacity 15/38MB.
+  
+ RESOURCE MANAGEMENT VIEWS:
+  V$RSRC_CONS_GROUP_HISTORY:Displays a history of consumer group statistics for each entry in V$RSRC_PLAN_HISTORY
+  V$RSRC_CONSUMER_GROUP:displays data related to currently active resource consumer groups(px)
+  V$RSRC_PLAN:displays the names of all currently active resource plans
+  V$RSRC_PLAN_HISTORY:displays a history of when a resource plan was enabled, disabled, or modified on the instance.
+  V$RSRC_SESSION_INFO:displays Resource Manager statistics per session, including parallel statement queue statistics.
+  -Monitoring Session Statistics:
+  
+Hints for Access Paths
+
+Each hint described in this section suggests an access path for a table.
+
+FULL
+ROWID
+CLUSTER
+HASH
+INDEX
+INDEX_ASC
+INDEX_COMBINE
+INDEX_JOIN
+INDEX_DESC
+INDEX_FFS
+NO_INDEX
+AND_EQUAL
+
+
+-Parallel DML is not supported during online index building. If you specify ONLINE and then issue parallel DML statements, 
+then Oracle Database returns an error.
+-You cannot specify ONLINE for a bitmap index or a cluster index.
+-You cannot specify ONLINE for a conventional index on a UROWID column
+
+
+
+============explain plan :
+
+Parallel Execution Details (DOP=4 , Servers Allocated=8)                                                                                                                                                                                                                                       
+SQL Plan Monitoring Details (Plan Hash Value=326881411)                                                                                                                                                                                                                                        
+=============================================================================================                                                                                                                                                                                                  
+| Id |                 Operation                  |       Name     | Execs |   Rows   |Temp |                                                                                                                                                                                                  
+|    |                                            |                |       | (Actual) |(Max)|                                                                                                                                                                                                  
+=============================================================================================                                                                                                                                                                                                  
+|  0 | CREATE TABLE STATEMENT                     |                |     9 |        4 |     |                                                                                                                                                                                                  
+|  1 |   PX COORDINATOR                           |                |     9 |        4 |     |                                                                                                                                                                                                  
+|  2 |    PX SEND QC (RANDOM)                     | :TQ10003       |     4 |        4 |     |                                                                                                                                                                                                  
+|  3 |     LOAD AS SELECT                         |                |     4 |        4 |     |                                                                                                                                                                                                  
+|  4 |      HASH GROUP BY                         |                |     4 |      75M |     |                                                                                                                                                                                                  
+|  5 |       PX RECEIVE                           |                |     4 |     168M |     |                                                                                                                                                                                                  
+|  6 |        PX SEND HASH                        | :TQ10002       |     4 |     168M |     |                                                                                                                                                                                                  
+|  7 |         HASH JOIN                          |                |     4 |     168M | 34G |                                                                                                                                                                                                  
+|  8 |          PX RECEIVE                        |                |     4 |     313M |     |                                                                                                                                                                                                  
+|  9 |           PX SEND BROADCAST                | :TQ10001       |     4 |     313M |78*DOP|                                                                                                                                                                                                  
+| 10 |            HASH JOIN                       |                |     4 |      78M |     |                                                                                                                                                                                                  
+| 11 |             BUFFER SORT                    |                |     4 |     186K |     |                                                                                                                                                                                                  
+| 12 |              PX RECEIVE                    |                |     4 |     186K |     |                                                                                                                                                                                                  
+| 13 |               PX SEND BROADCAST            | :TQ10000       |     1 |     186K |     |                                                                                                                                                                                                  
+| 14 |                TABLE ACCESS BY INDEX ROWID | TABLE3  *PX1   |     1 |    46481 |     |                                                                                                                                                                                                  
+| 15 |                 INDEX RANGE SCAN           | IDX_ORDER_TYPE |     1 |    46481 |     |                                                                                                                                                                                                  
+| 16 |             PX BLOCK ITERATOR              |                |     4 |      88M |     |                                                                                                                                                                                                  
+| 17 |              TABLE ACCESS FULL             | TABLE1   *PX2  |   115 |      88M |     |                                                                                                                                                                                                  
+| 18 |          PX BLOCK ITERATOR                 |                |     4 |     770M |     |                                                                                                                                                                                                  
+| 19 |           TABLE ACCESS FULL                | TABLE2    *PX3 |   256 |     770M |     |                                                                                                                                                                                                  
+=============================================================================================                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+The answer resides into the parallel distribution (PQ Distrib) method used by the parallel server sets to distribute their collected set of rows to the subsequent parallel server set (doing the hash join).                                                                                  
+                                                                                                                                                                                                                                                                                               
+In the DOP 4 execution plan above we can see that we have 4 PX parallel server sets each one responsible of filling up one of the virtual TQ tables: TQ10000, TQ10001, TQ10002 and TQ10003. Here below is how to read the above execution plan:                                                
+                                                                                                                                                                                                                                                                                               
+1- first PX1 set of slaves reads TABLE3 and broadcast its data set to the second PX2 set of slaves through the TQ10000 virtual table.                                                                                                                                                        
+2- PX2 set reads TABLE1, hash join it with the data set received (TQ10000)from PX1 set and broadcast its result "78M rows" at line 10 to the next parallel server set (PX3) via the second TQ10001 virtual table (PX SEND BROADCAST operation at line 9).                                                                                                                                                                                                                                         
+3- PX3 set of parallel slaves probes TABLE2 by parallel full scanning it and hash join it with the build result set (TQ10001) it has received from PX2 parallel set (at line 8 - 313M).
+   This operation ends up by filling up the third virtual TQ table TQ10002 and by sending it to the next and last PX server PX4 using a hash distribution.                                                                                                                                                                                                                                                                     
+4- Finally, PX4 set of slaves will receive the TQ10002 data DOP4*78 = 313M of rows, hash group by it (line 7), fill the last virtual table (TQ10003) line (18-19) table and send it to the query coordinator (QC)
+ which will end up by creating the table_of_dates table    
+
+Each slave of PX2 set will pass every row it has received to every slave of the PX3 set : data set of first row source (78M rowse) is ”smaller” than 2nd row source to be joined with (770M rows).   
+
+
+===== PQ_DISTRIBUTE
+
+
+For example  r and s,are joined using a hash-join, the following query contains a hint to use hash distribution:
+SELECT /*+ORDERED PQ_DISTRIBUTE(s HASH, HASH) USE_HASH (s)*/ column_list
+  FROM r,s
+    WHERE r.c=s.c;
+
+To broadcast the outer table r, the query is:
+
+SELECT /*+ORDERED PQ_DISTRIBUTE(s BROADCAST, NONE) USE_HASH (s) */ column_list
+  FROM r,s
+  WHERE r.c=s.c;
+  
+
+The pq_distribute hint allows you to specify how rows of joined tables should be distributed among producer and consumer parallel query servers. The pq_distribute hint accepts three parameters: the table name, the outer distribution, and the inner distribution
+
+pq_distribute(emp, hash, hash)  This maps the rows of each table to consumer parallel query servers using a hash function on the join keys. When mapping is complete, each query server performs the join between a pair of resulting partitions. This hint is recommended when the tables are comparable in size and the join operation is implemented by hash join or sort merge join.                                                                                                                                                                                                                                                                       
+                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+pq_distribute(emp, broadcast, none)  This ensures that all rows of the outer table are broadcast to each parallel query server, while the inner table rows are randomly partitioned. This hint is recommended when the outer table is very small compared to the inner table. A rule of thumb is to use the Broadcast/None hint if the size of the inner table times the number of parallel query servers is greater than the size of the outer table.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+pq_distribute(emp, none, broadcast)  This forces all rows of the inner table to be broadcast to each consumer parallel query server. The outer table rows are randomly partitioned. This hint is recommended when the inner table is very small compared to the outer table. A rule of thumb is to use the None/Broadcast hint if the size of the inner table times the number of parallel query servers is less than the size of the outer table.    
+                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+pq_distribute(emp, partition, none)  This maps the rows of the outer table using the partitioning of the inner table. The inner table must be partitioned on the join keys. This hint is recommended when the number of partitions of the outer table is equal to or nearly equal to a multiple of the number of parallel query servers.                                                                                                              
+                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+pq_distribute(emp, none, partition)  This combination maps the rows of the inner table using the partitioning of the outer table. The outer table must be partitioned on the join keys. This hint is recommended when the number of partitions of the outer table is equal to or nearly equal to a multiple of the number of query servers.                                                                                                           
+                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+pq_distribute(emp, none, none)  Each parallel query server performs the join operation between a pair of matching partitions, one from each table. Both tables must be equi-partitioned on the join keys.                                                                                                                                                                                                                                             

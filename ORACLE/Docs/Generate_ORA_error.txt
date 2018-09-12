@@ -1,0 +1,10 @@
+- For version 10g (and most likely 9i):
+exec sys.dbms_system.ksdwrt(2, 'ORA-07445: SIMULATED ERROR, JUST FOR TESTING, IGNORE!!!');
+If you would like to add the error to the alertlog and generate an tracefile for it, use:
+exec sys.dbms_system.ksdwrt(3, 'ORA-07445: SIMULATED ERROR, JUST FOR TESTING, IGNORE!!!');
+
+- For version 11g (and above):
+
+alter session set events '942 incident(SIMULATED_ERROR)';
+drop table tablethatdoesnotexist;
+alter session set events '942 trace name context off';
