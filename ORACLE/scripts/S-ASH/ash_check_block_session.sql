@@ -1,5 +1,5 @@
 /* Find- blocking session history (AWR)
-- Copyright 2018 Kosseila hd. All rights reserved.  
+  prereqs : a SYSDBA  run : GRANT SELECT ON sys.obj$ to SASH; GRANT SELECT ON sys.v_$sql to SASH;     */
 -- gets most expensive queries 
 -- (by time spent, change "order by" to use another metric)
 -- after a specific date
@@ -13,13 +13,15 @@ prompt  specified Date is : &&D_Date
 prompt Specify the starting HOUR and ending HOURS to analyse from
 prompt ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 set verify off
-COLUMN  BLOKER_USER FORMAT  a10
-COLUMN  BLOKED_USER FORMAT  a10
+COLUMN  BLOKER FORMAT  a10
+COLUMN  BLOKED FORMAT  a10
 COLUMN  BLOKED_TABLE FORMAT   a20
-COLUMN   BLOCKER_PROGRAM FORMAT   a20
-COLUMN   BLOCKED_PROGRAM FORMAT   a20
-COLUMN   BLOCKED_SQL_TEXT FORMAT   a33
-COLUMN   BLOCKER_SQL_TEXT ON FORMAT a25
+COLUMN  BLOCKER_PROGRAM FORMAT   a20
+COLUMN  BLOCKED_PROGRAM FORMAT   a20
+COLUMN  BLOCKED_SQL_TEXT FORMAT   a33
+COLUMN  BLOCKER_SQL_TEXT ON FORMAT a25
+COLUMN  BLOKED_SID for a10
+COLUMN  BLOKER_SID for a10
 SET LINES 220
 
 select
@@ -27,18 +29,18 @@ select
     min (blocker.sample_time)       as begin_time,    
     max(blocker.sample_time)       as end_time,
     -- Session causing the block
-    blocker.session_id          as bloker_sid,
-    blocker.session_serial#   as blocker_serial#,
-    max(Blker_USERS.username)              as bloker_user,
+    blocker.session_id  ||','||  blocker.session_serial#       as bloker_sid,
+  --  blocker.session_serial#   as blocker_serial#,
+    max(Blker_USERS.username)              as bloker,
     --blocker.machine           as blocker_machine,
    -- blocker.program           as blocker_program,
   --  blocker.sql_id              as bloker_sqlid,
    --- blocker.sql_child_number as blocker_sql_child_number,
   --  ' -> '                      as is_blocking,    
     -- Sesssion being blocked
-    blocked.session_id         as bloked_sid,
-    blocked.session_serial#  as blocked_serial#,
-    max(blked_users.username)            as bloked_user,
+    blocked.session_id ||','|| blocked.session_serial#        as bloked_sid,
+   -- blocked.session_serial#  as blocked_serial#,
+    max(blked_users.username)            as bloked,
    -- blocked.machine          as blocked_machine,
     --blocked.program          as blocked_program,
    --- blocked.blocking_session as blocking_session,
@@ -50,7 +52,8 @@ select
     --  max(to_char(blocker_sql.sql_text))      as blocker_sql_text,
     --  max(blocker.xid) tx_id,
     max(to_char(blocked_sql.sql_text))      as blocked_sql_text,
-    count(*) time_waited
+    count(*) time_waited,
+    LPAD(ROUND(RATIO_TO_REPORT(COUNT(*)) OVER () * 100)||'%',5,' ')||' |' "%ratio"
 from
     v$active_session_history blocker
     inner join    v$active_session_history blocked  on blocker.session_id = blocked.blocking_session
@@ -61,7 +64,7 @@ from
     inner  join DBA_USERS  Blked_users on  blocked.user_id =blked_users.user_id
 where
     blocker.sample_time   between trunc(sysdate-&&num_days)+&&begin_H/24+&&begin_m/1440 and trunc(sysdate -&&num_days)+&&end_H/24+&&end_m/1440
-    and blocker.user_id>0 and blocked.TIME_WAITED>0 and blocker.sample_time=blocked.sample_time and blocked.event='enq: TX â€“ row lock contention' 
+    and blocker.user_id>0 and blocked.TIME_WAITED>0 and blocker.sample_time=blocked.sample_time and blocked.event='enq: TX – row lock contention' 
      ----between to_timestamp('START_TIME', 'YYYY-MM-DD HH24:MI:SS.FF3') and to_timestamp('END_TIME', 'YYYY-MM-DD HH24:MI:SS.FF3') 
      group by blocked.session_id,blocker.session_id,blocked.sql_id,blocker.session_serial#,blocked.session_serial#
 order by  blocked.sql_id,12 desc ;
