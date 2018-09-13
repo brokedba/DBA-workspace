@@ -1,4 +1,5 @@
-/* find-expensive.sql (AWR) */
+/* adapted from source script find-expensive.sql (AWR) */ 
+-- Copyright 2018 Kosseila hd. All rights reserved.  
 -- gets most expensive queries 
 -- (by time spent, change "order by" to use another metric)
 -- after a specific date
