@@ -50,5 +50,5 @@ from
         2,6 desc
    ) sub
 where
-   rownum < 10
+   rownum < 5
 ;

@@ -12,7 +12,7 @@ set echo off
 set feed off 
 set verify off
 
-prompt per SQL_ID
+prompt *** per SQL_ID
 
 col EVENT for a40
 col WAIT_CLASS for a12
