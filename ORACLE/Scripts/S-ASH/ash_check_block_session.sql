@@ -23,9 +23,9 @@ COLUMN   BLOCKER_SQL_TEXT ON FORMAT a25
 SET LINES 220
 
 select
-     min (blocker.sample_time) Time, 
-   -- min (blocker.sample_time)       as begin_time,    
-   -- max(blocker.sample_time)       as end_time,
+  --   min (blocker.sample_time) Time, 
+    min (blocker.sample_time)       as begin_time,    
+    max(blocker.sample_time)       as end_time,
     -- Session causing the block
     blocker.session_id          as bloker_sid,
     blocker.session_serial#   as blocker_serial#,
@@ -34,7 +34,7 @@ select
    -- blocker.program           as blocker_program,
   --  blocker.sql_id              as bloker_sqlid,
    --- blocker.sql_child_number as blocker_sql_child_number,
-    ' -> '                      as is_blocking,    
+  --  ' -> '                      as is_blocking,    
     -- Sesssion being blocked
     blocked.session_id         as bloked_sid,
     blocked.session_serial#  as blocked_serial#,
@@ -50,7 +50,7 @@ select
     --  max(to_char(blocker_sql.sql_text))      as blocker_sql_text,
     --  max(blocker.xid) tx_id,
     max(to_char(blocked_sql.sql_text))      as blocked_sql_text,
-    sum(blocked.TIME_WAITED) time_waited
+    count(blocked.TIME_WAITED) time_waited
 from
     v$active_session_history blocker
     inner join    v$active_session_history blocked  on blocker.session_id = blocked.blocking_session
