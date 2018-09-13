@@ -50,7 +50,7 @@ select
     --  max(to_char(blocker_sql.sql_text))      as blocker_sql_text,
     --  max(blocker.xid) tx_id,
     max(to_char(blocked_sql.sql_text))      as blocked_sql_text,
-    count(blocked.TIME_WAITED) time_waited
+    count(*) time_waited
 from
     v$active_session_history blocker
     inner join    v$active_session_history blocked  on blocker.session_id = blocked.blocking_session
