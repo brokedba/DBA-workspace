@@ -1,5 +1,5 @@
 /* Find- blocking session history (AWR)
-
+- Copyright 2018 Kosseila hd. All rights reserved.  
 -- gets most expensive queries 
 -- (by time spent, change "order by" to use another metric)
 -- after a specific date
