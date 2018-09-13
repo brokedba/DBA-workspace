@@ -1,4 +1,5 @@
-/* aas-per-hour.sql (AWR)
+/* adapted from aas-per-hour.sql (AWR)
+-- Copyright 2018 Kosseila hd. All rights reserved.  
  the variance/mean value (ACT_VAR_MEAN) spiked very high (95.4) at around 14:00 .
 SAMPLE_HOUR          CPU_AVG   WAIT_AVG    ACT_AVG ACT_VAR_MEAN
 ----------------- ---------- ---------- ---------- ------------
