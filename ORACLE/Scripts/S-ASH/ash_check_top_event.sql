@@ -1,3 +1,4 @@
+-- Copyright 2018 Kosseila hd. All rights reserved.  
 undefine begin_H end_H num_days begin_m end_m
 set feed off 
 column BEGIN_HOUR format a16
