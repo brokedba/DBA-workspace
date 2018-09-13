@@ -1,5 +1,5 @@
 /* Find- blocking session history (AWR)
-  prereqs : a SYSDBA  run : GRANT SELECT ON sys.obj$ to SASH; GRANT SELECT ON sys.v_$sql to SASH;     */
+- Copyright 2018 Kosseila hd. All rights reserved.  
 -- gets most expensive queries 
 -- (by time spent, change "order by" to use another metric)
 -- after a specific date
@@ -61,7 +61,7 @@ from
     inner  join DBA_USERS  Blked_users on  blocked.user_id =blked_users.user_id
 where
     blocker.sample_time   between trunc(sysdate-&&num_days)+&&begin_H/24+&&begin_m/1440 and trunc(sysdate -&&num_days)+&&end_H/24+&&end_m/1440
-    and blocker.user_id>0 and blocked.TIME_WAITED>0 and blocker.sample_time=blocked.sample_time and blocked.event='enq: TX – row lock contention' 
+    and blocker.user_id>0 and blocked.TIME_WAITED>0 and blocker.sample_time=blocked.sample_time and blocked.event='enq: TX â€“ row lock contention' 
      ----between to_timestamp('START_TIME', 'YYYY-MM-DD HH24:MI:SS.FF3') and to_timestamp('END_TIME', 'YYYY-MM-DD HH24:MI:SS.FF3') 
      group by blocked.session_id,blocker.session_id,blocked.sql_id,blocker.session_serial#,blocked.session_serial#
 order by  blocked.sql_id,12 desc ;

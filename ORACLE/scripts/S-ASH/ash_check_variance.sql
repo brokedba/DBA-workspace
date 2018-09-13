@@ -1,4 +1,5 @@
--- high-var-sql.sql
+-- adapted from  high-var-sql.sql
+-- Copyright 2018 Kosseila hd. All rights reserved.  
 /*
 over a week's work of data gave the following results. Notice how SQL_ID='g3176qdxahvv9' (third from the bottom) 
 had only a moderate amount of elapsed time, but a variance much higher that its mean (ratio of 383) such as very short spikes..  problem with that query would not have been noticed by looking only at aggregate performance statistics.

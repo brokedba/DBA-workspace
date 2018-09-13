@@ -1,7 +1,9 @@
 set verify off
+-- Copyright 2018 Kosseila hd. All rights reserved.  
 -- gets basic DBA_HIST_SQLSTAT data for a single sql_id
--- assumes that each AWR snap is one-hour (used in names, not math)
+-- assumes that each AWR snap is 15min (used in names, not math)
 /*
+
    SNAP_ID BEGIN_HOUR       EXECS_PER_HOUR GETS_PER_HOUR GETS_PER_EXEC SECONDS_PER_HOUR
 ---------- ---------------- -------------- ------------- ------------- ----------------
       1872 2008-04-03 10:00        1563634      17540545            11             4503  --- consumed more than whole CPU 4503> 3600(1 hour)

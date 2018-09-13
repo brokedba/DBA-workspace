@@ -1,4 +1,5 @@
-/* aas-per-min-awr.sql (AWR) 
+/* adapted from aas-per-min-awr.sql (AWR) 
+-- Copyright 2018 Kosseila hd. All rights reserved.  
 once a spike of variance/mean found in ash_per_hour run this with the right amount of minutes/hours (nbhours*60)  */
 column sample_minute format a16
 select
