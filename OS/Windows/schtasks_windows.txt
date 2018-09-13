@@ -1,0 +1,83 @@
+SCHTASKS
+=========
+ - Create a new scheduled task:
+   SCHTASKS /Create [Connect_Options] Create_Options /TN taskname
+
+ - Delete the scheduled task(s)
+   SCHTASKS /Delete [Connect_Options] /TN taskname [/F]
+   
+ - Display all scheduled tasks:
+   SCHTASKS /Query  [Connect_Options] [/FO format] [/NH] [/V]
+   
+ - Run the scheduled task on demand:
+   SCHTASKS /Run [Connect_Options] /TN taskname
+
+ - Stop the currently running scheduled task:
+   SCHTASKS /End [Connect_Options] /TN taskname
+
+ - Change the properties of scheduled task:
+   SCHTASKS /Change [Connect_Options] {[/RU username] [/RP password] [/TR taskrun]} /TN taskname
+
+ - Show the security identifier corresponding to a scheduled task name:
+   SCHTASKS /ShowSID [Connect_Options] /TN taskname
+
+ Connect_Options:
+     /S system                      # Remote system (default is local)
+    [/U username [/P password]]     # Submit job under this name
+
+ Create_Options:
+    /TR taskrun                     # Pathname of the executable to run
+    /ST starttime                   # HH:MM (24 hour)
+    [/RU username [/RP password]]   # Run job as this user
+    /SC schedule [/MO modifier]     # When to run, see below
+    [/D day]                        # Day = MON,TUE,WED,THU,FRI,SAT,SUN
+    [/M months]                     # Month=JAN,FEB,MAR,APR,MAY,JUN,JUL,AUG,SEP,OCT,NOV,DEC.
+    [/I idletime]                   # 1 - 999 minutes (ONIDLE task only)
+    [/SD startdate] [/ED enddate]   # Start / End date in Region specific format e.g. "12/12/2015"
+
+ options:
+    /TN   A name for the task
+    /F    Force delete, ignore warnings even if the task is currently runnning.
+    /FO   Output format: TABLE, LIST, CSV
+    /NH   No header
+    /V    Verbose output
+
+    /SC schedule  The schedule frequency.
+    Valid schedules: MINUTE, HOURLY, DAILY, WEEKLY, MONTHLY, ONCE, ONSTART,ONLOGON,ONIDLE.
+
+    /MO modifiers allow finer control:
+
+      MINUTE:  1 - 1439 minutes.
+      HOURLY:  1 - 23 hours.
+      DAILY:   1 - 365 days.
+      WEEKLY:  1 - 52 weeks.
+      ONCE:    No modifiers.
+      ONSTART: No modifiers.
+      ONLOGON: No modifiers.
+      ONIDLE:  No modifiers.
+      MONTHLY: 1 - 12, or FIRST, SECOND, THIRD, FOURTH, LAST, LASTDAY.
+      
+      
+example :
+09a - schedule task monitor_tablespace.cmd
+@echo off
+schtasks /create /tn "monitor_tablespace" /tr F:\Medisolution\ServiceDBA\monitor_tablespace.cmd /sc DAILY /st 00:00:00
+exit
+
+09b - schedule task monitor_serverspace.cmd
+@echo off
+schtasks /create /tn "monitor_serverspace" /tr F:\Medisolution\ServiceDBA\monitor_serverspace.cmd /sc DAILY /st 00:00:00
+exit
+09c - schedule task monitor_service.cmd
+@echo off
+schtasks /create /tn "monitor_service" /tr F:\Medisolution\ServiceDBA\monitor_service.cmd /sc MINUTE /mo 5 /st 00:00:00
+exit
+09d - schedule task monitor_alertlog.cmd
+@echo off
+schtasks /create /tn "monitor_alertlog" /tr F:\Medisolution\ServiceDBA\monitor_alertlog.cmd /sc MINUTE /mo 30 /st 00:00:00
+exit
+
+09e - schedule task monitor_verif_mensuel.cmd
+@echo off
+schtasks /create /tn "monitor_verif_mensuel" /tr F:\Medisolution\ServiceDBA\monitor_verif_mensuel.cmd /sc MONTHLY /mo FIRST /d FRI /st 00:00:00
+exit

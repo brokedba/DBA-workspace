@@ -1,0 +1,816 @@
+
+check_characterset run the following SQL :
+SELECT value$ FROM sys.props$ WHERE name = 'NLS_CHARACTERSET' ;
+SELECT * FROM NLS_DATABASE_PARAMETERS
+
+
+for eg, 
+cat << EOF 
+line 1 
+line 2 
+EOF 
+
+This will feed "line 1" and "line 2" as standard input to cat. cat does nothing except concatenate its standard input to the standard output (in the simplest sense). So it will display 
+
+line 1 
+line 2 
+
+On the standard output. 
+
+However, this command comes handy when, as an example, you want to insert a "This is a header" line at the top of the file 
+
+cat - inputfile.txt << EOF > outputfile.txt 
+This is a header line 
+
+What this will do is feed "This is a header line" as standard input to cat. cat puts this standard input in place of the '-' and concatenates it with inputfile.txt and strores the result into outputfile.txt
+
+
+rename list of files  by new name
+ 1 change ksh to ksh93  ORACLE#/usr/dt/bin/dtksh
+run : ls SGTRXA*.arc | while read a
+do
+mv $a ${a/SGTRXA/SBTRXA}
+done
+prstat -s cpu                    
+
+
+----List directories
+ls -d */
+ll |grep ^d
+
+
+The syntax for replacing every occurrence of a string in the entire text is:
+
+:%s/lemon/orange/
+
+hf53es@AAHOSC.ING.BE> select * from v$diag_info;
+
+   INST_ID NAME                           VALUE
+---------- ------------------------------ -----------------------------------------------------------------------------------
+         1 Diag Enabled                   TRUE
+         1 ADR Base                       /APPL/ORACLE/AAHOSC/admin
+         1 ADR Home                       /APPL/ORACLE/AAHOSC/admin/diag/rdbms/aahosc/AAHOSC
+         1 Diag Trace                     /APPL/ORACLE/AAHOSC/admin/diag/rdbms/aahosc/AAHOSC/trace
+         1 Diag Alert                     /APPL/ORACLE/AAHOSC/admin/diag/rdbms/aahosc/AAHOSC/alert
+         1 Diag Incident                  /APPL/ORACLE/AAHOSC/admin/diag/rdbms/aahosc/AAHOSC/incident
+         1 Diag Cdump                     /APPL/ORACLE/AAHOSC/admin/diag/rdbms/aahosc/AAHOSC/cdump
+         1 Health Monitor                 /APPL/ORACLE/AAHOSC/admin/diag/rdbms/aahosc/AAHOSC/hm
+         1 Default Trace File             /APPL/ORACLE/AAHOSC/admin/diag/rdbms/aahosc/AAHOSC/trace/AAHOSC_ora_11207446.trc
+         1 Active Problem Count           1
+         1 Active Incident Count          3
+
+ how to know if SPFILE IS ACTIVE:	
+ 
+ SELECT DECODE(value, NULL, 'PFILE', 'SPFILE') "Init File Type" 
+       FROM sys.v_$parameter WHERE name = 'spfile';
+
+
+
+
+
+adrci>show alert -tail -f
+
+1.# du -gs * (AIX)
+#du  -hs/ks (SUN 9/10)
+#Custom df (diskfree) column output in Solaris using nawk
+df -g | nawk '{if (NR % 5 == 1) printf "%-22s", $1 ; if (NR % 5 == 4) printf "%-10s", "fstype " $1 "\n"; if (NR % 5 == 2) printf "%-30s",$1/2/1024/1024 " GB"; if (NR % 5 == 2) printf "%-30s", $4/2/1024/1024 " GB free "}'|grep SBDWHB
+du -m *|sort -nrk 1 (By mega and reversed desc)
+
+CHECK LAST SESSION TO CONECT TO SERVER 
+#last |more
+hf53es    pts/3        wdbed0003746.dev Fri Jan  4 09:45   still logged in
+kt88uy    pts/1        stuko            Fri Jan  4 07:58 - 08:18  (00:20)
+hc15ca    pts/1        sbemskbd         Tue Jan  1 07:52 - 10:13  (02:20)
+np38av    pts/4        wbemskcc         Mon Dec 31 10:22 - 13:03  (02:40)
+
+WOESE WHO:
+# finger kt88uy 
+Login name: kt88uy                      In real life: Eric Capette
+
+
+
+Xwindows connection<<<
+
+export DISPLAY=$( who am i |awk {'print $6'}|tr -d "()" ):0
+
+
+
+*********************oracle software prereqs
+(check maxuproc ) # lsattr -E -l sys0
+...autorestart     true 
+maxbuf          20                                   Maximum number of pages in block I/O BUFFER CACHE True
+maxmbuf         0                                    Maximum Kbytes of real memory allowed for MBUFS 
+maxuproc    1024                                     Maximum number of PROCESSES allowed per user      True
+
+********check swap space 
+lsps -a
+Page Space      Physical Volume   Volume Group    Size %Used Active Auto  Type Chksum
+hd6             hdisk0            rootvg       10240MB     1   yes   yes    lv     0
+
+=======================================FILESYSTEM
+Journaled File System (JFS)Logical Partition (LP)
+Logical Volume (LV)Physical Partition (PP)Physical Volume (PV)/Rootvg Default volume group created during installation
+
+lslv <logical volume> [-l, m] Lists information about the logical volumes.  The -l option lists the disks in the logical volume.
+lspv <physical volume> [-l, M, p]Lists the disks on the server, including the physical volume will give details about that disk.  The -l option will list the details of how the filesystems are distributed on the disk.
+lsvg <volume group> [-l]Lists the volume groups on the server, including the volume group name will give details about that vg. The -l option will list the logical volumes in the volume group.
+lsvpcfg Lists each vpath and the hdisks that make up the vpath
+# stty erase ^? ou CTRL+H  for removing special character on terminal
+
+$ lslv -l lvoraclestage
+lvoraclestage:/APPL/ORACLE/staging
+PV                COPIES        IN BAND       DISTRIBUTION  
+hdisk18           512:000:000   21%           108:108:107:108:081 
+sbedadqk:hf53els SGTRXA*.arc | while read a
+do
+mv $a ${a/SGTRXA/SBTRXA}
+dones 
+[/home/hf53es]$ set -o vi
+
+$ lsvg -l oraclesoftvg 
+oraclesoftvg:
+LV NAME             TYPE       LPs     PPs     PVs  LV STATE      MOUNT POINT
+lvoracle            jfs2       480     480     1    open/syncd    /APPL/ORACLE
+lvoraclediag        jfs2       32      32      1    open/syncd    /APPL/ORACLE/diag
+lvoraclestage       jfs2       512     512     1    open/syncd    /APPL/ORACLE/staging
+sbedadqk:hf53es [/home/hf53es]
+$ lspv -l lvoraclediag
+0516-306 : Unable to find  lvoraclediag in the Device
+        Configuration Database.
+sbedadqk:hf53es [/home/hf53es]
+$ lslv -l lvoraclediag
+lvoraclediag:/APPL/ORACLE/diag
+PV                COPIES        IN BAND       DISTRIBUTION  
+hdisk6            032:000:000   0%            000:000:000:000:032 
+sbedadqk:hf53es [/home/hf53es]
+$ lslv -l lvoracle    
+lvoracle:/APPL/ORACLE
+PV                COPIES        IN BAND       DISTRIBUTION  
+hdisk6            480:000:000   22%           108:108:107:108:049 
+
+
+
+=======================SOILARIS=
+
+$scstat -D
+
+
+$scconf -p
+
+
+Displays info about plexes
+
+#vxprint -lp
+
+#vxprint -l plex_name
+
+Displays info about subdisks
+
+# vxprint -st
+
+#vxprint -l disk##-##
+
+show disk iops over 10 seconds...
+
+#ssaadm display -p c#
+
+Traces all i/o on a volume..
+
+#vxtrace vol
+
+To report disk stats
+
+#vxstat -d
+
+Displays the free space on the disks
+
+#vxdg free
+
+Display the disk crontroller
+
+#vxprint list 
+
+#vxprint -Aht
+
+Tells you how much you can grow a volume by
+
+#vxassist maxgrow vol
+
+How to remove the pluxs ,subdisk.  
+
+
+
+
+CLUSTER RESOURCES:Dipslay
+=========================
+SUN
+
+Cluster 3.1: /usr/cluster/bin/clstat -n
+Cluster 3.2: /usr/cluster/bin/clnode list | status
+
+AIX: 
+
+/usr/es/sbin/cluster/utilities/cldump
+
+
+
+
+sbedadqk:hf53es [/home/hf53es]prtconf | more 
+============================================================================== 
+Active VGs
+============================================================================== 
+AAINFArecovg:
+PV_NAME           PV STATE          TOTAL PPs   FREE PPs    FREE DISTRIBUTION
+hdisk12           active            134         2           00..00..00..00..02
+============================================================================== 
+ 
+AAINFAdata01vg:
+PV_NAME           PV STATE          TOTAL PPs   FREE PPs    FREE DISTRIBUTION
+*******TOP 10 eating file in a FS
+#du -a /home | sort -n -r | head -n 10
+
+========================================MEMORY
+
+RAM====
+
+/usr/sbin/lsattr -E -l sys0 -a realmem 
+realmem 50331648 Amount of usable physical memory in Kbytes Falselsdev -C|grep mem	
+	OR
+#lsattr -El mem0
+
+SOLARIS :
+prtconf | head -3 |grep Mem
+	
+SWAP===
+#lsps -a
+
+TOP memory usage ====
+#svmon -Pt15 | perl -e 'while(<>){print if($.==2||$&&&!$s++);$.=0 if(/^-+$/)}'
+
+SOLARIS 	
+#prstat –t
+
+
+
+Memory used by oracle====== 
+
+	ps -elf |egrep " oracle${ORACLE_SID} | ora_.*_${ORACLE_SID} " |grep -v egrep | awk '{sum += $10} END {print sum/1024}'
+
+=====================================PROCESSOR
+logical CPU = ( Virtual CPUs * SMT factor )
+sbedadqk:hf53es [/home/hf53es]#topas
+oracle@sbepadir(AGCBSA)[/home/oracle] lsattr -E -l sys0 -a maxuproc -F value
+1024 (default 16384)
+oracle@sbepadir(AGCBSA)[/home/oracle] lsattr -El sys0 -a ncargs
+ncargs 256 ARG/ENV list size in 4K byte blocks True
+oracle@sbepadir(AGCBSA)[/home/oracle] lsattr -El proc0
+frequency 3720000000 Processor Speed False
+smt_enabled true Processor SMT enabled  False
+smt_threads 4     Processor SMT threads False
+state enable      Processor state       False
+type  PowerPC_POWER7 Processor type     False
+
+topasout -R summary -b 1600 -e 1800 /etc/perf/daily/$(hostname)_120116.topas
+topasout -R detailed -b 1600 -e 1800 /etc/perf/daily/$(hostname)_120116.topas
+topasout -R lan -b 1600 -e 1800 /etc/perf/daily/$(hostname)_120116.topas   network - there is also a LAN throughput history:
+topasout -a /etc/perf/daily/$(hostname)_120116.topas   ### save to csv for nmon analyser us
+
+sbedadqk:hf53es [/home/hf53es]# prtconf | grep Processor
+
+Processor Type: PowerPC_POWER7
+Processor Implementation Mode: POWER 7
+Processor Version: PV_7_Compat
+Number Of Processors: 8
+Processor Clock Speed: 3108 MHz
+  Model Implementation: Multiple Processor, PCI bus
++ proc0                                                                           Processor
++ proc4                                                                           Processor
++ proc8                                                                           Processor
++ proc12                                                                          Processor
++ proc16                                                                          Processor
++ proc20                                                                          Processor
++ proc24                                                                          Processor
++ proc28                                                                          Processo
+or
+# lsdev -Cc processor
+
+SOLARIS
+#  prtdiag
+
+with the value of:
+# bindprocessor -q
+
+lcpu in the following shows the same result
+# sar 1 1
+or
+# lparstat
+
+ # lparstat -i | grep CPU
+
+Online Virtual CPUs : 2
+Maximum Virtual CPUs : 15
+Minimum Virtual CPUs : 1
+Maximum Physical CPUs in system : 2
+Active Physical CPUs in system : 2
+Active CPUs in Pool : 2
+Physical CPU Percentage : 25.00%
+-------------
+
+4.DISPLAY server description
+print `uname -a | awk '{print $2,";"$NF,";"$3;}'`";"`psrinfo -p >/dev/null 2>&1 && psrinfo -p || uname -X|grep CPU|awk '{print $3}'`";"`mpstat|grep -v CPU |wc -l`";"`psrinfo -v | grep -i mhz | head -n 1 | awk '{print $2,";"$6,$NF;}'`";"`prtconf |grep -i "memory size" | awk '{print $3,$4;}'`
+
+uptime (startup time)
+who -b
+
+
+DISPLAY windows map Filesystem
+C:\net use
+
+net use x: /delete
+------------------------
+
+6- CPU STAT:
+-------------
+  [ /var/adm/sa ]prstat -an 10
+   PID USERNAME  SIZE   RSS STATE  PRI NICE      TIME  CPU PROCESS/NLWP
+ 16145 oracle   4229M 4120M sleep   59    0   0:00.03 2.4% oracle/11
+ 16141 oracle   4229M 4121M sleep   59    0   0:00.03 2.3% oracle/11
+ 23636 root       63M   63M sleep   59    0  60:25.20 0.8% perl/5
+ NPROC USERNAME  SIZE   RSS MEMORY      TIME  CPU
+   106 oracle    413G  402G   100% 264:35.41  22%
+    98 root     1243M  745M   0.2% 617:53.25 1.6%
+     2 hh06nn     11M 3712K   0.0%   0:00.04 0.0%
+     4 twsbu      70M   21M   0.0%   0:05.09 0.0%
+    10 itmsys02  255M  109M   0.0%   0:17.23 0.0%
+---/ Total: 230 processes, 2298 lwps, load averages: 0.88, 0.43, 0.38
+
+
+prstatv  -an 10|grep oracle
+-----------------[ /var/adm/sa ]sar -q -f /var/adm/sa/sa19
+SunOS sbepskhc 5.8 Generic_127721-01 sun4u    01/19/12
+
+00:00:00 runq-sz %runocc swpq-sz %swpocc
+00:10:00     3.4      19     0.0       0
+00:20:01     1.6      18     0.0       0
+00:30:00     1.2      11     0.0       0
+00:40:00     3.9      43     0.0       0
+00:50:01     3.3      39     0.0       0
+01:00:00     1.2       4     0.0       0
+01:10:00     2.5      13     0.0       0
+
+
+ -----------------[ /var/adm/sa ]/usr/platform/`uname -i`/sbin/prtdiag |more
+ aix =pmcycles
+ 
+ ========================= CPUs ===============================================
+
+          Run   E$  CPU     CPU
+Brd  CPU  MHz   MB  Impl.   Mask
+--- ----- ---- ---- ------- ----
+ A  0, 16 1350 16.0 US-IV    3.1
+ A  2, 18 1350 16.0 US-IV    3.1
+
+========================= Memory Configuration ===============================
+
+          Logical  Logical  Logical
+     MC   Bank     Bank     Bank         DIMM    Interleave  Interleaved
+Brd  ID   num      size     Status       Size    Factor      with
+---  ---  ----     ------   -----------  ------  ----------  -----------
+ A    0     0      2048MB   no_status    1024MB     8-way        0
+ A    0     1      2048MB   no_status    1024MB     8-way        0
+========================= IO Cards =========================
+                    Bus  Max
+ IO  Port Bus       Freq Bus  Dev,
+Type  ID  Side Slot MHz  Freq Func State Name                              Model
+---- ---- ---- ---- ---- ---- ---- ----- --------------------------------  ----------------------
+PCI   8    B    2    33   33  2,0  ok    network-pci100b,35.30             SUNW,pci-ce
+PCI   8    B    3    33   33  3,0  ok    pci-pci8086,537c.7/network (netw+ PCI-BRIDGE
+PCI   8    B    3    33   33  0,0  ok    network-pci100b,35.30             SUNW,pci-x-qge/pci-bri+
+
+--see the runing process 
+#scstat
+resource offline
+#clsrs -vs offline
+
+
+2. #dns  resolution ping -a 216.109.118.74      nslookup Ip/DNS  >>name/IP
+
+  
+== ZIP
+ tar -cvf myfile.tar.gz /path/to/file /other/path/to/file
+ cat | $copy_path"/"$search_string*$date"."$search_string* | gzip > $copy_path"/"$pref_file2$date".gz"
+ 
+ 
+ 
+ read gz content 
+ gunzip -c(gzcat) file.gz >>output.log
+ 
+ 
+ 
+3. A question which is frequently asked is "I have a lot of blank lines in my file and I don't want to go through and manually delete them. Is there an easier way to do this?"
+
+The answer: YES!
+
+In versions of UltraEdit that support Perl-compatible regular expressions, you can use the following Perl-compatible regular expression in DOS/Unix/Mac formatted-files. You can enable Perl-compatible regular expressions under Advanced -> Configuration -> Search -> Regular Expression engine.
+
+Replace: "^\r?\n?$" (without the quotes)
+With "" (without the quotes - i.e. nothing).
+
+In previous versions of UltraEdit, to delete blank lines you can use a regular expression replace as follows: Find What: "^p$" (without the quotes)
+Replace With: "" (without the quotes - i.e. nothing).
+
+===================================
+               TOOLS and TIPS
+========================================
+
+
+CHECK THE JOBS TO BE RUN --
+for i in --((awk -F: ' $1 !~ /agent/ {print $1}' $ORATAB))--"SBTRXA" "SBCLOA" "SBCMIA" "SBFFFA" "SBGSAA" "SBGSTA" "SBICCA" "SBIMCA" "SBMULA" "SBMULB" "SBNRSA" "SBRCHA"
+do
+export ORACLE_SID=$i
+. /APPL/ORACLE/scfg/profile.oracle
+print "PROMPT $i\nselect * from dba_datapump_jobs;\nexit;" | sqli
+done
+CHECK THE TOTAL DUMP SPACE IN A FOLDER
+du -g *.dmp.gz | awk 'begin { s=0} { s+=$1 } END {print s}'
+-GZIP dump files by a loop
+for i in *.dmp 
+do gzip $i & 
+done
+
+
+-2 cd target_dir
+	
+do
+{scp you@source:dir/$i . ; [[ -f $i]] && gunzip $i}  tee -a toto.log &
+done
+
+-2 cd target_dir
+gunzip < source_dir/file > $(basename file .gz)
+
+symbolic link:
+for i in $(ls -A /APPL/ORACLE/AIMDPA/temp01/*.dmp)
+do ln -sf $i $(basename $i)
+done	
+
+pax> export replace=$ORACLE_SID
+fo i in 
+
+pax> for i in    SGGL9A_1_737809336_7016*arc
+do  mv $i   `echo $i | sed "s/SGGL9A/${ORACLE_SID}/"` 
+done
+
+for i in  SGGL9A_1_737809336_701*arc
+do
+    mv "$i" "${i/SGGL9A/${ORACLE_SID}}"      
+done
+
+
+
+for i in *.gz
+do
+gunzip < $i > $ORACLE_BASE/staging/$(basename file .gz)& 
+done
+
+
+for i in 1 2 3 4 
+do rm log_$i*.xml &
+done 
+
+
+find . -name aimdpa*dmp  -ls 2>/dev/null
+
+
+======KILL PROCESS
+
+#ps -fu oracle  | grep -v grep|grep -v PID | awk '{print $2}'
+#ps -fu oracle | grep SBBETC | awk '{print $2}' | while read a 
+do kill -9
+done
+-------------------------------------GREP
+ps -fu oracle|egrep '6619272|9895988|15794308'
+
+
+a.The example mentioned below will print the lines 120, 145, 1050 from the syslog.
+$ sed -n -e 120p -e 145p -e 1050p /var/log/syslog
+
+a.1 display filesystem with a sort of the 5th column
+$ df -k |sort -nk 4
+
+b.This example displays only first 15 lines of /var/log/maillog file
+$ head -n 15 /var/log/maillog
+
+REPLACE STRING (import/export):
+awk '/^GRANT/ {str=$0; sub(/UCV/,"CEC",str);print str";"}' impdp.CEC.SAHOSB.data.log
+grep "^GRANT" impdp.CEC.SAHOSB.data.log | awk ' {str=$0; sub(/UCV/,"CEC",str);print str";"}'
+
+
+gunzip < alert_AGGSDB.130130.060017.log.gz | grep -n "ORA-01555" | awk -F":" '{print $1-2 "," $1+2 "p"}' | xargs -t -i sed -n {}
+grep -n "1555" | awk -F":" '{print $1-2 "," $1+2 "p"}' | xargs -t -i sed -n {} alert_SGSNYX.log.20121028_0000Sun
+
+
+gunzip -c alert_AGGSDB.130130.060017.log.gz | grep -n "ORA-01555" | awk -F":" '{print $1-2 "," $1+2 "p"}' | xargs -t -i sed -n {}
+
+VI replace :
+----------------
+:s/pattern/replace/
+
+FIND old trace files/audit files(3days) whithin a directory
+# find *.trc -type f -mtime +3 -exec gzip {} \;
+find *.xml -type f -mtime +10 | xargs rm
+
+find *.xml -type f -mtime +10 -exec {} \;
+
+find . -type f -mtime +10 -exec rm {} \;
+
+grep -n "ORA-1652" | awk -F":" '{print $1-2 "," $1+2 "p"}' | xargs -t -i sed -n {} alert_AGINFA.log
+
+=> return the number lines when you can find the ORA-01555
+
+find . 2>/dev/null > files_and_folders
+
+
+
+
+c.The following example will display all the lines of the /var/log/secure except the last 250 lines.
+$ head -n -250 /var/log/secure
+
+Example 4: Display last N lines of the file using tail command ignoring the 4 first command
+$ tail -n +5 /etc/xinetd.conf
+
+Example 6: View growing log file in real time using tail command
+$ tail -f /var/log/syslog
+
+EXAmple 7The example below will display line numbers 101 – 110 of /var/log/anaconda.log file
+
+M – Starting line number
+N – Ending line number
+Syntax: cat file | tail -n +N | head -n (M-N+1)
+
+$ cat /var/log/anaconda.log | tail -n +101 | head -n 10
+Display the first N lines of a compressed file.
+$ zcat file.gz | head -250
+Display the last N lines of a compressed file.
+$ zcat file.gz | tail -250
+Ignoring the last N lines of a compressed file.
+$ zcat file.gz | head -n -250
+Ignoring the first N lines of a compressed file.
+$ zcat file.gz | tail -n +250
+Viewing the lines matching the pattern
+$ zcat file.gz | grep -A2 'error'
+Viewing particular range of lines identified by line number.
+$ zcat file.gz | sed -n -e 45p -e 52p
+
+
+
+===================================REMOVE DECOMMISIONED DATABASE FILES
+[ /ING/ORACLE ] find . -name "*SBARIA*" -ls
+
+
+ find . -type f -exec grep -i SBARIA {} \; | more
+ 
+ 
+cd $TNS_ADMIN  grep SBARIA  *  
+
+
+find . -type f -exec grep 'string' {} \; -exec ls -l {} \;
+find /path/to/find -type d -atime -7 (last 7 days)
+================================SERGIO===================================================================
+df -k | grep -i oracle | awk ' {print $6 " free space : "$4/1024/1024}'
+
+
+df -g|grep $ORACLE_SID/data|sort -nk 4 |awk ' {print $7 "free space : "$3}'
+
+-- Reading format of the import file
+more imp_appuagrb_at16.sh| awk '/^imp/{print $1" "$2"\n"$3"\n"$4"\n"$5"\n"$6"\n"$7"\n"$8"\n"$9"\n"$10}'
+
+-- print not empty lines
+!/^$/{ 
+print $1,$2,$3,$4,$5,$6";";
+++x;
+}
+END{
+  print x
+}
+
+-- Print all the line beginning with rem
+more download.SQL | awk '/^rem/ { print $0 }' 
+
+-- Print all the line not beginning with rem
+more download.SQL | awk '!/^rem/ { print $0 }' 
+
+-- Print all the lines beginning with rem OR empty 
+more download.SQL | awk '/^rem/||/^$/ { print $0 }' 
+
+-- Print all the lines not beginning with rem AND not empty  
+more download.SQL | awk '!/^rem/&&!/^$/ { print $0 }' 
+
+-- Print all the lines not beginning with rem AND not empty  AND not a comment (*)
+more download.SQL  |awk '!/\*/&&!/^$/&&!/^rem/ { print $0 }'
+
+-- this is the way to avoid the /*  */ comment style typical of PL/SQL program (\ is the escape character)
+more download.SQL  |awk '!/\\\*/&&!/^$/&&!/^rem/&&!/\*\// { print $0 }'
+-- Same but for Unix shell script
+cat load_drp_appuagrb.sh | awk '!/\#/&&!/^$/ { print $0 }'
+
+-- Print lines containing alter 
+/alter/{
+print $1,$2,$3,$4,$5,$6";";
+}
+
+-- extract record with a certain value for a field
+
+BEGIN{
+}
+
+((substr($0, 21, 2) == "PR") && (substr($0,23,3) == "DEM") &&  (substr($0,30,6) == "981014")) {
+print $0
+ }
+
+END{
+}
+
+-- show variable PATH in a more readable form
+-- This below is the path.awk script
+
+BEGIN { FS = ":"}                               
+{                                               
+for (i=1; i<=NF; i++)                           
+print $i                                        
+}                                               
+END{                                            
+printf("%d directories in variable PATH\n", NF);
+}                                               
+
+-- This is the way to execute the script
+echo $PATH | awk -f path.awk | sort
+
+
+Index trace:
+SELECT SEGMENT_TYPE,OWNER||'.'||SEGMENT_NAME
+FROM DBA_EXTENTS 
+WHERE FILE_ID = 31 AND 2730 BETWEEN BLOCK_ID
+AND BLOCK_ID+BLOCKS -1;
+
+
+SEGMENT_TYPE     SEGMENT_NAME
+-------------- --------------------------------
+INDEX            CMC.CMC_ADD_COD_ADRS_TYPE_I (belongs to table CMC. CMC_ADDRESSES)
+
+
+==action
+DROP  INDEX CMC.CMC_ADD_COD_ADRS_TYPE_I;
+CREATE BITMAP INDEX CMC.CMC_ADD_COD_ADRS_TYPE_I ON CMC.CMC_ADDRESSES
+(COD_ADRS_TYPE)
+TABLESPACE CMCI;
+
+
+CREATE USER "HF53ES" IDENTIFIED BY VALUES 'B54D9D2B271A1E3C'
+   DEFAULT TABLESPACE "USERS"
+   TEMPORARY TABLESPACE "TEMP"
+   PROFILE "ING_DBA_PROFILE";
+   GRANT DBA TO HF53ES;
+ALTER USER HF53ES DEFAULT ROLE ALL;
+
+convert to hexa
+
+SELECT rawtohex('Ý') FROM dual;
+
+select owner,segment_name,sum_size "max_size" from
+(select s.*,rank() over (order by sum_size desc) r from
+(select owner,segment_name,sum(bytes)/1024/1024 as sum_size from dba_segments where segment_name in (select table_name from dba_tables where owner like 'CMC%') 
+group by segment_name,owner) s
+)where sum_size>50;
+  
+  
+  SELECT TO_CHAR(SYSDATE, 'SYYYY')
+    FROM dual;
+
+TO_CH
+-----
+ 2014
+ 
+ The following regular expression operators are allowed within the character list, any other metacharacters included in a character list lose their special meaning (are treated as literals):
+
+Range operator '-'
+POSIX character class [::]
+POSIX collating sequence [. .]
+POSIX character equivalence class [= =]
+
+-POSIX collating sequence element operator [. .] lets you use a collating sequence in your regular expression. 
+ Example a- Find collating sequence 'ch', use following regexp:=> [[.ch.]]
+         b- Specify the range from 'a' to 'ch', you can use the following expression: [a-[.ch.]] 
+
+Character Class      Description
+--------------- ------------------------------------------------------
+[:digit:]        Only the digits 0 to 9
+[:alnum:]        Any alphanumeric character 0 to 9 OR A to Z or a to z.
+[:alpha:]        Any alpha character A to Z or a to z.
+[:blank:]        Space and TAB characters only.
+[:xdigit:]       Hexadecimal notation 0-9, A-F, a-f.
+[:punct:]        Punctuation symbols 
+                --------------------------------
+                % . , " ' ? ! : # $ & ( ) * ;
+                + - / < > = @ [ ] \ ^ _ { } | ~
+                --------------------------------
+[:print:]      Any printable character.
+[:space:]      Any whitespace characters (space, tab, NL, FF, VT, CR). Many system abbreviate as \s.
+[:graph:]      Exclude whitespace (SPACE, TAB). Many system abbreviate as \W.
+[:upper:]      Any alpha character A to Z.
+[:lower:]      Any alpha character a to z.
+[:cntrl:]      Control Characters NL CR LF TAB VT FF NUL SOH STX EXT EOT ENQ ACK SO SI DLE DC1 DC2 DC3 DC4 NAK SYN ETB CAN EM SUB ESC IS1 IS2 IS3 IS4 DEL.
+      |      Separates alternates
+     ( )      Groups subexpression into a unit for alternations, for quantifiers, or for backreferencing
+   [char]      Indicates a character list; most metacharacters inside a character list are understood as literals, with the exception of character classes, and the ^ 
+        and - metacharacters                     
+II-Quantifier Characters control the number of times a character or string is found in a search.
+----------------------------------------------------------------------
+Character Class      Description
+--------------- ------------------------------------------------------
+*                    Match 0 or more times
+?                    Match 0 or 1 time
++                    Match 1 or more times
+{m}                  Match exactly m times
+{m,}                 Match at least m times
+{m, n}               Match at least m times but no more than n times
+\n                   Cause the previous expression to be repeated n times
+
+
+searches for data that is not all digits => SELECT * FROM t WHERE REGEXP_LIKE(x, '[^0-9]+');
+
+1) hf53es@AACMTA.ING.BE> select regexp_replace('abc12:3333-4abc TO DATE 56def','.*([0-9][a-z]).*([0-9][a-z]).*','\1 \2') from dual;
+
+REGEX
+-----
+4a 6d
+
+
+2) hf53es@AACMTA.ING.BE> select regexp_replace('abc12:3333-4abc TO DATE 56def1','.*([0-9][a-z]).*([0-9][a-z]).*([a-z][0-9]).*','\1 \3') from dual; --\1 patern 1 \3 patern 3 (alpha+digit)
+
+REGEX
+-----
+4a f1
+
+3)hf53es@AACMTA.ING.BE> select regexp_replace('abc12:3333-4abc TO DATE 56def1','.*(:.*[0-9][a-z]).*([0-9][a-z]).*([a-z][0-9]).*','\1 \3') from dual;
+
+REGEXP_REPL
+-----------
+:3333-4a f1
+
+
+
+hf53es@AACMTA.ING.BE> select regexp_replace('TO_DATE('' 2009-06-01 00:00:00'', ''SYYYY-MM-DD HH24:MI:SS'', ''NLS_CALENDAR=GREGORIAN'')','.*''([0-9 :-]*)''.*','\1') from dual;
+
+REGEXP_REPLACE('TO_D
+--------------------
+ 2009-06-01 00:00:00
+
+ 
+Create database link CMC_LNK_SDMTRANS_DB
+connect to CMC_LMGT_AS2 identified by 
+using '(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=sbedadio.srv.be.europe.intranet)(PORT=1560))(ADDRESS=(PROTOCOL = TCP)(HOST=sbedadio.srv.be.europe.intranet)(PORT=1561)))(CONNECT_DATA=(SID=AACMTB)))' 
+/
+
+
+
+
+===============LINUX================
+netstat -tap
+
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address      State  PID/Program name
+----- ------ ------ ---- --------------   -------------------   ------- ----------------
+tcp        0      0 192.168.78.51:domain    0.0.0.0:*            LISTEN  31772/named                                                                                                                                                                 31772/named
+tcp        0      0 0.0.0.0:ssh             0.0.0.0:*            LISTEN  1138/sshd                                                                                                                                                                 1138/sshd
+tcp        0      0 localhost:rndc          0.0.0.0:*            LISTEN  31772/named
+
+
+RHEl:
+  
+  # nmcli d show
+  
+  DNS :
+  
+# named -4 -c /etc/named.conf -d 9 -g >& /tmp/named.out &
+
+14-Dec-2016 04:24:38.338 starting BIND 9.9.4-RedHat-9.9.4-18.el7 -4 -c /etc/named.conf -d 9 -g
+
+14-Dec-2016 04:24:38.338 ----------------------------------------------------
+14-Dec-2016 04:24:38.338 BIND 9 is maintained by Internet Systems Consortium,
+14-Dec-2016 04:24:38.338 Inc. (ISC), a non-profit 501(c)(3) public-benefit
+14-Dec-2016 04:24:38.338 corporation.  Support and training for BIND 9 are
+14-Dec-2016 04:24:38.338 available at https://www.isc.org/support
+14-Dec-2016 04:24:38.338 ----------------------------------------------------
+14-Dec-2016 04:24:38.338 adjusted limit on open files from 4096 to 1048576
+14-Dec-2016 04:24:38.338 found 1 CPU, using 1 worker thread
+14-Dec-2016 04:24:38.338 using 1 UDP listener per interface
+14-Dec-2016 04:24:38.338 using up to 4096 sockets
+14-Dec-2016 04:24:38.338 Registering DLZ_dlopen driver
+14-Dec-2016 04:24:38.338 Registering SDLZ driver 'dlopen'
+14-Dec-2016 04:24:38.338 Registering DLZ driver 'dlopen'
+14-Dec-2016 04:24:38.338 decrement_reference: delete from rbt: 0x7f57f6fe0068 .
+14-Dec-2016 04:24:38.341 loading configuration from '/etc/named.conf'
+14-Dec-2016 04:24:38.341 /etc/named.conf:65: zone 'in-addr.arpa': already exists previous definition: /etc/named.rfc1912.zones:43
+14-Dec-2016 04:24:38.341 load_configuration: failure
+14-Dec-2016 04:24:38.341 loading configuration: failure
+14-Dec-2016 04:24:38.341 exiting (due to fatal error)
