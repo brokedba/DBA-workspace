@@ -1,0 +1,3569 @@
+init name   Feature
+---------   -----------
+SQLENGINE   SQL Server Engine
+REPLICATION Replication
+FULLTEXT    Full text Search
+DQ          Data Quality Services
+AS          Analysis Services
+RS          Reporting Services – Native
+RS_SHP      Reporting Services – SharePoint
+RS_SHPWFE   Reporting Services Add-in for SharePoint Productsa
+DQC         Data Quality Client
+BIDS        SQL  Server Data Tools
+CONN         Client Tools Connectivity
+IS           Integration Services
+BC           Client Tools Backward Compatibility
+SDK          Client Tools SDK
+BOL          Documentation Components
+SSMS         Management Tools – Basic
+ADV_SSMS      Management Tools – Complete
+DREPLAY_CTLR  Distributed Replay Controller
+DREPLAY_CLT   Distributed Replay Client
+SNAC_SDK      SQL Client Connectivity SDK
+MDS           Master Data Services
+
+FEATURES=SQLENGINE,REPLICATION,FULLTEXT,DQ,AS,DQC,BIDS,CONN,IS,BC,SDK,BOL,SSMS,ADV_SSMS,SNAC_SDK,MDS
+
+setup.exe /action=Uninstall /features=SQL,IS,RS,Conn,DQ,SSMS,ADV_SSMS /InstanceName=MSSQLServer /SQLSysAdminAccounts="Contoso\Kim_akers" /IacceptSQLserverLicenseTerms 
+SQL-B
+setup.exe /qs /action=Install /features=SQLengine,Conn /InstanceName=MSSQLServer /SQLSysAdminAccounts="Contoso\Kim_akers" /IacceptSQLserverLicenseTerms       
+SQl-Core
+setup.exe /qs /action=Install /features=SQLengine,IS,Conn /InstanceName=MSSQLServer /SQLSysAdminAccounts="Contoso\Kim_akers" /IacceptSQLserverLicenseTerms
+
+dism /online /enable-feature /featureName:NetFx3 /all /limitAccess /source:D:\sources\sxs 
+
+Use Master
+GO
+CREATE DATABASE AdventureWorks2012 
+ON (FILENAME = 'C:\Program Files\Microsoft SQL Server\MSSQL12.MSSQLSERVER\MSSQL\DATA\AdventureWorks2012_Data.mdf'), -- Data file path
+(FILENAME = 'C:\Program Files\Microsoft SQL Server\MSSQL12.MSSQLSERVER\MSSQL\DATA\AdventureWorks2012_Log.ldf') -- Log file path
+FOR ATTACH;
+============ 
+
+enable SQL browser:
+sc config SQLBROWSER start= auto
+net start  SQLBROWSER             
+
+
+
+
+spread GPO to computers members :
+gpupdate /target:computer /force
+
+verify GPO application
+gpresult /r /scope:computer
+
+
+Enable-NetFirewallRule -DisplayGroup "Remote Administration"  --- allow remote firewall management to win server Core installation 
+cscript C:\Windows\System32\Scregedit.wsf /ar 0
+netsh advfirewall set currentprofile settings remotemanagement enable
+===================chapter 2
+list the services:
+sc queryex type= service state= all | find /i "sql"
+wmic service get name,startname
+
+runas /user:machinename\adminuser 
+
+
+sp_configure 'advanced_options',1
+reconfigure;
+go
+sp_configure 'min server memory', 512
+go
+sp_configure 'max server memory', 8192
+go
+sp_configure 'fill factor',90
+go
+
+msdb.dbo.sysmail_configure_sp 'accountretryattempts',10
+go
+                                    'accountretrydelay',120
+alter database model set auto_shrink/close on with no_wait;
+go
+alter database model set recovery simple with no_wait;
+
+
+setup.exe /qs /action=Install /features=SQLengine,FULLTEXT  /InstanceName=ALTERNATE /SQLSysAdminAccounts="CONTOSO\Kim_Akers"  /IacceptSQLserverLicenseTerms
+
+setup.exe /qs /action=Install /features=FULLTEXT /InstanceName=ALTERNATE /IacceptSQLserverLicenseTerms
+
+add firewall inbound rule SQL-POLICY : SQL-alternatemanagement-inbound
+program rule   path: 'C:\Program Files\Microsoft SQL Server\MSSQL12.ALTERNATE\MSSQL\Binn\sqlsrv.exe
+
+resource governor:
+alter resource governor reconfigure;
+go
+create resource Pool "PoolAlpha" with (min_CPU_percent,=5);
+go
+create workload group "WorkAlpha" using "PoolAlpha";
+alter resource governor reconfigure;
+go
+
+=====chapter 3
+
+AS:
+---
+setup.exe /q /action=Install /features=AS /ASSERVERMODE=MULTIDIMENSIONAL /InstanceName=ASMulti /ASSysAdminAccounts="CONTOSO\Kim_Akers" /ASSVCACCOUNT=NetworkService  /IacceptSQLserverLicenseTerms
+
+setup.exe /q /action=Install /features=AS /ASSERVERMODE=TABULAR /InstanceName=AStabular /ASSysAdminAccounts="CONTOSO\Kim_Akers" /ASSVCACCOUNT=NetworkService  /IacceptSQLserverLicenseTerms (not for standard edition)
+
+PowerShell> import-module servermanager
+PowerShell> add-windowsFeature Web-server -IncludeAllsubFeature
+
+setup.exe /q /action=Install /features=RS,SQL,TOOLS /InstanceName=RPTSVR /RSSVCACCOUNT=NetworkService /RSINSTALLMODE="DefaultNativeMode" /RSSVCSTARTUPTYPE=MANUAL /AGTSVCACCOUNT=NetworkService /SQLSVCACCOUNT=NetworkService /SQLSYSAdminAccounts="BUILTIN\ADMINISTRATORS" /IacceptSQLserverLicenseTerms 
+
+Alter Database WingTipToys2012 add FileGroup FgOne;    Alter Database WingTipToys2012 add File (name='file1', Filename='C:\Program Files\Microsoft SQL Server\MSSQL12.MSSQLSERVER\MSSQL\DATA\file1.mdf') To Filegroup FgOne;
+Alter Database WingTipToys2012 add FileGroup FgTwo;  Alter Database WingTipToys2012 add File (name='file2' ,Filename='C:\Program Files\Microsoft SQL Server\MSSQL12.MSSQLSERVER\MSSQL\DATA\file2.mdf' )To Filegroup FgTwo;
+Alter Database WingTipToys2012 add FileGroup FgThree; Alter Database WingTipToys2012 add File (name='file3', Filename='C:\Program Files\Microsoft SQL Server\MSSQL12.MSSQLSERVER\MSSQL\DATA\file3.mdf' )To Filegroup FgThree;
+     
+     use WingTipToys2012 
+create partition function WtPartition(int) as range left for values (30,60);
+create partition scheme WTPartscheme as partition WtPartition to (FgOne,FgTwo,FgThree);
+create table Toys (col1 int,col2 char(30)) on WTPartscheme(col1);
+
+ALTERNATE instance:
+  CREATE SYMMETRIC KEY JanainaKey09   
+WITH ALGORITHM = AES_256  
+ENCRYPTION BY CERTIFICATE Shipping04;  
+GO  
+             
+               
+Create database Wingtiptoys2012
+use master
+create master key encryption by password='P@ssw0rd'
+create certificate ServCertA with subject ='server alternate certificate'
+select * from sys.certificates;
+
+use     Wingtiptoys2012
+create database encryption key with algorithm=AES_128 
+encryption by server certificate ServCertA;
+alter database Wingtiptoys2012 Set Encryption on
+create table aeroplanes/helicopters (model varchar(max));
+alter table aeroplanes rebuild partition=all with(data_compression=PAGE/ROW)
+
+alter database Wingtiptoys2012 add logfile (name=logtest, filename='C:\Program Files\Microsoft SQL Server\MSSQL12.ALTERNATE\MSSQL\DATA\Wingtiptoys2012_Log2.ldf', size=5MB);
+checkpoint 
+DBCC SQLPERF(LOGSPACE)
+
+Setup.exe /qs /Action=Uninstall /FEATURES=SQL,AS,RS,IS,Tools /INSTANCENAME=MSSQLSERVER  
+Setup.exe /qs /Action=Uninstall /FEATURES=SQL,AS,RS,IS,Conn /INSTANCENAME=ALTERNATE  
+
+====chapter 4
+edit sql-policy add inbound rule UDP 137 138 1434 all network
+alternate :
+restore database Neptune from disk 'E:\Program Files\Microsoft SQL Server\MSSQL12.MSSQLSERVER\MSSQL\backup\neptune.bak'  
+WITH FILE = 1
+	,MOVE N'Neptune' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\Neptune.mdf'
+	, MOVE N'Neptune_log' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\Neptune_log.ldf' 
+	,NORECOVERY      
+use master 
+create credential SSIS_users With Identity = N'CONTOSO\kim_akers', Secret=N'deloin'
+go	
+
+
+EXEC sp_detach_db 'SpaceElevator', 'true';
+
+use master
+create database spaceElevator On (FILENAME='C:\SpaceElevator\SpaceElevator\SpaceElevator.mdf'),
+                                 (FILENAME='C:\SpaceElevator\SpaceElevator_log.ldf') FOR ATTACH
+                                 GO
+ create login "CONTOSO\Cassie_Hicks" from windows;
+ create login Ben_andrews with Password='Pa$$w0rd';  
+ 
+ select * into adventureExport.dbo.employee from AdventureWorks2012.hunaresources.employee   
+ 
+bcp adventureWorks2012.person.contacts  out "C:\Data\Contacts.txt" -c -T  
+bulk insert  adventurecontacts.dbo.tablealpha from '\\SQL-A\data\contacts.txt'
+bcp  adventurecontacts.dbo.tablealbeta in  o "C:\Data\Contacts.txt" -c -T
+ 
+ check TABLE metadata:
+ SELECT name, system_type_name, is_nullable FROM
+  sys.dm_exec_describe_first_result_set('select * from adventureWorks2012.person.contacts', NULL, 0)
+==== chapter 5
+sp_helpsrvrole
+sp_srvrolepermission
+sp_helpsrvrolemember
+IS_srvrolemember
+sys.server_role_members
+sp_helpsrvrolemember  @srvrolename ='sysadmin'
+SELECT IS_SRVROLEMEMBER('diskadmin', 'Contoso\kim_akers'); 
+select * from sys.server_role_members 
+
+----
+create login sql_user_c with password='Pa$$w0rd' 
+create login [SQL-A\local_account_b] from windows;
+create login [contoso\domain_user_b] from windows;
+use master
+alter server role [bulkadmin] ADD MEMBER [CONTOSO\domain_group_b]
+create server role login_manager
+grant alter any login to "login_manager"
+alter server role "login_manager" add member "contoso\domain_group_b" 
+---
+create server role database_creator;
+grant CREATE ANY DATABASE to "database_creator"; 
+alter server role database_creator add member "contoso\domain_user_b"
+---check orphaned users 
+  use AdventureWorks2012
+  exec sp_change_users_login @action='report'
+  
+  use
+  create role tab_creator  authorization "contoso\kim_akers" 
+  grant create table to tab_creator ;
+  sp_addrolemember,'tab_creator',"contos\domain_group_b"; sp_droprolemember
+  
+  sys.database_principals
+  sys.database_role_members
+  sys.database_permissions
+  
+  select name,iif(is_fixed_role=1,'YES','NO') 'fixed',type_desc,default_schema_name,user_name(owning_principal_id)'owner' from  sys.database_principals order by 2
+ SELECT user_name(pr.principal_id) 'user', pr.name, pr.type_desc,   
+pr.authentication_type_desc, pe.state_desc, pe.permission_name,s.name+'.'+ object_name( pe.major_id)'object'  
+FROM sys.database_principals AS pr  
+JOIN sys.database_permissions AS pe  
+ON pe.grantee_principal_id = pr.principal_id 
+JOIN sys.objects AS o  
+ON pe.major_id = o.object_id  
+JOIN sys.schemas AS s  
+    ON o.schema_id = s.schema_id; 
+  ---   database roles
+  
+use AdventureWorks2012
+create user "SQL-A\local_account_b" for login "SQL-A\local_account_b"
+create user "SQL_user_c" for login "sql_user_c"
+use AdventureWorks2012
+create role tableadmin ;
+grant create table,create schema to tableadmin;
+sp_addrolemember 'tableadmin',"sql_user_c";
+--contained DB
+ sp_configure 'show advanced options',1
+ reconfigure
+ sp_configure 'contained database authentication',1;
+ reconfigure with override
+
+ create database partial_containment_db CONTAINMENT=PARTIAL
+ use partial_containment_db
+ create user "contoso\contained_user_b";
+ create user contained_user with password='Pa$$w0rd'
+ 
+ ==chapter 6
+ 
+ DB permissions :
+ select * from sys.server_permissions
+ select * from sys.database_permissions
+ select * from sys.server_principals
+ select * from sys.database_principals
+ select * from sys.sql_logins
+ sys.database_role_members/sys.server_role_members
+ 
+ 
+ 
+on SQL-A
+setup.exe /qs /action=Install /features=SQLengine /InstanceName=AUDITING /SQLSysAdminAccounts="Contoso\Kim_akers" /AGTSVCACCOUNT="Contoso\SQL-SVC-A"  /AGTSVCPASSWORD="Pa$$w0rd"  /SQLSVCACCOUNT="Contoso\SQL-SVC-A" /SQLSVCPASSWORD="Pa$$w0rd"  /IacceptSQLserverLicenseTerms  
+
+create server audit [ALPHA-AUDIT]
+TO SECURITY_LOG WITH (QUEUE_DELAY = 1000,ON_FAILURE=CONTINUE); 
+-- Enable the server audit.   
+ALTER SERVER AUDIT [ALPHA-AUDIT] 
+WITH (STATE = ON) ;  
+
+create server audit specification [Alpha-spec]
+for server audit [alpha-AUDIT] 
+ADD (DATABASE_CHANGE_GROUP) WITH (STATE=ON)
+
+
+====
+ use master
+   CREATE SERVER AUDIT PAYROLLAUDIT TO APPLICATION_LOG
+   WITH(QUEUE_DELAY=0,ON_FAILURE=CONTINUE);
+   ALTER SERVER AUDIT PAYROLLAUDIT WITH(STATE=ON);
+   go
+   use AdventureWorks2012
+   CREATE DATABASE AUDIT SPECIFICATION EMployeeUpdateAudit FOR SERVER AUDIT PAYROLLAUDIT
+   ADD(UPDATE ON Humanresources.Employee BY Public)
+   WITH(STATE=ON) 
+   Go
+   update  HumanResources.Employee set vacationhours=101 where NationalIDNumber=295847284;
+====
+select * From sys.server_audits;
+select * From sys.server_audit_specifications;
+select * From sys.server_audit_specification_details;
+
+
+==============Chapter 7 Mirroring - Replication
+
+Lesson 1
+SQLA- copy database adventureworks2012 to AdventureMirror 
+ALTER DATABASE adventureMirror set recovery full;
+create directory
+Backup database adventureMirror to disk ='C:\backup\AventureMirror.bak' With Format;
+Backup log adventureMirror to Disk='C:\backup\AventureMirror.trn' 
+
+SQL-B
+restore database AdventureMirror From disk ='C:\backup\AventureMirror.bak'
+WITH NORECOVERY;
+
+restore log AdventureMirror From disk ='C:\backup\AventureMirror.trn'
+WITH FILE=1,NORECOVERY;
+ 
+DC- SQL-Polici GPO add firewall TCP port 7024
+
+SQL-A/B
+
+use master 
+create master key encryption by password='Pa$$w0rd';
+
+
+SQL-A: Create Certificate SQL_A_cert  with subject ='SQL_A Certificate';
+SQL_B: Create Certificate SQL_B_cert with subject ='SQL_B Certificate';
+
+SQL-A:
+Create endpoint Endpoint_Mirroring state=started 
+as TCP (listener_Port=7024,Listener_IP=All) 
+For database_mirroring (Authentication =Certificate SQL_A_Cert,Encryption=required Algorithm AES, ROLE=All);
+SQL-B:
+Create endpoint Endpoint_Mirroring state=started 
+AS TCP (listener_Port=7024,Listener_IP=All) FOR DATABASE_MIRRORING (Authentication =Certificate SQL_B_Cert,Encryption=required Algorithm AES, ROLE=All);
+
+
+backup certificate SQL_A_cert to file='C:\backup\SQL_A_Cert.cer'    == copy to SQL-B  copy \\SQL-A\Backup\SQL_A_Cert.cer  .
+backup certificate SQL_B_cert to file='C:\backup\SQL_B_Cert.cer'    == copy to SQL-A  copy \\SQL-B\Backup\SQL_B_Cert.cer  .
+
+
+SQL-A :
+use master
+Create login SQL_B_LOGIN with password='Pa$$w0rd' ;
+Create user SQL_B_user for login SQL_B_LOGIN;
+Create certificate SQL_B_Cert authorization SQL_B_user from file ='C:\backup\SQL_B_Cert.cer' 
+
+- Grant permission on the login SQL_B_user to the remote endpoint :
+Grant connect on Endpoint::Endpoint_Mirroring to SQL_B_login;
+
+SQL-B :
+use master
+Create login SQL_A_LOGIN with password='Pa$$w0rd' ;
+Create user SQL_A_user for login SQL_A_LOGIN;
+Create certificate SQL_A_Cert authorization SQL_A_user from file ='C:\backup\SQL_A_Cert.cer' 
+
+- Grant permission on the login SQL_A to the remote Endpoint:
+Grant connect on Endpoint::Endpoint_Mirroring to SQL_A_login;
+
+
+set partner on both instances:
+SQL-A: 
+ALTER DATABASE ADVENTUREMIRROR
+SET PARTNER='TCP://sql-b.contoso.com:7024';
+SQL-B: 
+ALTER DATABASE ADVENTUREMIRROR
+SET PARTNER='TCP://sql-a.contoso.com:7024';
+
+ALTER DATABASE AdventureMirror SET PARTNER SAFETY OFF; 
+
+ALTER DATABASE adventureMirror SET PARTNER FAILOVER;
+===============
+Witness:
+===============
+
+/* Execute this against the Witness Instance */
+
+== copy FROM SQL-A  copy \\SQL-A\Backup\SQL_A_Cert.cer  .
+== copy FROM SQL-B  copy \\SQL-B\Backup\SQL_B_Cert.cer  .
+USE MASTER
+GO
+CREATE MASTER KEY ENCRYPTION BY PASSWORD = ‘Pa$$w0rd!’
+GO
+CREATE CERTIFICATE SQL_witt_cert
+    WITH SUBJECT = ‘SQL_WITT certificate’
+GO
+CREATE ENDPOINT End_Mirroring STATE = STARTED
+AS TCP (LISTENER_PORT = 7024, LISTENER_IP = ALL) FOR DATABASE_MIRRORING(AUTHENTICATION = CERTIFICATE SQL_Witt_cert,ENCRYPTION = REQUIRED ALGORITHM AES,ROLE = Witness)
+GO
+BACKUP CERTIFICATE HOST_WITT_cert TO FILE = ‘C:\Backup\SQL_WITT_cert.cer’
+GO
+
+
+> nfsshare backup=C:\backup  
+>   copy C:\Backup\SQL_WITT_cert.cer \\SQL-A\Backup\       --- copy C:\Backup\SQL_WITT_cert.cer \\SQL-A\Backup\
+
+/*Create Mirror login :*/
+Use master
+Create login SQL_B_LOGIN with password='Pa$$w0rd' ;
+Create user SQL_B_user for login SQL_B_LOGIN;
+Create certificate SQL_B_Cert authorization SQL_B_user from file ='C:\backup\SQL_B_Cert.cer' 
+-- Grant permission on the login SQL_B_user to the remote endpoint :
+Grant connect on Endpoint::Endpoint_Mirroring to SQL_B_login;
+/*Create Principal login :*/
+Create login SQL_A_LOGIN with password='Pa$$w0rd' ;
+Create user SQL_A_user for login SQL_A_LOGIN;
+Create certificate SQL_A_Cert authorization SQL_A_user from file ='C:\backup\SQL_A_Cert.cer' 
+
+-- Grant permission on the login SQL_A to the remote Endpoint:
+Grant connect on Endpoint::Endpoint_Mirroring to SQL_A_login;
+
+/* Create Witness login :*/ on SQL-A and SQL-B
+
+Create login SQL_witt_LOGIN with password='Pa$$w0rd' ;
+Create user SQL_witt_user for login SQL_witt_LOGIN;
+Create certificate SQL_A_Cert authorization SQL_witt_user from file ='C:\backup\SQL_witt_Cert.cer' 
+
+-- Grant permission on the login SQL_witt to the remote Endpoint:
+Grant connect on Endpoint::Endpoint_Mirroring to SQL_witt_login;
+---SQL A
+
+ALTER DATABASE ADVENTUREMIRROR
+SET WITNESS='TCP://sql-core.contoso.com:7024';
+
+
+SELECT EP.name, SP.STATE,
+CONVERT(nvarchar(38), suser_name(SP.grantor_principal_id))
+AS GRANTOR,
+SP.TYPE AS PERMISSION,
+CONVERT(nvarchar(46),suser_name(SP.grantee_principal_id))
+AS GRANTEE
+FROM sys.server_permissions  SP , sys.endpoints EP
+WHERE SP.major_id  = EP.endpoint_id
+ORDER BY  Permission,grantor, grantee;
+
+
+
+Lesson 2:===Replication 
+
+ 
+ 
+ USE [AdvWrksTransRepl]
+GO
+CREATE USER [CONTOSO\Kim_akers] FOR LOGIN [CONTOSO\Kim_akers]
+ALTER ROLE [db_owner] ADD MEMBER [CONTOSO\Kim_akers]
+GO
+OR 
+
+---remove publication
+
+ use AdvWrksTransRepl 
+ exec sp_changedbowner @loginame = sa
+exec sp_droppublication @publication = 'ADv_transaction_rep' 
+exec sp_removedbreplication N'AdvWrksTransRepl'
+
+
+
+==========================
+Chapter 8
+==========================
+1- clustering
+ 
+netsh advfirewall firewall add rule name="Microsoft iSCSI Software Target ServiceTCP-3260" dir=in action=allow protocol=TCP localport=3260
+netsh advfirewall firewall add rule name="Microsoft iSCSI Software Target ServiceTCP-135" dir=in action=allow protocol=TCP localport=135
+netsh advfirewall firewall add rule name="Microsoft iSCSI Software Target ServiceUDP-138" dir=in action=allow protocol=UDP localport=138
+netsh advfirewall firewall add rule name="Microsoft iSCSI Software Target Service" dir=in action=allow program="%SystemRoot%\System32\WinTarget.exe" enable=yes
+netsh advfirewall firewall add rule name="Microsoft iSCSI Software Target Service Status Proxy" dir=in action=allow program="%SystemRoot%\System32\WTStatusProxy.exe" enable=yes
+- Install ISCSI target:
+Add-WindowsFeature FS-iSCSITarget-Server
+New-IscsiVirtualDisk c:\SAN\disk-one.vhdx –size 2GB
+New-IscsiVirtualDisk c:\SAN\disk-two.vhdx –size 10GB
+New-IscsiServerTarget DC-TARGET –InitiatorIds DNSName:sql-c.contoso.com,DNSName:sql-c.contoso.com                                                ChapUserName                :                                                       
+Add-IscsiVirtualDiskTargetMapping DC-TARGET c:\SAN\disk-one.vhdx -Lun 0                                                                          ClusterGroupName            :                                                       
+Add-IscsiVirtualDiskTargetMapping DC-TARGET c:\SAN\disk-two.vhdx -Lun 1                                                                          ComputerName                : DC.CONTOSO.COM                                        
+ClusterGroupName   :                                                       ClusterGroupName   :                                                  Description                 :                                                       
+ComputerName       : DC.CONTOSO.COM                                        ComputerName       : DC.CONTOSO.COM                                   EnableChap                  : False                                                 
+Description        :                                                       Description        :                                                  EnableReverseChap           : False                                                 
+DiskType           : Dynamic                                               DiskType           : Dynamic                                          EnforceIdleTimeoutDetection : True                                                  
+HostVolumeId       : {640400BB-92D1-45D2-9607-23BC48E66B1E}                HostVolumeId       : {640400BB-92D1-45D2-9607-23BC48E66B1E}           FirstBurstLength            : 65536                                                 
+LocalMountDeviceId :                                                       LocalMountDeviceId :                                                  IdleDuration                : 00:00:00                                              
+OriginalPath       :                                                       OriginalPath       :                                                  InitiatorIds                : {DnsName:sql-c.contoso.com, DnsName:sql-d.contoso.com}
+ParentPath         :                                                       ParentPath         :                                                  LastLogin                   :                                                       
+Path               : c:\SAN\disk-one.vhdx                                  Path               : c:\SAN\disk-one.vhdx                             LunMappings                 : {}                                                    
+SerialNumber       : 4AC95C48-C514-4332-A3BE-A4E5827C6405                  SerialNumber       : 4AC95C48-C514-4332-A3BE-A4E5827C6405             MaxBurstLength              : 262144                                                
+Size               : 2147483648                                            Size               : 2147483648                                       MaxReceiveDataSegmentLength : 65536                                                 
+SnapshotIds        :                                                       SnapshotIds        :                                                  ReceiveBufferCount          : 10                                                    
+Status             : NotConnected                                          Status             : NotConnected                                     ReverseChapUserName         :                                                       
+VirtualDiskIndex   : 884356239                                             VirtualDiskIndex   : 884356239                                        Sessions                    : {}                                                    
+                                                                                                                                                 Status                      : NotConnected                                          
+=====                                                                                                                                           TargetIqn                   : iqn.1991-05.com.microsoft:dc-dc-target-target         
+- discover targets                                                                                                                              TargetName                  : DC-TARGET                                             
+Start-Service msiscsi                                                                                                                           TargetIqn                   : iqn.1991-05.com.microsoft:dc-dc-target-target         
+Set-Service msiscsi –StartupType “Automatic”                                                                                                    TargetName                  : DC-TARGET                                             
+specify target server name :
+New-IscsiTargetPortal –TargetPortalAddress DC.contoso.com 10.10.10.10                
+Connect to target :
+Get-IscsiTarget                                                                 
+PS C:\Windows\system32> Connect-IscsiTarget -NodeAddress "iqn.1991-05.com.microsoft:dc-dc-target-target"
+
+
+AuthenticationType      : NONE
+InitiatorInstanceName   : ROOT\ISCSIPRT\0000_0
+InitiatorNodeAddress    : iqn.1991-05.com.microsoft:sql-d.contoso.com
+InitiatorPortalAddress  : 0.0.0.0
+InitiatorSideIdentifier : 400001370000
+IsConnected             : True
+IsDataDigest            : False
+IsDiscovered            : True
+IsHeaderDigest          : False
+IsPersistent            : False
+NumberOfConnections     : 1
+SessionIdentifier       : ffffe0000061a330-4000013700000003  (SQl-D)  ffffe0000061a020-4000013700000003 (SQL-C) session ID will be displayed .same value that you use to get configuration persistent across reboots
+TargetNodeAddress       : iqn.1991-05.com.microsoft:dc-dc-target-target
+TargetSideIdentifier    : 0100  
+   
+reconnect across reboots :
+Register-IscsiSession -SessionIdentifier "ffffe0000061a330-4000013700000003"    
+Register-IscsiSession -SessionIdentifier "ffffe0000061a020-4000013700000003"
+PS C:\Users\kim_akers> Get-command -module iSCSITarget                               PS C:\Users\kim_akers> Get-command -module iSCSI                                                                                                      
+CommandType     Name                                               ModuleName        CommandType     Name                                               ModuleName
+-----------     ----                                               ----------        -----------     ----                                               ----------
+Alias           Expand-IscsiVirtualDisk                            iSCSITarget       Function        Connect-IscsiTarget                                iSCSI     
+Function        Export-IscsiTargetServerConfiguration              iSCSITarget       Function        Disconnect-IscsiTarget                             iSCSI     
+Function        Import-IscsiTargetServerConfiguration              iSCSITarget       Function        Get-IscsiConnection                                iSCSI     
+Cmdlet          Add-IscsiVirtualDiskTargetMapping                  iSCSITarget       Function        Get-IscsiSession                                   iSCSI     
+Cmdlet          Checkpoint-IscsiVirtualDisk                        iSCSITarget       Function        Get-IscsiTarget                                    iSCSI     
+Cmdlet          Convert-IscsiVirtualDisk                           iSCSITarget       Function        Get-IscsiTargetPortal                              iSCSI     
+Cmdlet          Dismount-IscsiVirtualDiskSnapshot                  iSCSITarget       Function        New-IscsiTargetPortal                              iSCSI     
+Cmdlet          Export-IscsiVirtualDiskSnapshot                    iSCSITarget       Function        Register-IscsiSession                              iSCSI     
+Cmdlet          Get-IscsiServerTarget                              iSCSITarget       Function        Remove-IscsiTargetPortal                           iSCSI     
+Cmdlet          Get-IscsiTargetServerSetting                       iSCSITarget       Function        Set-IscsiChapSecret                                iSCSI     
+Cmdlet          Get-IscsiVirtualDisk                               iSCSITarget       Function        Unregister-IscsiSession                            iSCSI     
+Cmdlet          Get-IscsiVirtualDiskSnapshot                       iSCSITarget       Function        Update-IscsiTarget                                 iSCSI     
+Cmdlet          Import-IscsiVirtualDisk                            iSCSITarget       Function        Update-IscsiTargetPortal                           iSCSI     
+Cmdlet          Mount-IscsiVirtualDiskSnapshot                     iSCSITarget
+Cmdlet          New-IscsiServerTarget                              iSCSITarget
+Cmdlet          New-IscsiVirtualDisk                               iSCSITarget
+Cmdlet          Remove-IscsiServerTarget                           iSCSITarget
+Cmdlet          Remove-IscsiVirtualDisk                            iSCSITarget
+Cmdlet          Remove-IscsiVirtualDiskSnapshot                    iSCSITarget
+Cmdlet          Remove-IscsiVirtualDiskTargetMapping               iSCSITarget
+Cmdlet          Resize-IscsiVirtualDisk                            iSCSITarget
+Cmdlet          Restore-IscsiVirtualDisk                           iSCSITarget
+Cmdlet          Set-IscsiServerTarget                              iSCSITarget
+Cmdlet          Set-IscsiTargetServerSetting                       iSCSITarget
+Cmdlet          Set-IscsiVirtualDisk                               iSCSITarget
+Cmdlet          Set-IscsiVirtualDiskSnapshot                       iSCSITarget
+Cmdlet          Stop-IscsiVirtualDiskOperation                     iSCSITarget
+
+create new volumes NTFS on SQL-C:
+create new cluster DNS name and IP via DC DNS console : sql-cluster.contoso.com 10.10.10.111
+dnscmd . /RecordAdd contoso.com sql-cluster  A 10.10.10.111
+create sql-cluster user 
+- add Log on as a service for sql-cluster in the SQL_policy GPO:
+  SECEDIT /configure /db secedit.sdb /cfg <path and filename of INF file>
+Configure Windows Failover cluster: 
+Install-WindowsFeature –Name Failover-Clustering –IncludeManagementTools
+Test-Cluster –Node sql-c.contoso.com,sql-d.contoso.com
+New-Cluster –Name Sql-cluster –Node sql-c.contoso.com, sql-d.contoso.com –StaticAddress 10.10.10.111
+
+Name
+----
+Sql-cluster
+acces cluster failover manager :cluadmin.msc
+
+PS C:\Windows\system32>  Get-ClusterResource *disk* |add_clusterSharedVolume
+launch sql cluster preparation :db engine replication , mgmnt tools basic complete , SQlengine+agent service account:sql-cluster
+
+troubleshoot Errors:
+P:>Get-ClusterLog -timespan 15 -destination c:\Temp
+ERR   [RES] Network Name: [NNLIB] Failed to create Computer Object SQL2012Cluster in the Active Directory, error 8239
+ solution: Make sure "Read all properties" and "Create Computer objects" are set for Cluster Name Object CNO: SQLCLUSTER2012 at OU level (advenced features viw on Active directory):
+ 
+- cmd line:
+ cluster group “Cluster Group” /move      cluster group “Cluster Group” /Move:NodeName
+- Powershell:                           
+ storage :
+ > get-clustersharedvolume
+ > Move-clustersharedvolume "Cluster Disk 1"              
+ 
+PS C:\Windows\system32> move-clustergroup "SQL2012CRG" -node sql-d
+PS C:\Windows\system32> move-clustersharedvolume "Cluster Disk 1" -node sql-c
+PS C:\Windows\system32> move-clustergroup "Cluster Group" -node sql-d     --move Quorum
+PS C:\Windows\system32> get-clustergroup
+
+Name                                    OwnerNode                               State
+----                                    ---------                               -----
+Available Storage                       SQL-C                                   Offline
+Cluster Group                           SQL-C                                   Online
+SQL2012CRG                              SQL-C                                   Online
+
+PS C:\Windows\system32>  get-clustersharedvolume --data
+
+Name                                    State                                   Node
+----                                    -----                                   ----
+Cluster Disk 1                          Online                                  SQL-C
+PS C:\Windows\system32> Get-ClusterQuorum
+
+Cluster              QuorumResource
+-------              --------------
+Sql-cluster          Cluster Disk 2
+
+PS C:\Windows\system32> get-clusterresource
+Name                          State                         OwnerGroup                    ResourceType
+----                          -----                         ----------                    ------------
+Cluster Disk 2                Online                        Cluster Group                 Physical Disk
+Cluster IP Address            Online                        Cluster Group                 IP Address
+Cluster Name                  Online                        Cluster Group                 Network Name
+SQL IP Address 1 (SQL2012C... Online                        SQL2012CRG                    IP Address
+SQL Network Name (SQL2012C... Online                        SQL2012CRG                    Network Name
+SQL Server                    Online                        SQL2012CRG                    SQL Server
+SQL Server Agent              Online                        SQL2012CRG                    SQL Server Agent
+
+select * FROM sys.dm_os_cluster_nodes;  
+select * from sys.dm_io_cluster_valid_path_names
+select * from sys.dm_io_cluster_shared_drives
+SELECT * FROM fn_virtualservernodes(); 
+select * from sys.dm_tcp_listener_states
+
+=======
+lsesson 2 AlWAYS ON
+edit sql-policy GPO:
+- Create (inbound-outbound) connection security rule for computer authentification . 
+ a- Connection security rule : name / SQL-isolation-connection-rule
+     Rule type:Isolation > requirement >authentication inbound outbound connections >auth methode>computer (kerberos v5) /computers: DC,SQl-A/B/C/D/CORE >  profiles:all
+- Create inbound rule for TCP and UPD trafic for secured connections DC,SQL-A/B/C/D/core.   Rule type:Port TCP/UDP >all local ports > Action:Connection if secure > computers: DC,SQl-A/B/C/D/CORE >  profiles:all
+-create shared folder SQL-C \\C:Share grant read write to sql=cluster.contoso.com
+-instal always on instance on bothe SQL-C and SQl-D:
+setup.exe /qs /action=Install /features=SQLengine /InstanceName=AlwaysOn /SQLSysAdminAccounts="Contoso\Kim_akers" /AGTSVCACCOUNT="Contoso\SQL-CLUSTER"  /AGTSVCPASSWORD="Pa$$w0rd"  /SQLSVCACCOUNT="Contoso\SQL-CLUSTER" /SQLSVCPASSWORD="Pa$$w0rd" /IacceptSQLserverLicenseTerms       
+
+
+-- on the server instance that will host the primary replica,   
+-- create sample databases SQL-C and shared folder \\C:Share:  
+CREATE DATABASE jupiter;  
+GO  
+ALTER DATABASE Jupiter SET RECOVERY FULL;  
+GO  
+ 
+-- Backup sample databases:  
+BACKUP DATABASE Jupiter   
+TO DISK = N'\\SQL-C\Share\jupiter.bak'   
+    WITH FORMAT  
+GO  
+-- Create the endpoint on the server instance that will host the primary replica SQL-C:  
+CREATE ENDPOINT AlwaysOnEndpoint  
+    STATE=STARTED   
+    AS TCP (LISTENER_PORT=7026)   
+    FOR DATABASE_MIRRORING (ROLE=ALL)  
+GO  
+  
+-- Create the endpoint on the server instance that will host the secondary replica SQL-D:   
+CREATE ENDPOINT AlwaysOnEndpoint  
+    STATE=STARTED   
+    AS TCP (LISTENER_PORT=7026)   
+    FOR DATABASE_MIRRORING (ROLE=ALL)  
+GO  
+  
+  
+---enable availability group feature on BOTH SQL-C and SQL-D on PowerShell
+Enable-sqlALWAYSON -Path SQLSERVER:\SQL\SQL-C\ALWAYSON
+Enable-sqlALWAYSON -Path SQLSERVER:\SQL\SQL-D\ALWAYSON
+  
+-- On the server instance that will host the primary replica,   
+-- create the availability group, AG-Alpha:  
+CREATE AVAILABILITY GROUP AG-Alpha   
+   FOR   
+      DATABASE Jupiter  
+   REPLICA ON   
+      'SQL-C\ALWAYSON' WITH   
+         (  
+         ENDPOINT_URL = 'TCP://sql-c.contoso.com:7026',  
+         AVAILABILITY_MODE = ASYNCHRONOUS_COMMIT,  
+         FAILOVER_MODE = MANUAL  
+         ),  
+      'SQL-D\ALWAYSON' WITH   
+         (  
+         ENDPOINT_URL = 'TCP://sql-d.contoso.com:7026',  
+         AVAILABILITY_MODE = ASYNCHRONOUS_COMMIT,  
+         FAILOVER_MODE = MANUAL  
+         );   
+GO  
+  
+  --- CREATE AVAILABILITY GROUP listener 
+  
+  ALTER AVAILABILITY GROUP [AG-Alpha] ADD LISTENER 'Alpha-listener' (with IP (('10.0.0.222','255.0.0.0')),PORT=7028); 
+  
+-- On the server instance that hosts the secondary replica SQL-D,   
+-- join the secondary replica to the availability group:  
+ALTER AVAILABILITY GROUP AG-Alpha JOIN;  
+GO  
+  
+-- Restore database backups onto this server instance SQL-D, using RESTORE WITH NORECOVERY:  
+RESTORE DATABASE Jupiter  
+    FROM DISK = N'\\SQL-C\Share\jupiter.bak'    
+    WITH NORECOVERY  
+GO  
+  
+ 
+-- Back up the transaction log on each primary database SQL-C:  
+ BACKUP LOG Jupiter   TO DISK = N'\\SQL-C\Share\jupiter.trn'    
+    WITH NOFORMAT  
+GO 
+  
+-- Restore the transaction log on each secondary database,  
+-- using the WITH NORECOVERY option:  
+RESTORE LOG Jupiter   FROM DISK = N'\\SQL-C\Share\jupiter.trn'    
+    WITH FILE=1, NORECOVERY  
+GO  
+  
+-- On the server instance that hosts the secondary replica SQL-D,   
+-- join each secondary database to the availability group:  
+ALTER DATABASE Saturn SET HADR AVAILABILITY GROUP = AG-Alpha;  
+GO  
+ 
+ --- alter mode= syncronous-commit both Replicas from primary instance
+  ALTER AVAILABILITY GROUP [AG-alpha] Modify replica on 'SQL-C\ALWAYSON' WITH (availability_Mode=Synchronous_commit); 
+  ALTER AVAILABILITY GROUP [AG-alpha] Modify replica on 'SQL-D\ALWAYSON' WITH (availability_Mode=Synchronous_commit); 
+---- change failover Mode to auto 
+ALTER AVAILABILITY GROUP [AG-alpha] Modify replica on 'SQL-C\ALWAYSON' WITH (FAILOVER_MODE=AUTOMATIC);
+----
+ALTER AVAILABILITY GROUP [AG-alpha] Modify replica on 'SQL-D\ALWAYSON' WITH (SECONDARY_ROLE(ALLOW_CONNECTIONS=READ_ONLY));
+
+---failover
+Planned 
+ALTER AVAILABILITY GROUP [AG-ALPHA] FAILOVER; 
+Switch-SqlAvailabilityGroup -Path SQLSERVER:\Sql\SQL-C\ALWAYSON\AvailabilityGroups\AG-Alpha  
+data loss
+ALTER AVAILABILITY GROUP [AG-alpha] FORCE_FAILOVER_ALLOW_DATA_LOSS;    
+
+-- Monitoring Availability Replicas 	
+
+select * from sys.availability_replicas
+select * from sys.dm_hadr_availability_replica_cluster_states	
+select * from sys.dm_hadr_availability_replica_cluster_nodes
+select * from sys.dm_hadr_availability_replica_states	
+select sys.fn_hadr_backup_is_preferred_replica ( 'jupiter' )  
+select * from sys.availability_read_only_routing_lists
+
+---- Dynamic Cluster Views 
+select * from sys.dm_hadr_cluster
+select * from sys.dm_hadr_cluster_members
+select * from sys.dm_hadr_instance_node_map
+select * from sys.availability_groups	
+select * from sys.availability_groups_cluster
+select * from sys.dm_hadr_availability_group_states;
+select * from sys.availability_group_listeners
+select * from sys.availability_group_listener_ip_addresses
+select * from sys.dm_hadr_cluster_networks 
+select * from sys.dm_tcp_listener_states
+select * from sys.dm_hadr_name_id_map	
+
+--- Monitoring Availability database
+
+select * from sys.availability_databases_cluster
+select * from sys.dm_hadr_auto_page_repair
+
+
+============================
+Chapitre 9 : Troubleshooting 
+============================
+	
+Lesson 1 performance monitor:
+-----------------------------
+
+create Performance monitor data collector set// for the following collector list : 
+SQLSERVER.LOCKS, SQLSERVER.BUfferManager, SQLSERVER.GeneralStatistics
+
+Lesson 2: SQl profiler
+ Establish baseline :
+
+- Start profiler/new trace /connect to instance/ trace name 70462.trc save in c:\temp
+- Event selection uncheck audit login logout ,existing connections,Sql-BatchStarting
+- Column filters : select database Adeventureworks , RUN , Execute series of queries and stored Proc in the DB observe results.
+--Import trc file 
+Select * INTO ##baseline from fn_tracegettable('C:\data\70462.trc',default);
+go
+- Inspect results :
+select * from ##Baseline ORDER BY DURATION DESC
+
+Lesson 3: Activity monitoring -dmv dmf
+check missing indexes : 
+
+run: select city,postalcode,addressline_1 from Adventureworks2012.person.adress WHERE city='Seatle';
+inspect missing index recomandation : return the table columns that are missing an index.
+select db_name(mid.database_id) DB ,mid.statement,migs_adv.index_advantage,equality_columns,inequality_columns,included_columns,
+       migs_adv.avg_total_user_cost,migs_adv.avg_user_impact,
+       migs_adv.unique_compiles,migs_adv.user_seeks,
+       migs_adv.user_scans,migs_adv.last_system_seek,migs_adv.group_handle,mig.index_handle
+ From  (select user_seeks * avg_total_user_cost * (avg_user_impact * 0.01) as index_advantage, migs.* from sys.dm_db_missing_index_group_stats migs) as migs_adv
+ Join sys.dm_db_missing_index_groups as mig on migs_adv.group_handle=mig.index_group_handle
+ Join sys.dm_db_missing_index_details as mid on mig.index_handle=mid.index_handle
+ ORDER BY migs_adv.index_advantage desc
+----support script 
+SELECT db_name(mid.database_id) as DB,'CREATE INDEX missing_index_' + CONVERT (varchar, mig.index_group_handle) + '_' + CONVERT (varchar, mid.index_handle) 
+  + ' ON ' + mid.statement 
+  + ' (' + ISNULL (mid.equality_columns,'') 
+    + CASE WHEN mid.equality_columns IS NOT NULL AND mid.inequality_columns IS NOT NULL THEN ',' ELSE '' END + ISNULL (mid.inequality_columns, '')
+  + ')' 
+  + ISNULL (' INCLUDE (' + mid.included_columns + ')', '') AS create_index_statement,
+  CONVERT (decimal (28,1), migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) AS improvement_measure, 
+  migs.*,mig.index_group_handle, mid.index_handle, mid.[object_id] ,CONVERT (varchar, getdate(), 126) AS runtime
+FROM sys.dm_db_missing_index_groups mig
+INNER JOIN sys.dm_db_missing_index_group_stats migs ON migs.group_handle = mig.index_group_handle
+INNER JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
+WHERE CONVERT (decimal (28,1), migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) > 10
+ORDER BY migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans) DESC
+PRINT ''
+GO
+                  	  
+------- list the columns and tables missing indexes 
+
+SELECT mig.*, statement AS table_name,  
+    column_id, column_name, column_usage  
+FROM sys.dm_db_missing_index_details AS mid  
+CROSS APPLY sys.dm_db_missing_index_columns (mid.index_handle)  
+INNER JOIN sys.dm_db_missing_index_groups AS mig ON mig.index_handle = mid.index_handle  
+ORDER BY mig.index_group_handle, mig.index_handle, column_id;  
+GO
+
+Lesson 4: DATA COLLECTION TOOL              	  
+   1- MANAGEMENT/DATA COLLECTION/configure MDW -create MDW 
+    DB:perfData       
+    Login : SQL SERVER SERVICE ACCOUNT : contoso\kim_akers    
+   2- MANAGEMENT/DATA COLLECTION/Set up Data Collection   DB:PerfData 
+   3- MANAGEMENT/DATA COLLECTION/reports/Management Data Warehouse/disk usage Summary  
+   
+   lesson 5 :finding bottleneck 
+    configure memory options :
+   EXEC sys.sp_configure N'min server memory (MB)', '300'
+   GO
+   RECONFIGURE WITH OVERRIDE
+   GO
+   
+=============================================
+Chapitre 10 :  Index & Concurency management
+=============================================
+
+
+ - PRACTICE
+ SET ANSI_PADDING ON
+ CREATE NONCLUSTERED INDEX [NC_Person_Address_City_spi_pc] ON [Person].[Address] ([City] ASC)
+ INCLUDE ([StateProvinceID], [PostalCode]) --covering
+ WHERE [City] = 'Seattle' ON [PRIMARY] --filtre
+  GO 
+ use AdventureWorks2012
+ select  OBJECT_SCHEMA_NAME(idx.object_id) as schemaname,
+         OBJECT_NAME(idx.object_id) as tablename ,
+		 idx.name as indexname,
+		 idxstats.index_type_desc as index_type_desc,
+		 cast(idxstats.avg_fragmentation_in_percent as decimal(5,2) ) as Frag_pct,
+		 idx.fill_factor,idx.has_filter,idx.is_primary_key,idx.is_unique
+ from sys.dm_db_index_physical_stats(DB_ID('Adventureworks2012'), NULL,NULL,NULL,'DETAILED') idxstats
+ INNER JOIN sys.indexes idx ON idx.object_id=idxstats.object_id and idx.index_id= idxstats.index_id
+  where idxstats.avg_fragmentation_in_percent>20
+ ORDER BY idxstats.avg_fragmentation_in_percent DESC;
+
+---statistics 
+   EXEC sp_updatestats;
+UPDATE STATISTICS adventureworks2012.Person.address WITH FULLSCAN,INDEX ; or FULLSCAN,COLUMNS or FULLSCAN ,ALL or SAMLPLE rownum/%
+
+
+ 1--create Clustered index on Sales_archive
+ CREATE UNIQUE CLUSTERED INDEX CIX_SalesID ON dbo.Sales_archive (SaleID);
+
+ ---Query using clustered Index
+ SELECT * from dbo.Sales_archive WHERE SaleID=250000
+
+ 
+ 2--Non Clustered Index
+ CREATE NONCLUSTERED INDEX IX_ProductID ON dbo.Sales_Archive (ProductId) With FILLFACTOR=50
+  -- Query using non-clustered index 
+ SELECT SaleID FROM dbo.Sales_Archive WHERE ProductID>5 -- uses IX_PRoductID
+
+ 
+ 3-- NON_CLUSTERED index with INCLUDED columns (covering index)
+ CREATE NONCLUSTERED INDEX IX_SalesArchive_covering ON dbo.Sales_archive(productID) INCLUDE(SaleID,Quantity,SaleAmount,SaleDate)  --- cover the select columns
+
+ --Query using covered index
+ SELECT SaleId,Quantity,SaleAmount,SaleDate FROM dbo.Sales_archive Where productID<5 -- Uses --Covering index IX-salesArchive
+ 
+ 4-- FILTERED Index
+ SET QUOTED_IDENTIFIER ON
+ CREATE NONCLUSTERED INDEX IX_SalesArchive_filtered ON dbo.Sales_archive(SaleID) WHERE SaleStatus=1;  --function based on a result
+
+ 5-- INDEX PERSISTED COMPUTED COLUMN  
+  ALTER TABLE INVENTORY ADD TOTALItems AS ItemStore+ItemWhareHouse PERSISTED 
+  
+ 
+-- REORGANIZE for light fragmentation (leafnodeswith no stats update)
+    ALTER INDEX ALL ON Production.Product REORGANIZE ; --or  syntax  ALTER INDEX Myindex on myschema.mytable REORGANIZE;
+--REBUILD for heavy fragmentation (rebuild +stat update)
+    ALTER INDEX ALL ON Production.product REBUILD  ; 
+    
+--Manually updating STATISTICS
+    UPDATE STATISTICS Sales.SalesOrderHeader WITH FULLSCAN
+    UPDATE STATISTICS Sales.SalesOrderHeader WITH SAMPLE 50 PERCENT
+    Or check SSMS statistics Tab
+    
+--DMV To view Missing indexes 
+
+   SELECT  DB_NAME(database_id) dbname,statement,equality_columns,OBJECT_NAME(object_id),included_columns,user_seeks,user_scans,avg_total_user_cost,avg_user_impact,last_user_seek  
+   from sys.dm_db_missing_index_group_stats AS igs
+   JOIN 
+   sys.dm_db_missing_index_groups as ig ON igs.group_handle=ig.index_group_handle
+   JOIN
+   sys.dm_db_missing_index_details as id ON ig.index_handle=id.index_handle
+   
+   Use Database tuning advisor based on activity sample (using a trace on day activity) 
+   
+-- DMV   to view unused index
+     select db_name(database_id) Dbname, object_schema_name(i.object_id) schema_name,OBJECT_NAME(i.object_id) [table],
+   name,type_desc,is_unique,is_primary_key,has_filter,user_seeks,user_lookups,user_updates,last_user_scan,last_user_lookup, * from 
+   sys.dm_db_index_usage_stats ius
+   JOIN 
+   sys.indexes i ON ius.object_id=i.object_id AND ius.index_id=i.index_id
+   ORDER BY 1,2,3,ius.user_seeks    
+   
+   
+   -Lesson 2 Concurency
+   DBCC USERPOTIONS 
+   -- Stored procedure to display current locks/process
+   exec sp_lock
+   --- Sproc to display current activity/process
+   exec sp_who2 /sp_who3
+    
+   -- DMV to view locking information
+   SELECT * FROM sys.dm_tran_locks
+   -- DMV to view blocked transactions
+   Select * from sys.dm_exec_requests where status ='suspended'
+   -- Trace flag to log deadlocks
+    DBCC traceon(1222,-1)
+    or 
+    DBCC TRACEON (1204, 1222)
+     GO
+   
+   
+ ----check wait stats 
+WITH Waits AS 
+ (  SELECT  
+   wait_type,  wait_time_ms / 1000. AS wait_time_s, 
+   100. * wait_time_ms / SUM(wait_time_ms) OVER() AS pct, 
+   ROW_NUMBER() OVER(ORDER BY wait_time_ms DESC) AS rn 
+ FROM sys.dm_os_wait_stats 
+ WHERE wait_type  
+ NOT IN ('CLR_SEMAPHORE', 'LAZYWRITER_SLEEP', 'RESOURCE_QUEUE', 'SLEEP_TASK', 'SLEEP_SYSTEMTASK', 'SQLTRACE_BUFFER_FLUSH', 'WAITFOR', 'CLR_AUTO_EVENT', 'CLR_MANUAL_EVENT') 
+   ) -- filter out additional irrelevant waits 
+    
+SELECT W1.wait_type, 
+ CAST(W1.wait_time_s AS DECIMAL(12, 2)) AS wait_time_s, 
+ CAST(W1.pct AS DECIMAL(12, 2)) AS pct, 
+ CAST(SUM(W2.pct) AS DECIMAL(12, 2)) AS running_pct 
+FROM Waits AS W1 
+ INNER JOIN Waits AS W2 ON W2.rn <= W1.rn 
+GROUP BY W1.rn,  
+ W1.wait_type,  
+ W1.wait_time_s,  
+ W1.pct 
+HAVING SUM(W2.pct) - W1.pct < 95; -- percentage threshold;
+
+---- check blocking sessions 	 
+SELECT
+db.name DBName,
+tl.request_session_id,
+wt.blocking_session_id,
+OBJECT_NAME(p.OBJECT_ID) BlockedObjectName,
+tl.resource_type,
+h1.TEXT AS RequestingText,
+h2.TEXT AS BlockingTest,
+tl.request_mode
+FROM sys.dm_tran_locks AS tl
+INNER JOIN sys.databases db ON db.database_id = tl.resource_database_id
+INNER JOIN sys.dm_os_waiting_tasks AS wt ON tl.lock_owner_address = wt.resource_address
+INNER JOIN sys.partitions AS p ON p.hobt_id = tl.resource_associated_entity_id
+INNER JOIN sys.dm_exec_connections ec1 ON ec1.session_id = tl.request_session_id
+INNER JOIN sys.dm_exec_connections ec2 ON ec2.session_id = wt.blocking_session_id
+CROSS APPLY sys.dm_exec_sql_text(ec1.most_recent_sql_handle) AS h1
+CROSS APPLY sys.dm_exec_sql_text(ec2.most_recent_sql_handle) AS h2
+GO
+
+---monitor active tasks 
+
+SELECT   w.session_id
+ ,w.blocking_session_id
+ ,db_name (r.database_id) DB_name
+ --,OBJECT_NAME(p.OBJECT_ID) BlockedObjectName   -- Only when you find the impacted DB "use yourDB"
+ ,w.wait_type
+ ,CONVERT(TIME, DATEADD(ms,w.wait_duration_ms/10000,0)) wait_duration
+ ,t.text
+ ,h2.text blocking_sqltext
+ ,w.resource_description
+ ,s.program_name
+ ,s.cpu_time
+ ,s.memory_usage
+FROM sys.dm_os_waiting_tasks w
+INNER JOIN sys.dm_exec_sessions s ON w.session_id = s.session_id
+INNER JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
+OUTER APPLY sys.dm_exec_sql_text (r.sql_handle) t
+INNER JOIN sys.dm_exec_connections ec2 ON ec2.session_id = w.blocking_session_id
+CROSS APPLY sys.dm_exec_sql_text(ec2.most_recent_sql_handle) AS h2
+--INNER JOIN sys.dm_tran_locks l ON l.lock_owner_address=w.resource_address
+--INNER JOIN sys.partitions p ON p.hobt_id=l.resource_associated_entity_id
+WHERE s.is_user_process = 1
+GO                                                                             
+                 
+                                                                    
+---extended EVENTS
+SELECT DISTINCT  
+   tb.trace_event_id,  
+   te.name AS 'Event Class',  
+   em.package_name AS 'Package',  
+   em.xe_event_name AS 'XEvent Name',  
+   tb.trace_column_id,  
+   tc.name AS 'SQL Trace Column',  
+   am.xe_action_name as 'Extended Events action'  
+FROM (sys.trace_events te LEFT OUTER JOIN sys.trace_xe_event_map em  
+   ON te.trace_event_id = em.trace_event_id) LEFT OUTER JOIN sys.trace_event_bindings tb  
+   ON em.trace_event_id = tb.trace_event_id LEFT OUTER JOIN sys.trace_columns tc  
+   ON tb.trace_column_id = tc.trace_column_id LEFT OUTER JOIN sys.trace_xe_action_map am  
+   ON tc.trace_column_id = am.trace_column_id  
+   where te.name like 'lock:dead%'
+ORDER BY te.name, tc.name  
+;
+--Create DEADLOCK extended event 
+CREATE EVENT SESSION [deadlocks] ON SERVER 
+ADD EVENT sqlserver.xml_deadlock_report(
+    ACTION(package0.callstack,package0.process_id,sqlserver.client_app_name,sqlserver.client_hostname,sqlserver.database_id,sqlserver.database_name,sqlserver.nt_username,sqlserver.plan_handle,sqlserver.request_id,sqlserver.session_id,sqlserver.sql_text,sqlserver.transaction_id,sqlserver.transaction_sequence,sqlserver.username)
+    WHERE ([sqlserver].[database_name]=N'adventureworks2012')) 
+ADD TARGET package0.ring_buffer
+WITH (STARTUP_STATE=OFF)
+GO
+ALTER EVENT SESSION [deadlocks] ON SERVER  STATE= START
+GO
+
+SELECT
+DATEADD(mi, DATEDIFF(mi, GETUTCDATE(), CURRENT_TIMESTAMP), DeadlockEventXML.value('(event/@timestamp)[1]', 'datetime2')) AS [EventTime],
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@hostname)[1]', 'nvarchar(max)') AS HostName,
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@clientapp)[1]', 'nvarchar(max)') AS ClientApp,
+DB_NAME(DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@currentdb)[1]', 'nvarchar(max)')) AS [DatabaseName],
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@transactionname)[1]', 'nvarchar(max)') AS VictimTransactionName,
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@isolationlevel)[1]', 'nvarchar(max)') AS IsolationLevel,
+DeadlockEventXML.query('(event/data[@name="xml_report"]/value/deadlock)[1]') AS DeadLockGraph,
+DeadlockEventXML
+FROM
+(
+SELECT
+XEvent.query('.') AS DeadlockEventXML,Data.TargetData
+FROM
+(SELECT  CAST(target_data AS XML) AS TargetData
+FROM sys.dm_xe_session_targets st
+JOIN sys.dm_xe_sessions s ON s.address = st.event_session_address
+WHERE s.name = 'Deadlocks' AND st.target_name = 'ring_buffer') AS Data ---the EE session here is Deadlocks
+CROSS APPLY TargetData.nodes('RingBufferTarget/event[@name="xml_deadlock_report"]') AS XEventData(XEvent)
+) AS DeadlockInfo 
+
+================================================
+Chapitre 11 :  SQL Server Agent , Backup Restore
+================================================
+
+-lesson 1: SQL Server agent 
+
+USE [msdb]
+GO
+EXEC msdb.dbo.sp_set_sqlagent_properties @email_save_in_sent_folder=1,@databasemail_profile=N'DBMail',@use_databasemail=1
+GO
+
+
+-----
+create job 
+
+
+use msdb   
+DECLARE @jobId BINARY(16)                                                              
+ EXEC msdb.dbo.sp_add_job @job_name=N'job_alpha',                    
+ 		@enabled=1,                                             
+ 		@start_step_id=1,                                       
+ 		@notify_level_eventlog=3,                               
+ 		@notify_level_email=2,                                  
+ 		@notify_level_netsend=2,                                
+ 		@notify_level_page=2,                                   
+ 		@delete_level=0,                                        
+ 		@description=N'',                                       
+ 		@category_name=N'[Uncategorized (Local)]',              
+ 		@owner_login_name=N'CONTOSO\kim_akers',                 
+ 		@notify_email_operator_name=N'',                        
+ 		@notify_netsend_operator_name=N'',                      
+ 		@notify_page_operator_name=N'',@job_id = @jobId OUTPUT  
+ GO                                                                  
+
+ EXEC msdb.dbo.sp_add_jobstep @job_name=N'job_alpha', @step_name=N'setp1',       EXEC msdb.dbo.sp_add_jobstep @job_name=N'job_alpha', @step_name=N'step2',    
+		@step_id=1,                                                      		@step_id=2,                                              
+		@cmdexec_success_code=0,                                         		@cmdexec_success_code=0,                                 
+		@on_success_action=3,                                            		@on_success_action=1,                                    
+		@on_fail_action=2,                                               		@on_fail_action=2,                                       
+		@retry_attempts=0,                                               		@retry_attempts=0,                                       
+		@retry_interval=0,                                               		@retry_interval=0,                                       
+        @subsystem=N'TSQL',                                                      		@subsystem=N'TSQL',                                      
+		@command=N'exec sp_clean_free_space @dbname;',                   		@command=N'exec sp_server_diagnostics;',                 
+		@database_name=N'master',                                        		@database_name=N'master',                                
+		@flags=0                                                         		@flags=0                                                 
+GO                                                                               GO                                                                       
+                                                                    
+DECLARE @schedule_id int                                                                
+EXEC msdb.dbo.sp_add_jobschedule @job_name=N'job_alpha', @name=N'weekly',               
+		@enabled=1,                                                             
+		@freq_type=8,                                                           
+		@freq_interval=1,                                                       
+		@freq_subday_type=1,  --specified time                                                  
+		@freq_subday_interval=0,                                                
+		@freq_relative_interval=0,  ---first x of the month only if freq_interval=32                                            
+		@freq_recurrence_factor=1, --  only if freq_type is 8, 16, or 32                                             
+		@active_start_date=20170315,                                                                                       
+		@active_start_time=10000,                                               
+		@schedule_id = @schedule_id OUTPUT             
+select @schedule_id
+
+==Create operator :
+USE [msdb]                                                  
+GO                                                             
+EXEC msdb.dbo.sp_add_operator @name=N'hazem abolrous', @enabled=1, @pager_days=0,@email_address=N'hazem.abolrous@contoso.com'
+GO      
+
+set as failsafe for sql agent :
+
+USE [msdb]
+GO
+EXEC master.dbo.sp_MSsetalertinfo @failsafeoperator=N'hazem abolrous', @notificationmethod=1
+GO
+--keep a copy in sent items for the sender email address
+EXEC msdb.dbo.sp_set_sqlagent_properties @email_save_in_sent_folder=1
+GO  
+----
+Create ALert
+-----
+USE [msdb]
+GO
+EXEC msdb.dbo.sp_add_alert @name=N'transaction alert', 
+		@enabled=1, 
+		@delay_between_responses=0, 
+		@include_event_description_in=1, 
+		@performance_condition=N'Databases|Transactions/sec|AdventureWorks2012|>|10'
+GO
+EXEC msdb.dbo.sp_add_notification @alert_name=N'transaction alert', @operator_name=N'hazem abolrous', @notification_method = 1
+GO  
+
+
+
+ -  Lesson 2 - backup management :
+
+-- Make sure recovery is full:
+Alter Database Adventureworks2012 Set Recovery Full;
+Go
+
+You don’t have to perform piecemeal backups in order to perform a piecemeal restore.
+
+Add device : 
+
+USE [master]
+GO
+EXEC master.dbo.sp_addumpdevice  N'disk', N'adv2012back', 'C:\backup\adv2012back.bak'
+GO
+
+-- FULL BACKUP to Local Disk
+
+BACKUP DATABASE adventureworks2012 TO  adv2012back with init,NAME = N'adv2012 DB-Full Backup' 
+  Go
+ 
+BACKUP DATABASE adventureworks2012 TO  adv2012back WITH DIFFERENTIAL,NAME = N'adv2012 DB-diff Backup' ; 
+  Go    
+  
+BACKUP LOG  adventureworks2012 TO  adv2012back with NAME = N'adv2012 DB-Log Backup'  ; 
+  Go
+      
+-- Check results 
+select database_name,backup_finish_date,backup_size,compressed_backup_size,type,round(backup_size/compressed_backup_size,1) from msdb.dbo.backupset;      
+ OR 
+  restore headeronly from adv2012back; --define existing backupsets within device [adv2012back]; 
+
+SELECT server_name, database_name,name,M.physical_device_name,backup_set_id,type,backup_start_date,backup_finish_date,backup_size,database_backup_lsn 
+FROM   msdb.dbo.backupset s
+JOIN   msdb..backupmediafamily M ON M.media_set_id=S.media_set_id
+WHERE  database_name='adventureworks2012' AND s.type ='D' order by backup_finish_date desc
+
+   -  Lesson 2 - restore management : 
+         
+ -- select current_timestamp; 
+     2017-03-20T12:46:50
+  -- drop table 
+    use adventureworks2012     
+    drop table       sales.shoppingcartitem;
+     ALTER DATABASE [adventureworks2012] SET SINGLE_USER with rollback immediate ;
+ -- backup tail log 
+    use master
+ BACKUP LOG adventureworks2012 TO adv2012back  WITH NORECOVERY, NO_TRUNCATE                   
+ -- restore last full backup
+   RESTORE database  adventureworks2012  from adv2012back with FILE=1, NORECOVERY;
+ --restore last diff
+   RESTORE database  adventureworks2012  from adv2012back with FILE = 2, NORECOVERY;
+ ---restore last log
+ restore LOG  adventureworks2012  from adv2012back WITH FILE=3,RECOVERY;   
+ --restore LOG  adventureworks2012  from adv2012back WITH FILE=3,STOPAT = N'2017-03-20T12:46:50' ;   
+ - check if table sales.shoppingcartitem is there 
+ ALTER DATABASE [adventureworks2012] SET MULTI_USER;
+ select * from sales.shoppingcartitem 
+ SELECT name, system_type_name, is_nullable FROM
+  sys.dm_exec_describe_first_result_set('select * from [Sales].[ShoppingCartItem]', NULL, 0)       
+  
+  
+  ===============
+  USE CASE :
+  SQL AZUR commands:
+  Create database dbcopy as copy of myDB;
+  
+  Instant file initialization (IFI) allows SQL Server to skip the zero-writing step and begin using the allocated space immediately for data files.
+   It doesn’t impact growths of your transaction log files, those still need all the zeroes. 
+   
+
+2- LAG : function statement to compare values in the current row with values in a previous row. 
+    LAG (scalar_expression [,offset] [,default])   OVER ( [ partition_by_clause ] order_by_clause )
+    offset - The number of rows back from the current row from which to obtain a value
+     
+    SELECT BusinessEntityID, YEAR(QuotaDate) AS SalesYear, SalesQuota AS CurrentQuota,   
+           LAG(SalesQuota, 1,0) OVER (ORDER BY YEAR(QuotaDate)) AS PreviousQuota  
+    FROM Sales.SalesPersonQuotaHistory  
+    WHERE BusinessEntityID = 275 and YEAR(QuotaDate) IN ('2005','2006');  
+3- EXCEPTIONS:
+
+BEGIN TRANSACTION      
+  BEGIN TRY             
+     EXEC dbo.ModifyData   
+      COMMIT TRANSACTION    
+  END TRY               
+ BEGIN CATCH 
+ IF @@ERROR != 0     ----- OR could also be IF @@TRANCOUNT>0   meaning transactions still open  
+ ROLLBACK TRANSACTION; 
+ END CATCH ; 
+ 4- Capture execution plans + information on missing indexes recommended by the query optimizer. without executing statement (explain plan for )     
+   SET SHOWPLAN_XML ON;                         
+   GO                                                                                     
+   -- explai plan for                        
+   SELECT BusinessEntityID                
+   FROM HumanResources.Employee           
+   WHERE NationalIDNumber = '509647174';  
+   GO  
+   
+   
+   ----     
+                     
+5- NTILE splits the rows 
+     select BusinessEntityID,ntile(2) OVER(ORDER BY AVG(rate) desc) as "rank" 
+	 from HumanResources.EmployeePayHistory group BY businessEntityID ;       
+6- DATETIMEOFFSET : Store date with a time with time zone information.	 
+7- FORMAT:          Display date with a time with time zone information.
+8- GUID : uniqueIdentifier - Alter table add bookGuid varachar(10) not null 
+                                         constraint df_bookguid Default newid()
+                                         with values -- replace default- all existing values
+9- select getdate(),EOMONTH(GETDATE(),-2) as endofmonth,dateadd(d,1,EOMONTH(GETDATE(),-2)) as ddate ;
+always use:  date < limit_date+1 instead of date <= limit_date  to unclude lignes after midnight 
+(No column name)	 endof 2 month back      Add 1day to previous endofmonth	
+----------------------- ------------------------ ----------------------------
+2017-03-30 14:26:38.670	   2017-01-31	         2017-02-01          
+10- SchemaBinding keyword while creating a view or function -> bind structure of any underlying tables or views and limit DDL on its selected columns.  
+  first view index must be clustered :
+  CREATE VIEW Sales.vwcustomerRevenu With SCHEMABINDING
+  AS SELECT ... from sales.tab1 join sales.tab2 ON
+  GROUP by...                            
+  Create unique Clustered INDEX idx_vwCustomerRevenue On Sales.vwCustomerRevenue(CustomerID);
+11- When expected row vs actual rows of a column mismatch ; run statistics on the specified column on both JOINED TABLES.     
+12- ETL :
+SELECT ...INTO .. auto create the table no matter whatever the source data structure could be. (Create-As-Select)
+INERT ... SELECT requires you to have a table already created which should have matching data structure to the source.  
+13- enable"optimizing ad hoc workload" : Solution to get rid of large cahed-query-plans: // large batch plans are stored while executed only once- DWH . 
+sp_CONFIGURE ‘show advanced options’,1
+RECONFIGURE
+sp_CONFIGURE ‘optimize for ad hoc workloads’,1
+RECONFIGURE
+GO 
+
+14 - perform bulk operation while database  is online and all transaction are fully recoverable 
+enable bulk log mode ,configure BULK LOG mode , perform BCP oepration
+15- if sp of user owns the selected table , grantee of this Sp don<t need a select permission thanks to ownership chaining
+
+16- instant file initialization   : grant local policy user right "Perform volume maintenance task"   and restart sql server       
+
+17- To Migrate logins from sqlserver2008 to sqlServer2012 : Use the Transfer Login task from SSIS. Data Tools /new project/ business inteligence /integration Services project /transfer Login Tasks
+    the transfered SQL Server logins are disabled and the passwords are changed.    
+    
+18- SQL Server is assigning stronger locks to queries?:
+    means locks escalated from simple locks (fine-grained locks) to complex locks (coarse-grained)
+    Required sql profiler event is : Lock:Escalation 
+    Indicates that a finer-grained lock has been converted to a coarser-grained lock; (a row lock that is converted to an object lock).  Event ID=60.                  
+19- Enable sharepoint and install Power View component:
+   install SQL server reporting service -install SQl report DB engine and power view for sharepoint - Configure SQl reporting service in Sharepoint mode
+20- If lock escalation is in fact an issue for you. Here are the steps to identify if lock escalation is causing blocking. 
+ 	a- sp_configure ‘blocked process threshold’,5 ;
+        RECONFIGURE;
+        b- On SQL Profiler : Collect Lock Escalation and Blocked Process Report Events.  
+        c- Review the Trace in SQL Server Profiler.     look at the blocked process report details: textdata section > waitresource= (if =OBJECT? then lock escalation is involved) if key /page then no escalation>
+21- Data Quality Client is used for data cleansing.
+    SSDT(Sql Server Data Tools) has a T-SQL editor to execute ad hoc queries    
+22- when failing over to log shipped secondary DB : use  No recovery backup option ,  so primary state is not accessible and there will be no more transactions allowed.
+   question C Q4 :it asks for backup option(which is K) not backup type(which is Transaction log)   
+22- To Configure SQL SERVER environement to use SSIS package (parameteres,environment variables, Project deployment Model ) 
+      - Create an integration service catalog   
+23- Server_role_change_group  audits any  addition removal of a login to a server role  
+24-  identify the root cause of ambiguous errors :
+ Create an Extended Events session by using the sqlserver.error_reported event.      
+ 
+25- to remove SQL Server Integration Services from a server running the Windows Server having DB engine and AS feature installed: Go To "Add/Remove Programs" in Control Panel .   
+
+26- Windows 7 pro accepts only SQL server Developer /standard  
+27- features installable in Win 2008 r2 Core config : DB engine , Replication, Analysis Service        
+28- Max DB engine per standalone server = 50 instances  
+29- To ETL dedicated server : one needs SSIS and DB engine  
+30 - 32bits SSIS package requires SQl server Data Tools installation (32bit) 
+31 - replay installation across servers : ConfigurationFile.ini
+32- XMLA analysis service scripts :
+B: processUpdate only supported for dimensions
+C: processIndex updates indexes and aggregations
+D: processData processes data only without updating aggregations or indexes
+33- scale_out to 5 SQL SERVER instances + for each copy of the DB users can read write data that will be syncronized between all of the databases > Peer to Peer replication
+34- Your solution must provide scale-out of read operations by distributing the reads from clients across two SQL Server 2012 nodes. Data in both SQL DBs needs to be indexed.
+ > You should include a primary SQL Server 2012 database that uses transactional replication to replicate data to a secondary database
+  availability group is limited regarding scalling out reads and indexing in secondary replica 
+35-  When connecting as a contained database user, the database user account must be independently created in each database that the user will need.  from a server to another 
+36- Windows principals/Contained Database: Authorized windows users and members of authorized Windows groups can connect directly to the database and do not need logins in the master database.
+     The database trusts the authentication by Windows
+
+37- Contained user: 
+  There are two types of users for contained databases.
+
+-Contained database user with password
+-Contained database users with passwords are authenticated by the database.
+- Windows principals:
+Authorized Windows users and members of authorized Windows groups can connect directly to the database and do not need logins in the master database. 
+The database trusts the authentication by Windows.
+
+=========================================================================================================================================================================================================
+                                                                              70-461 Querying SQL SERVER
+                                                                            =============================
+the logical query processing order, which is the conceptual interpretation order, is different. It starts with the FROM clause. 
+Here is the logical query processing order of the six main query clauses:
+Try to read it now based on logical query processing order, like so:
+
+1. FROM: The query joins the Customers and Orders tables based on a match between the customer’s customer ID and the order’s customer ID. The query uses a left outer join in order to preserve customers who didn’t place any orders.
+2. WHERE: The query filters only rows where the customer’s country is Spain.
+3. GROUP BY: The query groups the remaining rows by the customer’s customer ID.
+4. HAVING: The query filters only customer groups that have three or fewer orders.
+5. SELECT: For the remaining groups, the query returns the customer’s customer ID and the order count, naming the column numorders.
+6. The query presents the result rows sorted by numorders.
+
+FROM >WHERE>GROUP BY>HAVING>SELECT>ORDER BY
+1. FROM
+2. ON
+3. OUTER
+4. WHERE
+5. GROUP BY
+6. CUBE | ROLLUP
+SELECT Region,Country,Category,SUM(TotalSold) as TotalSales
+FROM Sales.SalesInformation
+GROUP BY ROLLUP (Region,Country,Category);---- One Pass / hierarchy  by Region > by Region,Country >by Reion,Country,category Totals
+-- GROUP BY CUBE(Region,Country,Category); -- Every Pass /possible combination
+
+7. HAVING
+8. SELECT
+9. DISTINCT
+10 ORDER BY
+11. TOP
+- if an ORDER BY is specified, the result isn’t relational. 
+ 
+ HAVING clause is evaluated before the select clause , referring to an alias defined in the select list within a HAVINg is invalid 
+ 
+ - relational oriented result requirement 
+ . No ORDER BY
+ . ALL atribute names must be unique
+ . No duplicate rows
+ . ALL attributes must have names 
+
+I-  Create database Objects (20-25%)
+ 1. Creating and Altering Tables with T-SQL (34 min)
+ 2. Creating and Altering Views with T-SQL (43 min)
+ 3. Designing Views (32 min)
+ 4. Creating and Modifying Constraints (42 min)
+ 5. Creating and Modifying DML Triggers (46 min)   : select system_user
+ 
+USE DemoDB
+GO
+-- trigger runing alert and sending an email 
+IF OBJECT_ID ('iProductNotification','TR') IS NOT NULL
+	DROP TRIGGER iProductNotification
+GO
+
+ CREATE TRIGGER iProductNotification ON Products
+	FOR INSERT
+AS	DECLARE @ProductInformation nvarchar(255);
+	SELECT 
+		@ProductInformation='New product '+Name+' is now available for '+ CAST(Price as nvarchar(20))+' !'
+	FROM inserted;
+	EXEC msdb.dbo.sp_send_dbmail
+		@profile_name='Notifications',
+		@recipients='dzenan.dzevlan@hotmail.com',
+		@body=@ProductInformation,
+		@subject='New product notification';
+GO 
+-------SEQUENCES
+
+Create sequence CustommerSeq as int 
+start with 1 minvalue 1 maxvalue 100 cycle
+update Customers SET Partitionnumber=next value for CustomerSeq 
+DROP SEQUENCE CustomerSeq; 
+
+--- VIEW WITH CHECK OPTION
+if you change the data using the view, in case it is updatable, the criteria used in the select statement should remain invariable and it will be checked before commiting the change.
+Create view myview with SCHEMABINDING AS
+ SELECT * FROM table where col1=3  
+ WITH CHECK OPTION ----avoid view update on col1 !=3  
+           
+-- Clustered and NON CLUSTERED INDEXED VIEWS
+           
+CREATE VIEW Sales.vOrders
+WITH SCHEMABINDING
+AS
+SELECT SUM(UnitPrice*OrderQty*(1.00-UnitPriceDiscount)) AS Revenue,
+OrderDate, ProductID, COUNT_BIG(*) AS COUNT
+FROM Sales.SalesOrderDetail AS od, Sales.SalesOrderHeader AS o
+WHERE od.SalesOrderID = o.SalesOrderID
+GROUP BY OrderDate, ProductID;
+GO
+- If the view definition contains a GROUP BY clause, the key of the unique clustered index can reference only the columns specified in the GROUP BY clause (OrderDate, ProductID).
+– Create a clustered index on the view -- with at least the two columns 
+CREATE UNIQUE CLUSTERED INDEX IDX_V1 ON Sales.vOrders (OrderDate, ProductID);  
+ When index references only ONE column (in this case, ProductID), there can only be a unique (non-clustered) index; 
+"CREATE UNIQUE idx_vord_V2 ON Sales.vOrders (ProductID);"   
+
+-------
+ CREATE TABLE dbo.EmployeeAuditTrail (EmployeeAuditID int IDENTITY (1,1) NOT NULL PRIMARY KEY CLUSTERED, 
+	EmployeeID int NOT NULL,
+	FirstName nvarchar (50) NULL,
+	MiddleName nvarchar (50) NULL,
+	LastName nvarchar (50) NULL,
+	Title nvarchar (100) NULL,
+	HireDate datetime NULL, 
+	VacationHours int NULL,
+	Salary decimal (19,4) NULL,
+	ModifiedDate datetime NULL,
+	ModifiedBy nvarchar (255) NULL,
+) ON [PRIMARY] 
+GO
+
+
+CREATE TRIGGER dbo.udEmployeeAudit ON Employees
+       FOR UPDATE, DELETE
+AS
+ INSERT EmployeeAuditTrail
+      SELECT 
+       e.EmployeeID, d.FirstName,d.MiddleName,d.LastName,
+       d.Title,d.HireDate,d.VacationHours,d.Salary,
+       GETDATE(),SYSTEM_USER
+      FROM 
+      Employees e
+      JOIN   deleted d ON e.EmployeeID=d.EmployeeID
+GO
+
+CREATE TRIGGER dbo.uRecalculateVacationHours ON Employees
+FOR UPDATE
+ AS
+ IF UPDATE(HireDate)
+    BEGIN 
+	DECLARE @RecalcFlag bit
+	SELECT @RecalcFlag=IIF(YEAR(HireDate)=2013,1,0) FROM inserted    -- IIF ( boolean_expression, true_value, false_value )  
+	IF(@RecalcFlag=1)
+	UPDATE Employees SET VacationHours +=40 FROM Employees e JOIN inserted i ON e.EmployeeID=i.EmployeeID
+    END 
+GO
+
+-- IF UPDATE() - BOOLEAN Indicates whether an INSERT or UPDATE attempt was made on a specified column of a table  
+CREATE TRIGGER CustomerNumberChange 
+      FOR UPDATE AS
+     IF (UPDATE (StateProvinceID) OR UPDATE (PostalCode))  
+  - YOUR code Here --   I.E create audit Records 
+
+
+ Nested Trigger case:
+- Every insert update on Employees fires of the first trigger. and store history data into employeeAuditTrail 
+- If a Hiredate on Employees is changed to/within 2013 first trigger is fired off and The second trigger will add 40 vacation hours  based on employeeID
+***** 
+begin 
+declare @flagyear bit,@salary int = 1000;
+select @salary +=40;
+select @flagyear=iif(year(getdate())=2013,1,0 );
+print  @salary 
+IF(@flagyear=1) print 'Year result displayed is 2013'; 
+else print 'Year result displayed is not 2013';
+end;
+***** 
+ 
+ 
+II- Work with Data (25-30%)
+1. Querying Data using SELECT (58 min)
+ 
+ --CASE (in ORDER BY)
+SELECT 	* FROM	Products
+ ORDER BY  CASE DiscontinuedFlag WHEN 0 THEN ProductID END DESC	
+---	
+SELECT	* FROM Products
+WHERE	1=CASE WHEN Price<100 THEN 1 ELSE 0 END --- case is satisfied then the row is displayed ...1		
+IF OBJECT_ID ('iProductNotification','TR') IS NOT NULL DROP TRIGGER iProductNotification
+
+--OBJECTPROPERTY
+
+IF OBJECTPROPERTY(OBJECT_ID('Employees'),'IsTable')=1 
+      PRINT 'Yes, it''s a Table.' ELSE  PRINT 'No, it''s not a Table.'
+
+SELECT 	* FROM sys.objects  WHERE OBJECTPROPERTY(OBJECT_ID,'SchemaID')=SCHEMA_ID('dbo') ;		
+
+-- Metadata :  
+ clone database 2014-2016
+ DBCC CLONEDATABASE (AdventureworksDW2012, AdventureWorksDW2012_temp); 
+ 
+ INFORMATION_SCHEMA.TABLES , INFORMATION_SCHEMA.COLUMNS
+ exec sp_help employees   --describe a table
+  
+  Exec sp_MSForEachTABLE 'DBCC CHECKTABLE ([?])'  -- runs all all the tables 
+  exec sp_MSForEachTable  'EXECUTE sp_spaceused [?]'
+
+ sp_rename 'dbo.[oldTable]','newtable';
+Types: COLUMN,DATABASE,INDEX(Renaming an index with statistics, also automatically renames the statistics.)
+,OBJECT	(An item of a type tracked in sys.objects including constraints (CHECK, FOREIGN KEY, PRIMARY/UNIQUE KEY), user tables, and rules.)
+STATISTICS
+
+2. Implementing Subqueries (33 min)
+ 
+--Self referencing recrsive query with CTE (coment table expresion)
+WITH ManagerEmployeesCTE(Name, Title, EmployeeID, EmployeeLevel, Sort)
+AS
+	(
+	--Anchor result set
+	SELECT 
+		 CAST (COALESCE (e.FirstName + ' ' + e.LastName, FirstName) AS nvarchar(255)) AS Name
+		,e.Title
+		,e.EmployeeID
+		,1 AS EmployeeLevel
+		,CAST (COALESCE(e.FirstName + ' ' + e.LastName, FirstName) AS nvarchar(255)) AS SortOrder
+	FROM	Employees AS e
+	WHERE e.ManagerID IS NULL
+	UNION ALL
+	--Recursive result set
+	SELECT 
+		 CAST(REPLICATE('|      ', EmployeeLevel) + e.FirstName + ' ' + LastName AS nvarchar(255)) AS Name
+		,e.Title
+		,e.EmployeeID 
+		,EmployeeLevel + 1 AS EmployeeLevel
+		,CAST(RTRIM(Sort) + '|     ' + FirstName + ' ' + LastName AS nvarchar(255)) AS SortOrder
+	FROM
+		Employees AS e
+		JOIN	ManagerEmployeesCTE AS d ON e.ManagerID=d.EmployeeID
+	)
+
+	SELECT 
+		EmployeeID, Name, Title, EmployeeLevel
+	FROM 
+		ManagerEmployeesCTE
+	ORDER BY
+		Sort
+ 
+ 
+ 
+ 
+ 
+3. Implementing Data Types (40 min)
+ CREATE TABLE DataTypeTester
+(	--Character data types
+	 [char] char(3)
+	,[varchar] varchar(10)
+	,[varcharMAX] varchar(MAX)
+	,[text] text
+
+	--Unicode character data types (UNICODE koristimo ako pohranjujemo podatke u drugim jezicima)
+	,[nchar] nchar(3)
+	,[nvarchar] nvarchar (10)
+	,[nvarcharMAX] nvarchar(MAX)
+	,[ntext] ntext
+
+	--Binary data types
+	,[bit] bit
+	,[binary] binary (3)
+	,[varbinary] varbinary (10)
+	,[varbinaryMAX] varbinary (MAX)
+	,[image] image
+
+	--Numeric data types (exact)
+	,[tinyint] tinyint
+	,[smallint] smallint
+	,[int] int
+	,[bigint] bigint
+	,[decimal] decimal(14,6)
+	,[numeric] numeric(14,6)
+	,[smallmoney] smallmoney
+	,[money] money
+
+	--Muneric data types (approx.)
+	,[float] float
+	,[real] real
+
+	--Date data types 
+	,[datetime] datetime
+	,[datetime2] datetime2
+	,[smalldatetime] smalldatetime
+	,[date] date
+	,[time] time
+	,[datetimeoffset] datetimeoffset
+	,[timestamp] timestamp
+
+	--Special data types
+	,[sql_variant] sql_variant
+	,[uniqueidentifier] uniqueidentifier
+	,[xml] xml
+	,[hierarchyid] hierarchyid	
+	--Spatial data types
+	,[geometry] geometry
+	,[geography] geography
+)
+ 
+ 4. Implementing Aggregates (44 min)
+ 
+          SELECT	DATEPART(yyyy,SaleDate) AS SaleYear
+            ,SUM(Quantity) AS TotalQuantitySold
+         FROM 	Sales
+         GROUP BY DATEPART(yyyy,SaleDate)
+         ORDER BY DATEPART(yyyy,SaleDate) DESC
+         
+      --   group by grouping sets :
+         
+         SELECT 
+         	 EmployeeID
+         	,DATEPART(yyyy,SaleDate) AS SaleYear
+         	,SUM(Quantity) AS QuantitySold
+         FROM Sales
+         GROUP BY GROUPING SETS ((EmployeeID,DATEPART(yyyy,SaleDate)),(EmployeeID),())
+         --GROUPING SET with multiple groups & multiple aggregations
+         SELECT 
+         	 EmployeeID
+         	,DATEPART(MM,SaleDate) AS SaleMonth
+         	,DATEPART(yyyy,SaleDate) AS SaleYear
+         	,SUM(Quantity) AS Sales
+         FROM 
+         	Sales
+         GROUP BY GROUPING SETS (
+         	(EmployeeID,DATEPART(MM,SaleDate),DATEPART(yyyy,SaleDate))
+         	,(EmployeeID,DATEPART(MM,SaleDate))  --- subtotal by empid & month
+         	,(EmployeeID)      --- subtotal by empid
+         	,())  ---- Grant total 
+    ---- Analytical functions
+    RANK
+    SELECT 
+	 EmployeeID
+	,p.ProductID
+	,SUM(Quantity) AS TotalProductSales
+	,RANK() OVER (ORDER BY SUM (Quantity) DESC) AS QuantityRank
+	,DENSE_RANK() OVER (ORDER BY SUM (Quantity) DESC) AS QuantityDenseRank
+	,NTILE(4) OVER (ORDER BY SUM (Quantity) DESC) AS QuantityQuartile
+	,ROW_NUMBER() OVER (ORDER BY SUM (Quantity) DESC) AS RowNumber
+FROM
+	Sales AS s
+		JOIN
+	Products AS p ON s.ProductID=p.ProductID
+GROUP BY 
+	EmployeeID,p.ProductID
+	
+	
+empid   productid  quantity rank  Dense Rank
+------- ---------- -------- ----- -----------
+1         2         100       1       1
+1         3	    150       2       2
+1         4         150       2       2
+2         3         200       4       3--- dense rank doesn't skip the number 
+ 
+ --FIRST_VALUE / LAST_VALUE to return product with the lowest price
+SELECT	 Name,Price,first_VALUE(Name) OVER (ORDER BY Price ) AS Cheapest, first_VALUE(Name) OVER (ORDER BY Price DESC) AS mostExpansive
+FROM Products
+ORDER BY Name       
+
+--LAG to compare previous years data with current years data
+SELECT   ProductID ,YEAR(SaleDate) AS SalesYear ,SUM(Quantity) AS Quantity
+	,LAG(SUM(Quantity), 1, 0) OVER (ORDER BY YEAR (SaleDate)) AS PreviousYearQuantity    -- lag(column,Precedence_level,initialVAlue)   --LEAD(SUM(Quantity), 1, 0) OVER (ORDER BY YEAR (SaleDate)) AS NextYearQuantity
+FROM Sales
+WHERE  ProductID=1
+GROUP BY ProductID, YEAR(SaleDate)
+
+---cume_dist, percent_rank,
+SELECT 
+	 COALESCE (FirstName + ' ' + LastName,FirstName,LastName) AS Name
+	,Title
+	,Salary
+	,CUME_DIST() OVER (ORDER BY Salary) AS CumeDist
+	,PERCENT_RANK() OVER (ORDER BY Salary) AS PctRank
+FROM
+	Employees
+ORDER BY 
+	COALESCE (FirstName + ' ' + LastName, FirstName, LastName)
+	,Salary DESC
+
+------- show 20 rows from the Products table, starting from row 11 in the result set, ordered by the product name.in a way the form page-up button increase the offset by 20 and the page-down button decrease it by 20 (after checking limits).
+ SELECT * FROM dbp.Products AS P  
+          ORDER BY P.productName
+OFFSET 10 ROWS FETCH NEXT 20 ROWS ONLY;
+
+--- FORCESEEK to index seek instead of index scan to improve performance on table having clustered index with too frequent update --on the last joined table 
+select * from salesorderheader inner join salesorderdetail WITH (FORECSEEK)
+on salesOrderID=SalesOrderID where totaldue > 100
+----USE COLUMNSTORE INDEX TO COVER QUERY ON NON CLUSTERED INDEXED COLUMNS IN WHERE/SELECT CLAUSE ON READ ONLY TABLE  
+
+---PIVOT UNPIVOT
+Pivot*
+select 'SalesTOtalbyCountry',USA,JAPAN,UK,FRANCE,ITALY,CHINA,KOREA,GERMANY
+from Sales.salesInformation
+PIVOT( sum(TotalSold) FOR country IN(USA,JAPAN,UK,FRANCE,ITALY,CHINA,KOREA,GERMANY)) as pvt
+
+UNPivot*
+CREATE table dbo.agentSales (salesagent varchar(15),US int,UK int);
+SELECT salesagent,Country,salesQT
+FROM agentSales unpivot  (salesQT For Country in (US,UK) ) as unpivt
+
+5. Querying and Managing XML Data (43 min)
+ SELECT * FROM Employees
+  FOR XML RAW ,ELEMENTS   --row name <Raw .... />   with element structure for the content
+
+--ili
+
+SELECT  * FROM Employees
+FOR XML RAW('Employee'),ELEMENTS   ---row name <Employee >..</Employee>....</> with element structure for the content
+--ili
+SELECT * FROM Employees
+FOR XML RAW('Employee'),ROOT('Employees'),ELEMENTS --- table name enclosing element <tabname> + row name <Employee >....<employee/> ..</tabname> with element structure for the content
+
+--FOR XML AUTO
+SELECT * FROM Employees
+FOR XML AUTO    --- same as RAW but adds tablename as row name <tablename................/>
+
+--FOR XML PATH
+SELECT * FROM Employees    
+FOR XML PATH       ---- same as RAW, ELEMENTS
+
+--FOR XML PATH defining attributes
+SELECT EmployeeID AS "@EmployeeID",
+	FirstName
+	,LastName
+FROM Employees
+FOR XML PATH('Employee'),root('Employees') --- SAME AS RAW(employee), root(employees),elements + employeeId attribute inside row name <Employee employeeid="1">
+----FOR XML EXPLIXIT nested data 
+--- Use the TAGNAME!TAGID!ATTRIBUTENAME[!..] format where TAGID is a positive integer.
+
+SELECT 
+	 1 as Tag      ---defines hierarchy
+	,NULL AS Parent ---defines hierarchy
+	,EmployeeID AS [Employee!1!EmployeeID] --- defines structure employee element
+	,FirstName AS [Name!2!FirstName!element] ---defines srtructure name element 
+	,LastName AS [Name!2!LastName!element]
+FROM
+	Employees
+UNION
+SELECT 
+	 2 AS Tag
+	,1 AS Parent
+	,EmployeeID
+	,FirstName
+	,LastName
+FROM
+	Employees
+ORDER BY
+	[Employee!1!EmployeeID],[Name!2!FirstName!element]
+FOR XML EXPLICIT
+ 
+ --** XML Data Type **--
+ALTER TABLE Employees
+	ADD Bio XML DEFAULT N'<EmployeeBio></EmployeeBio>'
+GO
+--** Loading XML data
+DECLARE @xmlData xml
+SELECT @xmlData=CAST (BulkColumn AS xml) FROM OPENROWSET (BULK N'C:\70-461 Querying SQL2012\EmployeeBio.xml',SINGLE_BLOB) x
+SELECT @xmlData --see the result
+UPDATE 	Employees SET	Bio=@xmlData     WHERE 	EmployeeID=8
+GO
+--
+--Reading XML
+CREATE VIEW EmployeeBioInfo
+AS
+	SELECT 
+		 EmployeeID
+		,FirstName
+		,LastName
+		,bio.value('(/EmployeeBio/@EmployeeID)[1]','int') as XMLEMployeeID
+		,Bio.value('(/EmployeeBio/Birthplace)[1]','varchar(75)') AS Birthplace
+		,Bio.value('(/EmployeeBio/Residence)[1]','varchar(75)') AS Residence
+		,Bio.value('(/EmployeeBio/Side)[1]','char(5)') AS Stance
+		,BIo.value('(/EmployeeBio/appearences/appearence/@Name)[1]','varchar(256)') as Appearence
+	FROM
+		Employees
+
+=== query method extract in xml format
+SELECT bio.query('/EmployeeBio/Appearances') FROM Employees
+ WHERE  EmployeeID=4;
+===condition method exists  =1
+ SELECT	* FROM Employees
+WHERE bio.exist('/EmployeeBio[Side="Light"]')=1
+ 
+--Add Schema to Schema Collections (from file)
+DECLARE @schema xml
+SELECT @schema = CAST (BulkColumn AS xml) FROM OPENROWSET (BULK N'E:\70-461 Querying SQL2012\EmployeeBio.xsd', SINGLE_BLOB)x
+SELECT @schema ---see extracted result
+CREATE XML SCHEMA COLLECTION EmployeeBioSchema
+AS @schema
+GO
+--ALTER TABLE to bind XML column to schema --first drop dependant XML indexes and default BIO constraint 
+ALTER TABLE Emloyees ALTER COLUMN Bio xml (EmployeeBioSchema)
+GO 
+
+--The following code validates an XML document against the rules defined in the XML Schema Collection.
+DECLARE @x XML(EmployeeSchema)
+SELECT @x = '<Employee>
+    <FirstName>Jacob</FirstName>
+    <MiddleName>V</MiddleName>
+    <LastName>Sebastian</LastName>
+</Employee>'
+
+=== bcp export xml from a table  to a file using 'xp_cmdshell'
+EXEC sp_configure 'xp_cmdshell',1  ---to use bcp like xml command 
+RECONFIGURE 
+--BCP export XML
+DECLARE @sql varchar(8000)
+SET @sql='bcp "SELECT * FROM DemoDB.dbo.Employees FOR XML RAW(''Employee''), ROOT(''Employees''),ELEMENTS" queryout "E:\70-461 Querying SQL2012\Employees.xml" -c -T -S MCR-ORA-t05\MTLSTD'
+EXEC xp_cmdshell @sql 
+==== OPENXMP import
+--OPENXMP import
+DECLARE @docHandel int 
+DECLARE @xmlDoc xml
+SELECT @xmlDoc = CAST(BulkColumn AS xml) FROM OPENROWSET (BULK N'E:\70-461 Querying SQL2012\EmployeesImport.xml',SINGLE_BLOB)x
+
+EXEC sp_xml_preparedocument @docHandel OUTPUT, @xmlDoc;
+
+INSERT Employees (FirstName, LastName, Title, HireDate, VacationHours, Salary)
+	SELECT * FROM OPENXML (@docHandel, N'/Employees/Employee')
+		WITH (FirstName nvarchar(50) '././FirstName[1]'
+		      ,LastName nvarchar(50) '././LastName[1]'	
+		     ,Title nvarchar(100) '././Title[1]'
+		     ,HireDate datetime '././HireDate[1]'
+		     ,VacationHours int '././VacationHours[1]'
+		     ,Salary decimal(19,4) '././Salary[1]')
+EXEC sp_xml_removedocument @docHandel;
+===use SSIS to import xml table from flat file to DB 
+open Data tools> project > task flow 
+other source specify xlm file >generate schema
+other destination > OLEDB> new > connection detail> specify DB > specify existing or new target table>
+run
+ 
+III- Modify Data (20-25%)
+11. Creating and Altering Stored Procedures (33 min)
+CREATE PROCEDURE GetEmployees3
+	 @FirstName nvarchar (50) = NULL 
+	,@LastName nvarchar (50) = NULL
+	,@Title nvarchar (100) = NULL
+	,@BeginHireDate datetime = '1/1/1800'
+	,@EndHireDate datetime = '12/31/9999'
+AS	SET NOCOUNT ON;
+	SELECT  FirstName
+		,MiddleName
+		,LastName
+		,Title
+		,HireDate
+	FROM   Employees
+	WHERE 
+	FirstName LIKE '%' + COALESCE (@FirstName,FirstName) + '%'
+	AND
+	LastName LIKE '%' + COALESCE (@LastName,LastName) + '%'
+	AND Title = COALESCE(@Title,Title)
+	AND (DATEDIFF(d, @BeginHireDate, HireDate) >= 0 AND DATEDIFF(d, @EndHireDate, HireDate) <= 0)
+GO
+
+[dbo].[GetEmployees3] 'e','a', NULL,'1/1/2005','1/1/2008'
+[dbo].[GetEmployees3] @BeginHireDate='1/1/2005', @EndHireDate='1/1/2008'
+GRANT EXECUTE ON GetEmployees TO [user]
+
+CREATE PROCEDURE GetProductSalesAmountByYear  @ProductID int ,@Year smallint ,@SalesTotal decimal (19,4) OUTPUT
+AS  SELECT @SalesTotal = SUM (Quantity * Price)  
+FROM   Sales 
+JOIN   Products ON Sales.ProductID=Products.ProductID
+WHERE Sales.ProductID=@ProductID
+AND   YEAR(Sales.SaleDate)=@Year
+GROUP BY  Sales.ProductID, YEAR(Sales.SaleDate)
+--Execute sproc storing and displying output parameter
+DECLARE @SalesTotal decimal (19,4)
+EXECUTE GetProductSalesAmountByYear 2,2008, @SalesTotal OUTPUT
+PRINT 'Total: ' + CAST(@SalesTotal AS nvarchar (50))+'$'
+GO
+--- Data layer acess DML 
+CREATE ALTER PROCEDURE AddUpdateSale 
+@SaleID uniqueidentifier=NULL OUTPUT ,@EmployeeID int ,@ProductID int ,@Quantity smallint
+AS  IF @SaleID IS NULL
+            BEGIN   SET @SaleID=NEWID()
+	    INSERT INTO Sales SELECT @SaleID, @ProductID, @EmployeeID, @Quantity, GETDATE()
+            END
+    ELSE  UPDATE Sales	
+    SET	EmployeeID=@EmployeeID,ProductID=@ProductID,Quantity=@Quantity,SaleDate=GETDATE()
+	WHERE	SalesID=@SaleID
+GO
+Select top 1000 salesID,productid,employeeid,Quantity from Sales order by 1
+DECLARE @SaleID uniqueidentifier
+EXECUTE addupdatesale @SaleID OUTPUT,1,3,15 -- OR replace SaleId by [EE4DBE49-52A8-4DEF-B5F0-BBF486296AF1]
+PRINT 'new inserted Saleid is: ' + CAST(@SaleID AS nvarchar (50))  - -or print updated SaleId is 
+GO
+
+CREATE  procedure procedure usp_Customers @count int SELECT TOP (@COUNT) customers.lastname FROM Customers ORDER BY Custommers.lastname
+
+--- ENCRYPTION apears first in procedures and at the end in functions
+ALTER PROCEDURE dbo.TestDecryption WITH ENCRYPTION AS
+BEGIN  PRINT 'This text is going to be decrypted'
+END 
+
+
+CLR : common language runtime stored procedures are implemented as public static methods on a class in a Microsoft.NET Framework assembl
+EXECUTE @return_status = procedure_name
+The @return_status variable will contain the value returned by the method. If the method is declared void, the return code is 0.
+
+unlesse using CLR procedure . You can not use/passe back Text,Image,nText as return values/output parameters !!!
+
+
+
+12. Modifying Data with T-SQL (33 min)
+
+update e  --alias
+        SET VacationHours=0, salary=0
+FROM employees e --table source
+LEFT join  Sales s on e.EmployeeID=s.EmployeeID
+WHERE e.title like 'sales%' 
+AND s.SalesID is null
+
+
+--UPDATE USING WRITE FUNCTION : minimally logged.  @Offset=NULL -> append column field  -- and @Length is ignored
+Syntax: .WRITE ( expression, @Offset, @Length )
+Usage: The string specified in the expression param replaces the number of characters specified in @Length param starting from position @Offset param.
+UPDATE BlogEntry SET Summary.write(N'This is in a draft stage',NULL,0) FROM (SELECT TOP(10)Id FROM Blogentry Order by EntryDateTIME DESC) as S where Blogentry.ID= S.ID 
+
+---
+DELETE  s 
+ FROM Sales s  
+ JOIN Employees e ON s.EmployeeID=e.EmployeeID
+ WHERE	e.Title='Sales Manager'
+----
+
+DELETE 
+	Sales
+WHERE SalesID IN
+		(SELECT MAX(SalesID) AS SaleIDToDelete
+			FROM Sales
+			GROUP BY  ProductID,EmployeeID,Quantity,SaleDate
+			HAVING	COUNT(*)>1)
+
+--OUTPUT statement to view affected rows (INSERTED)
+DECLARE @InsertedProducts table (ProductID int, Name nvarchar (255), Price decimal (19,4))
+INSERT INTO Products(Name,Price)
+OUTPUT	inserted.ProductID,inserted.Name,inserted.Price
+VALUES ('Power Belt', '59.99')
+SELECT * FROM @InsertedProducts
+
+--OUTPUT statement to view affected rows (DELETED)
+DECLARE @DeletedEmployees table (EmployeeID int, FirstName nvarchar (50), LastName nvarchar (50))
+DELETE FROM	SalesEmployees
+OUTPUT  deleted.EmployeeID,deleted.FirstName,deleted.LastName
+INTO 	@DeletedEmployees
+WHERE 	Title='Sales Person'
+SELECT * FROM @DeletedEmployees
+--OUTPUT statement to view affected rows (INSERTED/DELETED)
+DECLARE  @DiscountProducts table (ProductID int, Oldprice decimal(17,4), NewPrice decimal(17,4))
+UPDATE	Products
+SET 	 Price*= .5, Name +='*'
+ OUTPUT	 inserted.ProductID,deleted.Price,inserted.Price
+ INTO	@DiscountProducts
+WHERE 	DiscontinuedFlag=1
+SELECT * FROM @DiscountProducts
+13. Combining Datasets (22 min)
+
+--UNION example to get price history
+SELECT ProductID, PreviousPrice AS Price, PriceChangeDate FROM ProductPriceHistory
+UNION
+SELECT ProductID,NewPrice AS Price, PriceChangeDate FROM ProductPriceHistory
+ORDER BY PriceChangeDate
+----except
+SELECT * FROM Products WHERE ProductID IN
+(SELECT ProductID FROM Products
+ EXCEPT 
+ SELECT ProductID FROM Sales)
+;
+---intersect
+SELECT 	* FROM	Products
+WHERE ProductID IN
+(SELECT ProductID FROM Products 
+ INTERSECT
+ SELECT ProductID FROM Sales)
+
+--MERGE NewProducts data with existing Products data
+MERGE Products AS P
+USING NewProducts AS new ON p.ProductID=new.ProductID
+WHEN MATCHED AND (p.Name <> new.Name OR p.Price<>new.Price) THEN
+	UPDATE 
+     SET p.Name=new.Name,p.Price=new.Price
+WHEN NOT MATCHED BY TARGET THEN 
+	INSERT (Name,Price)
+	VALUES (new.Name, new.Price)
+WHEN NOT MATCHED BY SOURCE THEN DELETE 
+OUTPUT $action,
+	DELETED.ProductID AS TargerID, DELETED.Name AS TargetName, DELETED.Price AS TargetPrice,
+	INSERTED.ProductID AS SourceID,INSERTED.Name AS SourceName,INSERTED.Price AS SourcePrice;	
+SELECT @@ROWCOUNT
+
+
+CREATE PROCEDURE Production.usp_UpdateInventory  
+    @OrderDate datetime  
+AS  
+MERGE Production.ProductInventory AS target  
+USING (SELECT ProductID, SUM(OrderQty) FROM Sales.SalesOrderDetail AS sod  
+    JOIN Sales.SalesOrderHeader AS soh  
+    ON sod.SalesOrderID = soh.SalesOrderID  
+    AND soh.OrderDate = @OrderDate  
+    GROUP BY ProductID) AS source (ProductID, OrderQty)  
+ON (target.ProductID = source.ProductID)  
+WHEN MATCHED AND target.Quantity - source.OrderQty <= 0  ---if first doesn't apply second match will
+    THEN DELETE  
+WHEN MATCHED   
+    THEN UPDATE SET target.Quantity = target.Quantity - source.OrderQty,   
+                    target.ModifiedDate = GETDATE()  
+OUTPUT $action, Inserted.ProductID, Inserted.Quantity, 
+    Inserted.ModifiedDate, Deleted.ProductID,  
+    Deleted.Quantity, Deleted.ModifiedDate;  
+GO  
+
+EXECUTE Production.usp_UpdateInventory '20030501' 
+
+---
+-- Create a temporary table variable to hold the output actions.  
+DECLARE @SummaryOfChanges TABLE(Change VARCHAR(20));  
+
+MERGE INTO Sales.SalesReason AS Target  
+USING (VALUES ('Recommendation','Other'), ('Review', 'Marketing'), 
+              ('Internet', 'Promotion'))  
+       AS Source (NewName, NewReasonType)  
+ON Target.Name = Source.NewName  
+WHEN MATCHED THEN  
+UPDATE SET ReasonType = Source.NewReasonType  
+WHEN NOT MATCHED BY TARGET THEN  
+INSERT (Name, ReasonType) VALUES (NewName, NewReasonType)  
+OUTPUT $action INTO @SummaryOfChanges;  
+
+
+
+create table vehiclesSold (VIN int primary key, Model varchar (20),YEAR int,State CHAR(2)) ;
+create table vehiclestoRecall (VIN int primary key, Model varchar (20),YEAR int,State CHAR(2));
+
+insert vehiclesSold  
+select 1,'hilux',2014,'CA'
+union all 
+select 2,'corola',2014,'CA'
+union all 
+select 3,'cruizer',2014,'CA'
+union all 
+select 4,'impala',2014,'CA'
+union all 
+select 5,'yaris',2014,'CA'
+union all 
+select 6,'golf',2014,'CA'
+union all 
+select 7,'rave4',2016,'CA'
+union all 
+select 18,'CAMARO',2015,'NY'
+union all
+select 8,'ferarri50',2015,'CA'
+union all 
+select 98,'BMW M5',2014,'CA';
+
+
+merge vehiclestoRecall as recall 
+using vehiclesSold as sold
+on recall.VIN=sold.VIN
+and recall.YEAR=2014 and sold.YEAR=2014
+when not matched by target 
+and sold.YEAR=2014
+then insert (VIN,Model,YEAR,State)
+values (sold.VIN,sold.Model,sold.YEAR,sold.State )
+when matched then update set recall.VIN=sold.VIN
+WHEN NOT MATCHED BY SOURCE THEN DELETE 
+OUTPUT $action,inserted.*,deleted.* ;
+
+select * from vehiclestoRecall
+
+SELECT TOP(5) ProductID, SUM(Quantity) AS TotalQuantity
+FROM order_items
+GROUP BY ProductID
+ORDER BY SUM(Quantity) DESC;
+
+
+-- Query the results of the table variable.  
+SELECT Change, COUNT(*) AS CountPerChange  
+FROM @SummaryOfChanges  
+GROUP BY Change;  	
+--- ALL ANY SOME
+SELECT CustomerId from customer where territory <> ALL/SOME/ANY(SELECT territoryID from salesperson) --<>ALL means NOT IN 
+
+14. Working with Functions (42 min)
+
+--Scalar function to validate email address
+CREATE FUNCTION ValdateEmailAddress (@Email varchar(255))
+RETURNS bit   AS 
+BEGIN
+DECLARE @valid bit = 0
+     IF @email IS NOT NULL AND @Email LIKE '%_@_%._%'
+	SET @valid=1
+    RETURN @valid
+END 
+--Scalar functions to format a date
+CREATE FUNCTION CustomDateFormat (@Date datetime)
+RETURNS char(10) AS 
+BEGIN
+	--stavili smo da funkcija odmah vraca izraz,kao u c++ return 5+6; umjesto da smo pisali A=5+6; return A;
+RETURN CAST(DATEPART(MONTH, @Date) AS VARCHAR)+'/' + CAST(DATEPART(DAY, @Date) AS VARCHAR)
+			+ '/' + CAST(DATEPART(YEAR, @Date) AS VARCHAR)
+END
+
+--Inline table-value function to return table data type with employees
+/// An inlive table-valued function is the only type of UDF that can be written without BEGIN/END block (single select that returns a table)///
+
+CREATE FUNCTION EmployeesByTitle (@Title nvarchar (100))
+RETURNS TABLE AS 
+RETURN SELECT *	FROM Employees WHERE Title LIKE '%' + @Title + '%'
+
+SELECT * FROM EmployeesByTitle('Sales');
+
+--Multi-statement table-value function to return table with product sales
+CREATE FUNCTION ProductSales (@ProductID int)
+RETURNS @ProductSalesData TABLE (ProductID int NOT NULL,EmployeeID int NOT NULL,Quantity smallint NOT NULL,SaleDate datetime NOT NULL) AS 
+       BEGIN INSERT INTO @ProductSalesData
+            SELECT ProductID,EmployeeID,Quantity,SaleDate
+  	    FROM  Sales
+	    WHERE ProductID=@ProductID
+       RETURN
+      END 
+---- ENCRYPTED FUNCTION
+FUNCTION dbo.getHash ( @inputString VARCHAR(20) )
+RETURNS VARBINARY(8000) WITH ENCRYPTION 
+-- rest of function here      
+      
+      
+--JOIN using standard join syntax (must hard code params)
+SELECT 	* FROM Products p
+	  JOIN	ProductSales(1) AS ps ON p.ProductID=ps.ProductID
+
+--CROSS APPLY for INNER joining to table-value function
+SELECT	* FROM	Products AS p
+	  CROSS APPLY  ProductSales(p.ProductID)
+
+ *** EXAMPLES
+CREATE FUNCTION TopsellingProducts
+(@date datetime)
+RETURNS TABLE 
+AS
+RETURN 
+( SELECT TOP 5 COUNT(D.ProductID) count, D.ProductID
+from Sales.SalesOrderHeader H
+inner join Sales.SalesOrderDetail D ON H.SalesOrderID=D.SalesOrderID
+WHERE OrderDate >= DATEADD (DAY,DATEDIFF(DAY,1,@date),0)
+AND   OrderDate < DATEADD(DAY,DATEDIFF(DAY,0,@date),0)
+GROUP BY D.ProductID
+ORDER BY COUNT(D.ProductID) DESC
+)
+GO
+
+select * from dbo.TopsellingProducts('2008-07-30');
+select OrderDate   from Sales.SalesOrderHeader
+
+WITH OrderDates (OrderDate) as 
+(select DISTINCT OrderDate from Sales.SalesOrderHeader)
+select OrderDate, SUM(T.count) count
+FROM OrderDates
+CROSS APPLY TopsellingProducts (OrderDate) AS T
+group by OrderDate
+order by OrderDate DESC
+
+
+--CROSS APPLY for OUTER joining to table-value function
+SELECT	* FROM	Products AS p
+	  OUTER APPLY ProductSales(p.ProductID)
+	
+-- System functions 
+--Configuration Functions
+select @@version,SERVERPROPERTY('Edition'),@@SERVERNAME,@@SERVICENAME,DB_NAME()
+select @@CONNECTIONS,SYSTEM_USER,CURRENT_USER,SUSER_SNAME
+--Conversion Functions
+--CAST and CONVERT
+SELECT '$' + CAST(Price AS nvarchar(20)) AS Price FROM Products
+SELECT SaleDate, CONVERT(varchar, SaleDate, 7) AS FormattedSaleDate FROM Sales  ---formating
+
+DATEDIFF(datepart,startdate,enddate); 
+ SELECT DATEDIFF(day,'2014-06-05','2014-08-05') AS DiffDate
+ SELECT DATEADD(day,DATEDIFF(day,1,getdate()),0) AS yesterday
+ 
+DATEADD(datepart,number,date)
+SELECT SalesOrderID,DATEADD(day,30,OrderDate) AS OrderPayDate
+FROM Sales.SalesOrderHeader 
+DATENAME (datepart, date);
+
+datepart	Abbreviation
+--------------- -------------
+year	        yy, yyyy
+quarter	        qq, q
+month	        mm, m
+dayofyear	dy, y
+day	        dd, d
+week	        wk, ww
+weekday	        dw, w
+hour	        hh
+minute	        mi, n
+second	        ss, s
+millisecond	ms
+microsecond	mcs
+nanosecond	ns
+
+SELECT DATENAME(year, getdate()) as year
+    ,DATENAME(month, '12:10:30.123') as month
+    ,DATENAME(day, '12:10:30.123') as day
+    ,DATENAME(dayofyear, '12:10:30.123') as DayOfyear
+    ,DATENAME(weekday, '12:10:30.123') as weekday
+    ,DATENAME(HH, '12:10:30.123') as hour
+    ,DATENAME(MI, '12:10:30.123') as minutes
+    ,DATENAME(SS , '12:10:30.123') as seconds;
+SELECT   
+     CAST('2007-05-08 12:35:29. 1234567 +12:15' AS time(7)) AS 'time'   
+    ,CAST('2007-05-08 12:35:29. 1234567 +12:15' AS date) AS 'date'   
+    ,CAST('2007-05-08 12:35:29.123' AS smalldatetime) AS  'smalldatetime'   
+    ,CAST('2007-05-08 12:35:29.123' AS datetime) AS 'datetime'   
+    ,CAST('2007-05-08 12:35:29. 1234567 +12:15' AS datetime2(7)) AS    'datetime2'  
+    ,CAST('2007-05-08 12:35:29.1234567 +12:15' AS datetimeoffset(7)) AS    'datetimeoffset'; 
+
+ChARIER RETURN CHAR(13)
+
+-----TRY_PARSE : convert expression to requested data type(date/time and number types) or null if the cast fails 
+SELECT IFF(TRY_PARSE(@var AS decimal(36,9)),NULL,'TRUE','FALSE') AS BADCAST ; 
+SELECT PARSE('Monday, 13 December 2010' AS datetime2 USING 'en-US') AS Result;  
+--IIF logic
+SELECT EmployeeID,FirstName,LastName,ManagerID
+	,IIF(ManagerID IS NULL, 'No', 'Yes') AS HasManager
+FROM	Employees
+
+
+--NULLIF logic 
+NULLIF ( expression , expression ) 
+returns first expression if the two expressions are not equal. If the expressions are equal, NULLIF returns null value of the type of the first expression.
+--CHOOSE Returns the item at the specified index i from a list of values .
+CHOOSE ( index, val_1, val_2 [, val_n ] )  
+SELECT CHOOSE ( 3, 'Manager', 'Director', 'Developer', 'Tester' ) AS Result;  
+result : Developer
+---convert varchar to date
+select convert(datetime, @date)
+
+
+
+-- miscelaneous	
+ 
+ SELECT ROUND(10.124,2), ROUND (104.99, -2),POWER(productid,2),REPLACE(Name,'er','ing') AS ERtoING,
+ LEN(Name) AS NameLenght,
+  LTRIM('    Spaces!') AS JustRight,
+  COALESCE(SUBSTRING(FirstName, 1, 1) + '.', '')+ COALESCE(SUBSTRING(LastName, 1, 1) + '.', '') AS Initials,
+  STUFF(name+'  ', CHARINDEX(space(1), name+'  ') +1,2, 'more') as 'advanced replace',
+  reverse('kayak')
+FROM Products ,employees
+
+--Determisnistic RAND(x) and non deterministic RAND
+SELECT RAND()
+SELECT RAND(1)
+
+VI- Troubleshoot and optimize (25-30%)
+15. Optimizing Queries (37 min)
+
+--Index Seeks
+CREATE NONCLUSTERED INDEX [IX_ProductSearch] ON [dbo].[Sales]
+(	[ProductID] ASC)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB=OFF)
+GO
+
+SELECT SalesID, ProductID FROM Sales WHERE ProductID = 1 
+---add where clause with Fields non included in the non clustered index ---index scan
+SELECT SalesID, ProductID,EmployeeID FROM Sales WHERE ProductID = 1 and EmployeeID=2
+----index to allow nested loop and get rid of key lookups 
+CREATE NONCLUSTERED INDEX [IX_ProductSearch] ON [dbo].[Sales] ([ProductID] ASC)
+INCLUDE ( [SalesID],	[EmployeeID],Saledate) WITH (PAD_INDEX = OFF, SORT_IN_TEMPDB = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+
+----index seek
+SELECT SalesID, EmployeeID, ProductID FROM Sales WHERE ProductID=6  
+--- key lookup on clustered index (add saleDate to the list of covered columns by the non clusted index)
+SELECT SalesID, EmployeeID, ProductID FROM Sales WHERE ProductID=55 and SaleDate=getdate()
+--
+--JOIN (LOOP/MERGE/ HASH) 
+SELECT 
+	 SalesID
+	,Name
+	,Price
+	,Quantity
+FROM
+	Products AS p
+		JOIN
+	Sales AS s ON p.ProductID = s.ProductID
+option(loop join) -- small amount of data    //   option(merge join) -- medimum amount of data // option(hash join) --large amount of data 
+
+
+---HINTS
+
+EXPAND VIEWS hint:specifies that indexed view matching should be disabled while compiling and optimizing the query.Without it, Enterprise Engine may otherwise match 
+(parts of) the query to one or more indexed views.
+
+SELECT DISTINCT 
+    T.col1 FROM dbo.T AS T
+OPTION (EXPAND VIEWS);
+---OPTION (OPTIMIZE FOR (COL1= VAUE /UNKNOWN)
+
+
+UPDATE TABLE PRODUCT WITH (TABLOCK)
+
+index helps to shift from hash to loop joins 
+--text execution explain plan 
+SET SHOWPLAN_ALL OFF
+---statistics 
+sp_helpstats 'Sales','ALL'
+DBCC SHOW_STATISTICS('Talbles','PK_SALEsID') 
+---TIPS
+
+-- :) IN is best when filter criteria is in subquery
+SELECT	 SalesID,ProductID,SaleDate
+FROM	Sales
+WHERE 	ProductID IN (SELECT ProductID FROM Products WHERE DiscontinuedFlag=0)
+-- :) EXISTS is best when filter criteria is in main query
+SELECT	 SalesID,ProductID,SaleDate
+FROM	Sales 
+WHERE	DATEPART(yyyy, SaleDate) = YEAR(GETDATE())
+	AND  EXISTS (SELECT 1 FROM Products WHERE ProductID = Sales.ProductID)
+---DMVs
+
+---Return top 10 longest running queries
+SELECT TOP (10)
+	 qs.total_elapsed_time / qs.execution_count / 1000000.0 AS AverageSeconds
+	,qs.total_elapsed_time / 1000000.0 AS TotalSeconds
+	,qt.text AS Query
+	,o.name AS ObjectName
+	,DB_NAME (qt.dbid) AS DatabaseName
+FROM
+	sys.dm_exec_query_stats qs
+		CROSS APPLY
+	sys.dm_exec_sql_text(qs.sql_handle) AS qt
+		LEFT OUTER JOIN
+	sys.objects AS o ON qt.objectid=o.object_id
+ORDER BY
+	AverageSeconds DESC
+
+---Return top 10 most expensive queries
+SELECT TOP 10
+	 (total_logical_reads + total_logical_writes) / qs.execution_count AS AverageIO
+	,(total_logical_reads + total_logical_writes) AS TotalIO
+	,qt.text AS Query
+	,o.name AS ObjectName
+	,DB_NAME(qt.dbid) AS DatabaseName
+FROM
+	sys.dm_exec_query_stats AS qs
+		CROSS APPLY
+	sys.dm_exec_sql_text(qs.sql_handle) AS qt
+		LEFT OUTER JOIN
+	sys.objects AS o ON qt.objectid = o.object_id
+ORDER BY 
+	AverageIO DESC
+
+
+16. Managing Transactions (27 min)
+
+--Naming and marking transaction
+BEGIN TRANSACTION DeleteEmployeeTran   --naming
+	     WITH MARK 'Deleting employee and reassinging sales' --marking
+	UPDATE Sales	SET EmployeeID=(SELECT ManagerID FROM Employees WHERE EmployeeID = 3) --transfert sales to employee's manager  
+	WHERE EmployeeID=3
+	DELETE	Employees  WHERE  EmployeeID=3 --delete employee 3
+	COMMIT TRANSACTION DeleteEmployeeTran
+	
+--Distributed transaction across multiple servers
+BEGIN DISTRIBUTED TRANSACTION
+	UPDATE	Products  SET	Price*= .01
+	WHERE		[DiscontinuedFlag] = 1
+	UPDATE	MSSQLSERVERXP.NuggetDemoDB.Products  SET Price *= .01 ---server link
+	WHERE	[DiscontinuedFlag] =1 
+COMMIT TRANSACTION
+
+--READ UNCOMMITED: Dirty reads possible
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED 
+GO
+BEGIN TRANSACTION     	
+UPDATE	Employees  SET 	Title='ALL TITLES CHANGED!'
+select * from Employees --- dirty blocks
+IF @@ROWCOUNT > 0 ROLLBACK --  or @@rowcount !=0   -- dirty blocks erased 
+ELSE COMMIT
+--READ COMMITTED: Prevents dirty reads (default)
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED 
+GO
+BEGIN TRAN SELECT * FROM Employees WAITFOR DELAY '00:00:30' SELECT * FROM Employees
+COMMIT TRAN
+--REPEATABLE READ: Prevents dirty reads, Updates or deletes on the rows--- allows inserts
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ  
+BEGIN TRAN SELECT * FROM Employees
+	WAITFOR DELAY '00:00:30'   -- sesion 2 update - delete locked . insert permitted 
+	SELECT * FROM Employees
+COMMIT TRAN
+
+--SERIALIZABLE: Prevents dirty reads, concurrent operations cannot modify
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE 
+GO
+BEGIN TRAN  SELECT * FROM Employees
+	WAITFOR DELAY '00:00:30' -- session 2 update - delete - insert locked  
+	SELECT * FROM Employees
+COMMIT TRAN
+
+--View current isolation level
+DBCC USEROPTIONS
+--DMV to view locks
+SELECT * FROM sys.dm_tran_locks 
+17. Row-based vs. Set-based Operations (22 min)
+--Using cursors against tables
+DECLARE @ProductID int 
+CREATE TABLE #ProductResults(ProductID int,Quantity int,TotalSales int)
+DECLARE dataCursor CURSOR FOR SELECT  ProductID 
+	FROM Products WHERE	DiscontinuedFlag=0
+
+OPEN dataCursor 
+FETCH NEXT FROM dataCursor INTO @ProductID
+	WHILE @@FETCH_STATUS = 0
+		BEGIN
+			--	INSERT #ProductResults
+				SELECT @ProductID ,SUM(Quantity) AS TotalQuantity,COUNT(*) AS TotalSales
+				FROM Sales
+				WHERE ProductID=@ProductID
+			FETCH NEXT FROM dataCursor INTO @ProductID
+		END
+--SELECT * FROM #ProductResults
+DROP TABLE #ProductResults
+CLOSE dataCursor
+DEALLOCATE dataCursor
+GO
+
+==
+KEYSET-driven cursors:
+Controlled by a set of unique identifiers (keys) known as the keyset. The keys are built from a set of columns
+that uniquely identify the rows in the result set. The keyset is the set of key values from all the rows returned 
+by the query statement.
+With keyset-driven cursors, a key is built and saved for each row in the cursor and stored either on the client workstation or on the server. 
+When you access each row, the stored key is used to fetch the current data values from the data source. 
+In a keyset-driven cursor, result set membership is frozen when the keyset is fully populated. 
+Thereafter, additions or updates that affect membership are not a part of the result set until it is reopened(updates and delete outputed as holes).
+
+
+
+
+
+--
+--Table variable with WHILE loop --better performace cursor looping
+DECLARE @Products TABLE (ID int IDENTITY(1,1),ProductID int ) --IDENTITY =sequence 
+Declare @productResults TABLE (ProductID int,Quantity int,TotalSales int)
+DECLARE @CurRow int = 1, @TotalRows int 
+INSERT INTO @Products	SELECT ProductID FROM Products WHERE DiscontinuedFlag=0
+SET @TotalRows= @@ROWCOUNT
+WHILE @CurRow <= @TotalRows
+	BEGIN 	DECLARE @ProductID int 
+		SELECT @ProductID = ProductID FROM @Products WHERE ID=@CurRow
+		insert into @ProductResults
+		SELECT	@ProductID ,SUM(Quantity) AS Quantity,COUNT(*) AS TotalSales
+		FROM  Sales
+		WHERE ProductID=@ProductID
+	SET @CurRow += 1
+	END
+ select * FROM @ProductResults
+--Rewritten using set-based logic ---better
+SELECT s.ProductID
+   ,SUM(Quantity) AS TotalQuantity
+   ,COUNT(*) AS TotalSales
+FROM Sales AS s
+JOIN  Products AS p ON s.ProductID = p.ProductID
+WHERE 	DiscountinuedFlag=0
+GROUP BY  s.ProductID
+ 
+---
+
+-Scalar UDF using 
+CREATE FUNCTION dbo.GetManagerName (@ManagerID int )
+RETURNS varchar(100)AS 
+BEGIN	DECLARE @ManagerName varchar(100)
+	SELECT	@ManagerName=COALESCE(FirstName + ' ' + LastName, LastName, FirstName)
+	FROM		Employees
+	WHERE		ManagerID = @ManagerID
+  RETURN @ManagerName
+END
+GO
+--UDF results in row-based logic // Scalar UDF is called for each row
+SELECT	 EmployeeID,FirstName,LastName,Title
+	,dbo.GetManagerName(MAnagerID) AS Manager
+FROM	Employees
+--Rewritten using set-based (correlated subquery)
+SELECT EmployeeID,FirstName,LastName,title
+	,(SELECT COALESCE(FirstName + ' ' + LastName,LastName,FirstName) FROM Employees WHERE EmployeeID=e.EmployeeID) AS Manager
+FROM	Employees AS e
+ 
+ 
+ ORACLE INSTR function :
+   -- User-defined function to implement Oracle INSTR in SQL Server
+  CREATE FUNCTION INSTR (@str VARCHAR(8000), @substr VARCHAR(255), @start INT, @occurrence INT)
+  RETURNS INT
+  AS
+  BEGIN
+	DECLARE @found INT = @occurrence,
+			@pos INT = @start;
+ 
+	WHILE 1=1 
+	BEGIN
+		-- Find the next occurrence
+		SET @pos = CHARINDEX(@substr, @str, @pos);
+ 
+		-- Nothing found
+		IF @pos IS NULL OR @pos = 0
+			RETURN @pos;
+ 
+		-- The required occurrence found
+		IF @found = 1
+			BREAK;
+ 
+		-- Prepare to find another one occurrence
+		SET @found = @found - 1;
+		SET @pos = @pos + 1;
+	END
+ 
+	RETURN @pos;
+  END
+  GO
+ 
+ 
+ 
+ 
+ 
+ 
+
+18. Implementing Error Handling (15 min)
+----------------------------------------
+CREATE TABLE DBErrors(ErrorID int IDENTITY(1,1) PRIMARY KEY,UserName varchar (100),ErrorNumber int,ErrorState int,ErrorSeverity int,ErrorLine int,ErrorProcedure varchar(MAX),ErrorMessage varchar(MAX),ErrorDateTime datetime)
+GO
+
+--create Stored procedure AddSale to add Error Handling with transaction 
+CREATE PROCEDURE AddSale	 @EmployeeID int
+	,@ProductID int
+	,@Quantity smallint
+	,@SaleID uniqueidentifier OUTPUT
+ AS SET @SaleID=NEWID()
+ --Add try catch around INSERT statement
+	BEGIN TRY
+	 BEGIN TRANSACTION
+		INSERT INTO Sales 
+		SELECT @SaleID, @ProductID, @EmployeeID, @Quantity, GETDATE()
+	 COMMIT TRANSACTION
+	END TRY
+--Store errors in table
+     BEGIN CATCH 
+        INSERT INTO DBErrors (UserName,ErrorNumber,ErrorState,ErrorSeverity ,ErrorLine,ErrorProcedure,ErrorMessage,ErrorDateTime)
+        VALUES(SYSTEM_USER,ERROR_NUMBER(),ERROR_STATE(),ERROR_SEVERITY(),ERROR_LINE(),ERROR_PROCEDURE(),ERROR_MESSAGE(),GETDATE())
+	
+--Transaction uncommitTable   values (0,-1,1)
+         IF (XACT_STATE())=-1  ROLLBACK TRANSACTION
+--Transaction committable
+         IF(XACT_STATE()=1) COMMIT TRANSACTION
+     END CATCH
+GO
+
+--- SET XACT_ABORT ON 
+  automatically rolls back the current transaction when a Transact-SQL statement raises a run-time error.
+  
+  
+--Execute Stored Procedure providing invalid EmployeeID  ---transaction is uncommitted hence rolled back
+DECLARE @SaleID uniqueidentifier
+EXEC AddSale 20,1,12, @SaleID OUTPUT
+GO
+SELECT * FROM DBErrors
+
+--Modify AddSale Stored Procedure to add Error Handling with custom error  
+ ALTER PROCEDURE AddSale
+  @EmployeeID int,@ProductID int,@Quantity smallint,
+  @SaleID uniqueidentifier OUTPUT
+AS
+SET @SaleID=NEWID()
+--Add try catch around INSERT statement
+	BEGIN TRY
+	     IF(SELECT COUNT(*) FROM EMPLOYEES WHERE EMployeeID=@EmployeeID)=0
+	     RAISERROR ('Employee doesn''t exist.',11,1)  --  (msg,severity,state)
+	 INSERT INTO Sales
+	 SELECT @SaleID, @ProductID, @EmployeeID, @Quantity, GETDATE()
+	END TRY
+	--Stroe errors in table
+	BEGIN CATCH 
+        INSERT INTO DBErrors 
+        VALUES(SYSTEM_USER,ERROR_NUMBER(),ERROR_STATE(),ERROR_SEVERITY(),ERROR_LINE(),ERROR_PROCEDURE(),ERROR_MESSAGE(),GETDATE()) 
+	--- Display message,severity and state for any raised erros    
+	DECLARE @message varchar(MAX) =ERROR_MESSAGE(),
+	        @severity int =ERROR_SEVERITY(),
+                @state smallint=ERROR_STATE(),
+		@procedure varchar(100) = ERROR_PROCEDURE()
+	 RAISERROR(@message,@severity,@state,@procedure)
+	END CATCH
+GO
+--Execute Stored Procedure providing invalid EmployeeID  ---two error message displayed
+DECLARE @SaleID uniqueidentifier
+EXEC AddSale 20,1,12, @SaleID OUTPUT
+ 
+ --Add custom error to SQL server 
+sp_addmessage @msgnum=50001,@severity=11,@msgtext='EMPLOYEEID doesn''t exist.'
+Go 
+RAISERROR(50001,11,1)
+Go
+sp_dropmessage @msgnum=50001	
+Go
+--View all SQL Servcer error messages 
+select * from sys.sysmessages
+select * from master.dbo.sysmessages
+ 
+--70-461
+---------------------70-461
+declare @customers table (customerid int identity (1,1),lastname varchar(50))
+
+declare @orders table (orderid int identity (1,1),orderdate datetime,customerid int)
+
+insert into @customers (lastname) values('smith')
+insert into @customers (lastname) values('smith')
+
+insert into @orders (orderdate, customerid) values ('1/10/2017', 1)
+insert into @orders (orderdate, customerid) values ('1/05/2017', 1)
+insert into @orders (orderdate, customerid) values ('1/09/2017', 2)
+
+select c.lastname, max(orderdate) as mostrecentorderdate
+from @customers c
+inner join @orders o on c.customerid = o.customerid
+group by c.customerid, c.lastname
+order by mostrecentorderdate desc 
+ 
+=== GROUPING AND WINDOWING 
+= GROUPED QUERIES
+1. What is the restriction that grouped queries impose on your expressions?
+A. If the query is a grouped query, you must invoke an aggregate function.
+B. If the query has an aggregate function, it must have a GROUP BY clause.
+C. The elements in the GROUP BY clause must also be specified in the SELECT clause.
+D. If you refer to an element from the queried tables in the HAVING, SELECT, or ORDER
+BY clauses, it must either appear in the GROUP BY list or be contained by an
+aggregate function.
+
+2. What is the purpose of the GROUPING and GROUPING_ID functions? (Choose all that apply.)
+A. You can use these functions in the GROUP BY clause to group data.
+B. You can use these functions to tell whether a NULL in the result represents a placeholder for an element that is not part of the grouping set or an original NULL from the table.
+C. You can use these functions to uniquely identify the grouping set that the result row is associated with.
+D. These functions can be used to sort data based on grouping set association—that is, first detail, and then aggregates.
+
+3. What is the difference between the COUNT(*) aggregate function and the COUNT(<expression>) general set function?
+A. COUNT(*) counts rows; COUNT(<expression>) counts rows where <expression> is not NULL.
+B. COUNT(*) counts columns; COUNT(<expression>) counts rows.
+C. COUNT(*) returns a BIGINT; COUNT(<expression>) returns an INT.
+D. There’s no difference between the functions.
+ ANSWERS : 1.D   2.B,C,D     3.A 
+
+ = PIVOTING AND UNPIVOTING
+1. How does the PIVOT operator determine what the grouping element is?
+A. It’s the element specified as input to the GROUPING function.
+B. It’s determined by elimination—the element(s) from the queried table that were not specified as the spreading or aggregation elements.
+C. It’s the element specified in the GROUP BY clause.
+D. It’s the primary key.
+
+2.  Which of the following are not allowed in the PIVOT operator’s specification? (Chooseall that apply.)
+A. Specifying a computation as input to the aggregate function
+B. Specifying a computation as the spreading element
+C. Specifying a subquery in the IN clause
+D. Specifying multiple aggregate functions
+3. What is the data type of the target values column in the result of an UNPIVOT operator?
+A. INT
+B. NVARCHAR(128)
+C. SQL_VARIANT
+D. The data type of the source columns that you unpivot
+ANSWERS : 1.B   2.A,B,C,D     3.D 
+
+ = Windows Functions
+ 
+1. What is the default frame window functions use when a window order clause is specified but an explicit window frame clause isn’t? (Choose all that apply.)
+A. ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+B. ROWS UNBOUNDED PRECEDING
+C. RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+D. RANGE UNBOUNDED PRECEDING
+
+2. What do the RANK and DENSE_RANK functions compute?
+A. The RANK function returns the number of rows that have a lower ordering value (assuming ascending ordering) than the current; the DENSE_RANK function returns the number of distinct ordering values that are lower than the current.
+B. The RANK function returns one more than the number of rows that have a lower ordering value than the current; the DENSE_RANK function returns one more than the number of distinct ordering values that are lower than the current.
+C. The RANK function returns one less than the number of rows that have a lower ordering value than the current; the DENSE_RANK function returns one less than the number of distinct ordering values that are lower than the current.
+D. The two functions return the same result unless the ordering is unique.
+
+3. Why are window functions allowed only in the SELECT and ORDER BY clauses of a query?
+A. Because they are supposed to operate on the underlying query’s result, which is achieved when logical query processing gets to the SELECT phase.
+B. Because Microsoft didn’t have time to implement them in other clauses.
+C. Because you never need to filter or group data based on the result of window functions.
+D. Because in the other clauses, the functions are considered door functions (also known as backdoor functions).
+ANSWERS : 1.C,D   2.B     3.A 
+
+=== FULLTEXT DATA
+= FULLTEXT CATALOG
+1. Which full-text search elements can you use to prevent indexing noisy words? (Choose all that apply.)
+A. Stopwords
+B. Thesaurus
+C. Stemmer
+D. Stoplists
+
+2. Which database do you have to install in order to enable the Semantic Search feature?
+A. msdb
+B. distribution
+C. semanticsdb
+D. tempdb
+
+3. How can you create synonyms for the words searched?
+A. You can edit the thesaurus file.
+B. You can create a thesaurus table.
+C. You can use the stopwords for synonyms as well.
+D. Full-text search does not support synonyms.
+ANSWERS : 1.A,D   2.C     3.A  
+ 
+= USING CONTAINS and FREETEXT 
+1. Which of the following is not a part of the CONTAINS predicate?
+A. FORMSOF
+B. THESAURUS
+C. NEAR
+D. PROPERTY
+E. TEMPORARY
+2. Which form of the proximity term defines the distance and the order?
+A. NEAR((SearchWord1, SearchWord2), 5, TRUE)
+B. NEAR((SearchWord1, SearchWord2), CLOSE, ORDER)
+C. NEAR((SearchWord1, SearchWord2), 5)
+D. NEAR(SearchWord1, SearchWord2)
+3. What can you search for with the CONTAINS predicate? (Choose all that apply.)
+A. Inflectional forms of a word
+B. Synonyms of a searched word
+C. Translations of a word
+D. Text in which a search word is close to another search word
+E. A prefix of a word or a phrase only
+ANSWERS : 1.E   2.A     3.A,B,D,E 
+
+= FULLTEXT SEMANTIC SEARCH Tab valued function
+1. Which function can be used to rank documents based on proximity of words?
+A. CONTAINSTABLE()
+B. FREETEXTTABLE()
+C. SEMANTICKEYPHRASETABLE()
+D. SEMANTICSIMILARITYTABLE()
+E. SEMANTICSIMILARITYDETAILSTABLE()
+
+2. Which function can be used to find the document that is most semantically similar to a specified document?
+A. CONTAINSTABLE()
+B. FREETEXTTABLE()
+C. SEMANTICKEYPHRASETABLE()
+D. SEMANTICSIMILARITYTABLE()
+E. SEMANTICSIMILARITYDETAILSTABLE()
+
+3. Which function returns a table with key phrases associated with the full-text indexed column?
+A. CONTAINSTABLE()
+B. FREETEXTTABLE()
+C. SEMANTICKEYPHRASETABLE()
+D. SEMANTICSIMILARITYTABLE()
+E. SEMANTICSIMILARITYDETAILSTABLE()
+ANSWERS : 1.A   2.D     3.C 
+
+===QUERY MANAGE XML DATA
+
+= FOR XML
+1. Which FOR XML options are valid? (Choose all that apply.)
+A. FOR XML AUTO
+B. FOR XML MANUAL
+C. FOR XML DOCUMENT
+D. FOR XML PATH
+
+2. Which directive of the FOR XML clause should you use to produce element-centric XML?
+A. ATTRIBUTES
+B. ROOT
+C. ELEMENTS
+D. XMLSCHEMA
+
+3. Which FOR XML options can you use to manually format the XML returned? (Choose all that apply.)
+A. FOR XML AUTO
+B. FOR XML EXPLICIT
+C. FOR XML RAW
+D. FOR XML PATH
+ANSWERS : 1.A,D   2.C     3.B,D
+
+== XQUERY
+1. Which of the following is not a FLWOR clause?
+A. for
+B. let
+C. where
+D. over
+E. return
+2. Which node type test can be used to retrieve all nodes of an XML instance?
+A. Asterisk (*)
+B. comment()
+C. node()
+D. text()
+3. Which conditional expression is supported in XQuery?
+A. IIF
+B. if..then..else
+C. CASE
+D. switch
+ANSWERS : 1.D   2.C     3.B 
+
+= XML DATA TYPE
+
+1. Which of the following is not an XML data type method?
+A. merge()
+B. nodes()
+C. exist()
+D. value()
+2. What kind of XML indexes can you create? (Choose all that apply.)
+A. PRIMARY
+B. PATH
+C. ATTRIBUTE
+D. PRINCIPALNODES
+3. Which XML data type method do you use to shred XML data to tabular format?
+A. modify()
+B. nodes()
+C. exist()
+D. value()
+ANSWERS : 1.A   2.A,B     3.B 
+
+=== CREATING TABLES ENFORCING INTEGRITY
+= CREATING ALTERING TABLES
+
+1. Which of the following are T-SQL regular identifiers? (Choose all that apply.)
+A. categoryname
+B. category name
+C. category$name
+D. category_name
+2. Which data type should be used in place of TIMESTAMP?
+A. VARBINARY
+B. ROWVERSION
+C. DATETIME2
+D. TIME
+3. How can you express that the column categoryname allow NULLs?
+A. categoryname PERMIT NULL NVARCHAR(15)
+B. categoryname NVARCHAR(15) ALLOW NULL
+C. categoryname NVARCHAR(15) PERMIT NULL
+D. categoryname NVARCHAR(15) NULL
+ANSWERS : 1.A,D   2.B     3.C 
+
+= ENFORCING DATA INTEGRITY
+
+1. Which of the following columns would be appropriate as a surrogate key? (Choose all that apply.)
+A. The time (in hundredths of a second) that the row was inserted
+B. An automatically increasing integer number
+C. The last four digits of a social security number concatenated with the first eight digits of a user's last name
+D. A uniqueidentifier (GUID) newly selected from SQL Server at the time the row is inserted
+2. You want to enforce that a valid supplierid be entered for each productid in the Production.Products table. What is the appropriate constraint to use?
+A. A unique constraint
+B. A default constraint
+C. A foreign key constraint
+D. A primary key constraint
+3. What metadata tables give you a list of constraints in a database? (Choose all that apply.)
+A. sys.key_constraints
+B. sys.indexes
+C. sys.default_constraints
+D. sys.foreign_keys
+ANSWERS : 1.B,D   2.C     3.A,C,D 
+
+=== DESINGING CREATING VIEWS, INLINE FUNCTIONS AND SYNONYMS
+=IMPLEMENTING VIEWS AND INLINE FUNCTION
+1. Which of the following operators work in T-SQL views? (Choose all that apply.)
+A. The WHERE clause
+B. The ORDER BY clause
+C. The UNION or UNION ALL operators
+D. The GROUP BY clause
+2. What is the result of WITH SCHEMABINDING in a view?
+A. The view cannot be altered without altering the table.
+B. The tables referred to in the view cannot be altered unless the view is first altered.
+C. The tables referred to in the view cannot be altered unless the view is first dropped.
+D. The view cannot be altered unless the tables it refers to are first dropped.
+
+3. What is the result of the WITH CHECK OPTION in a view that has a WHERE clause in its SELECT statement?
+A. Data can no longer be updated through the view.
+B. Data can be updated through the view, but primary key values cannot be changed.
+C. Data can be updated through the view, but values cannot be changed that would cause rows to fall outside the filter of the WHERE clause.
+D. Data can be updated through the view, but only columns with check constraints can be changed.
+ANSWERS : 1.A,C,D   2.C     3.C 
+
+= SYNONYMS
+1. What types of database objects can have synonyms? (Choose all that apply.)
+A. Stored procedures
+B. Indexes
+C. Temporary tables
+D. Database users
+2. Which of the following are true about synonyms? (Choose all that apply.)
+A. Synonyms do not store T-SQL code or data.
+B. Synonyms do not require schema names.
+C. Synonym names can match those of the objects they refer to.
+D. Synonyms can reference objects in other databases or through linked servers.
+3. What kind of dependencies do synonyms have on the objects they refer to?
+A. Synonyms can be created WITH SCHEMABINDING to prevent the underlying objects from being altered.
+B. Synonyms can refer to other synonyms.
+C. Synonyms can be created to refer to database objects that do not yet exist.
+D. Synonyms can be created without an initial schema name, which can be added later.
+ANSWERS : 1.A,C   2.A,D     3.C 
+
+=== INSERTING UPDATING DELETING DATA
+= INSERTING 
+1. In which case out of the following are you normally not allowed to specify the target column in an INSERT statement?
+A. If the column has a default constraint associated with it
+B. If the column allows NULLs
+C. If the column does not allow NULLs
+D. If the column has an IDENTITY property
+2. What are the things that the SELECT INTO statement doesn’t copy from the source? (Choose all that apply.)
+A. Indexes
+B. Constraints
+C. The IDENTITY property
+D. Triggers
+
+3. What are the benefits of using the combination of statements CREATE TABLE and INSERT SELECT over SELECT INTO? (Choose all that apply.)
+A. Using the CREATE TABLE statement, you can control all aspects of the target table. Using SELECT INTO, you can’t control some of the aspects, like the destination file group.
+B. The INSERT SELECT statement is faster than SELECT INTO.
+C. The SELECT INTO statement locks both data and metadata for the duration of the transaction. This means that until the transaction finishes, you can run into blocking related to both data and metadata. If you run the CREATE TABLE and
+   INSERT SELECT statements in separate transactions, locks against metadata will be released quickly, reducing the probability for and duration of blocking related to metadata.
+D. Using the CREATE TABLE plus INSERT SELECT statements involves less coding than using SELECT INTO.
+ANSWERS : 1.D   2.A,B,D     3.A,C 
+
+= UPDATING
+1. How do you modify a column value in a target row and collect the result of the modification in one visit to the row?
+A. By using an UPDATE based on a join
+B. By using an UPDATE based on a table expression
+C. By using an UPDATE with a variable
+D. The task cannot be achieved with only one visit to the row.
+2. What are the benefits of using an UPDATE statement based on joins? (Choose all that apply.)
+A. You can filter the rows to update based on information in related rows in other tables.
+B. You can update multiple tables in one statement.
+C. You can collect information from related rows in other tables to be used in the source expressions in the SET clause.
+D. You can use data from multiple source rows that match one target row to update the data in the target row.
+3. How can you update a table, setting a column to the result of a window function?
+A. By using an UPDATE based on a join
+B. By using an UPDATE based on a table expression
+C. By using an UPDATE with a variable
+D. The task cannot be achieved.
+ANSWERS : 1.C   2.A,C     3.B
+
+= DELETING
+1. How do you delete rows from a table for which a ROW_NUMBER computation is equal to 1?
+A. You refer to the ROW_NUMBER function in the DELETE statement’s WHERE clause.
+B. You use a table expression like a CTE or derived table computing a column based on the ROW_NUMBER function, and then issue a filtered DELETE statement against the table expression.
+C. You use a table expression like a CTE or derived table computing a column based on the ROW_NUMBER function, and then issue a filtered TRUNCATE statement against the table expression.
+D. The task cannot be achieved.
+2. Which of the following is applicable to a DELETE statement? (Choose all that apply.)
+A. The statement writes more to the transaction log than TRUNCATE.
+B. The statement resets an IDENTITY property.
+C. The statement is disallowed when a foreign key points to the target table.
+D. The statement is disallowed when an indexed view based on the target table exists.
+3. Which of the following is applicable to a TRUNCATE statement? (Choose all that apply.)
+A. The statement writes more to the transaction log than DELETE.
+B. The statement resets an IDENTITY property.
+C. The statement is disallowed when a foreign key points to the target table.
+D. The statement is disallowed when an indexed view based on the target table exists.
+ANSWERS : 1.B   2.A     3.B,C,D
+	
+===OTHER DML aspects
+=SEQUENCE AND IDENTITY COLUMN
+1. Which function do you use to return the last identity value generated in a specific table?
+A. MAX
+B. SCOPE_IDENTITY
+C. @@IDENTITY
+D. IDENT_CURRENT
+
+2. What are the advantages of using a sequence object instead of IDENTITY? (Choose all that apply.)
+A. The IDENTITY property doesn’t guarantee that there won’t be gaps and the sequence object does.
+B. The IDENTITY property cannot be added to or removed from an existing column; a DEFAULT constraint with a NEXT VALUE FOR function can be added to or removed from an existing column.
+C. A new identity value cannot be generated before issuing an INSERT statement, whereas a sequence value can.
+D. You cannot provide your own value when inserting a row into a table with an IDENTITY column without special permissions. You can specify your own value for a column that normally gets its values from a sequence object.
+3. In an INSERT SELECT statement, how do you generate sequence values in specific order?
+A. Use the OVER clause in the NEXT VALUE FOR function.
+B. Specify an ORDER BY clause at the end of the query.
+C. Use TOP (100) PERCENT and ORDER BY in the query.
+D. Use TOP (9223372036854775807) and ORDER BY in the query.
+ANSWERS : 1.D   2.B,C,D    3.A 
+
+= MERGING DATA
+
+1. Which WHEN clauses are required in a MERGE statement at minimum?
+A. At minimum, the WHEN MATCHED and WHEN NOT MATCHED clauses are required.
+B. At minimum, only one clause is required, and it can be any of the WHEN clauses.
+C. At minimum, the WHEN MATCHED clause is required.
+D. At minimum, the WHEN NOT MATCHED clause is required.
+2. What can you specify as the source data in the USING clause? (Choose all that apply.)
+A. A regular table, table variable, or temporary table
+B. A table expression like a derived table or a CTE
+C. A stored procedure
+D. A table function like OPENROWSET or OPENXML
+3. Which clause of the MERGE statement isn’t standard?
+A. The WHEN MATCHED clause
+B. The WHEN NOT MATCHED clause
+C. The WHEN NOT MATCHED BY SOURCE clause
+D. All MERGE clauses are standard.
+ANSWERS : 1.B   2.A,B,D     3.C 
+
+= OUTPUT OPTION
+1. When referring in the OUTPUT clause to columns from the inserted rows, when should you prefix the columns with the keyword inserted?
+A. Always
+B. Never
+C. Only when the statement is UPDATE
+D. Only when the statement is MERGE
+2. What is the restriction in regard to the table specified as the target of an OUTPUT INTO clause? (Choose all that apply.)
+A. The table can only be a table variable.
+B. The table can only be a temporary table.
+C. The table cannot participate in either side of a foreign key relationship.
+D. The table cannot have triggers defined on it.
+3. Which of the following is only possible when using the MERGE statement in regard to the OUTPUT clause?
+A. Referring to columns from the source table
+B. Referring to both the keywords deleted and inserted
+C. Assigning aliases to output columns
+D. Using composable DML
+ANSWERS : 1.A   2.C,D    3.A 
+
+===TRANSACTION ERROR HANDLING AND DYNAMIC SQL
+=TRANSACTION AND CONCURENCY
+1. Which of the following T-SQL statements automatically occur in the context of a transaction? (Choose all that apply.)
+A. An ALTER TABLE command
+B. A PRINT command
+C. An UPDATE command
+D. A SET command
+2. How do the COMMIT and ROLLBACK commands work with nested transactions in T-SQL? (Choose all that apply.)
+A. A single COMMIT commits the entire nested transaction.
+B. A single ROLLBACK rolls back the entire nested transaction.
+C. A single COMMIT commits only one level of the nested transaction.
+D. A single ROLLBACK rolls back only one level of the nested transaction.
+
+3. Which of the following strategies can help reduce blocking and deadlocking by reducing shared locks? (Choose all that apply.)
+A. Add the READUNCOMMITTED table hint to queries.
+B. Use the READ COMMTTED SNAPSHOT option.
+C. Use the REPEATABLE READ isolation level.
+D. Use the SNAPSHOT isolation level.
+ANSWERS : 1.A,C   2.B,C     3.A,B,D 
+
+= ERROR HANDLING
+
+1. What is the advantage of using THROW in a CATCH block?
+A. THROW in a CATCH block does not require parameters and so is easier to write.
+B. THROW re-throws the original error so that the original error can be handled.
+C. THROW causes an error severity of level 16 automatically.
+D. The statement before a THROW requires a semicolon.
+2. Which of the following functions can be used in a CATCH block to return information about the error? (Choose all that apply.)
+A. @@ERROR
+B. ERROR_NUMBER()
+C. ERROR_MESSAGE()
+D. XACT_STATE()
+3. How does SET XACT_ABORT ON affect a transaction?
+A. If a T-SQL error with a severity level > 16 occurs, the transaction will be aborted.
+B. If a T-SQL error with a severity level > 10 occurs, the transaction will be aborted.
+C. If a T-SQL error with a severity level > 16 occurs, some statements of the transaction may still be executed.
+D. If a T-SQL error with a severity level > 10 occurs, some statements of the transaction may still be executed.
+ANSWERS : 1.B   2.A,B,C,D     3.B 
+
+= DYNAMIC SQL
+1. Which of the following techniques can be used to inject unwanted code into dynamic SQL when user input is concatenated with valid SQL commands?
+A. Insert a comment string of two dashes, then the malicious code, and then a single quotation mark.
+B. Insert a single quotation mark, then the malicious code, and then a comment string of two dashes.
+C. Insert the malicious code followed by a single quotation mark and a comment string of two dashes.
+2. What are the advantages of sp_executesql over the EXECUTE() command? (Choose all that apply.)
+A. sp_executesql can parameterize search arguments and help prevent SQL injection.
+B. sp_executesql uses Unicode strings.
+C. sp_executesql can return data through output parameters.
+3. Which of the following are true about the SET QUOTED_IDENTIFIER statement? (Choose all that apply.)
+A. When set to ON, QUOTED_IDENTIFIER allows you to use double quotation marks to delimit T-SQL identifiers such as table and column names.
+B. When set to OFF, QUOTED_IDENTIFIER allows you to use double quotation marks to delimit T-SQL identifiers such as table and column names.
+C. When set to ON, QUOTED_IDENTIFIER allows you to use double quotation marks to delimit strings.
+D. When set to OFF, QUOTED_IDENTIFIER allows you to use double quotation marks to delimit strings.
+ANSWERS : 1.B   2.A,C     3.A,D 
+=== IMPLEMENTING TSQL ROUTINES
+= STORED PROCEDURES
+1. Which of the following T-SQL statements can be used to cause branching within a stored procedure? (Choose all that apply.)
+A. WHILE
+B. BEGIN/END
+C. IF/ELSE
+D. GO
+2. A stored procedure calls another stored procedure. The calling stored procedure has created temporary tables, declared variables, and passes parameters to the called stored procedure. What data can the called stored procedure see from the caller?
+A. The called procedure can see the variables, temporary tables, and passed parameters of the caller.
+B. The called procedure can see the temporary tables but not the variables and passed parameters of the caller.
+C. The called procedure can see the passed parameters and temporary tables but not the variables of the caller.
+D. The called procedure cannot see any objects created by the calling procedure.
+3. How can you use output parameters in T-SQL stored procedures? (Choose all that apply.)
+A. You can pass data into a procedure by using an output parameter, but you cannot receive information back from it.
+B. You can pass data into a procedure by using an output parameter, and any change made to the parameter will be passed back to the calling routine.
+C. You cannot pass data into a procedure by using an output parameter; it is only used for passing data back to the caller.
+D. You cannot pass data into a procedure by using an output parameter, nor can you receive data back from a procedure from an output parameter.
+ANSWERS : 1.A,C   2.C     3.B 
+
+= TRIGGERS
+1. How do the inserted and deleted tables work with a DML statement in an AFTER trigger?
+A. For a DELETE statement, the inserted table contains new rows and the deleted table contains the deleted rows.
+B. The inserted table only contains rows from the INSERT statement, and the deleted table contains only rows from the DELETE statement.
+C. For an INSERT statement, the inserted table contains new rows and the deleted table is empty.
+D. For an UPDATE statement, the inserted table is empty and the deleted table contains all the changed rows.
+2. Which of the following statements are true about an INSTEAD OF trigger? (Choose all that apply.)
+A. INSTEAD OF triggers can be created on views.
+B. INSTEAD OF triggers execute instead of AFTER triggers.
+C. INSTEAD OF triggers can only be declared for UPDATE statements.
+D. INSTEAD OF triggers execute code in place of the original DML statement.
+3. How can you turn off nested triggers on a SQL Server instance by using T-SQL?
+A. Use the sp_configure stored procedure followed by 'nested triggers' and 'OFF'.
+B. Use the sp_configure stored procedure followed by 'nested triggers' and 0.
+C. Use the sp_configure stored procedure followed by 'nested triggers' and 'OFF',followed by the RECONFIGURE statement.
+D. Use the sp_configure stored procedure followed by 'nested triggers' and 0,followed by the RECONFIGURE statement.
+ANSWERS : 1.C   2.A,D     3.D 
+
+= USER DEFINED FUNCTIONS --Corrected
+1. Which of the following is true about scalar UDFs?
+A. Scalar UDFs are both inline and multistatement.
+B. Scalar UDFs return the result of a SELECT statement.
+C. Scalar UDFs can be invoked in a SELECT list or a WHERE clause.
+D. Scalar UDFs can be invoked in the FROM clause of a SELECT statement.
+2. Which of the following are true about table-valued UDFs?
+A. Table-valued UDFs can return scalar values or tables.
+B. Table-valued UDFs always involve multiple T-SQL statements.
+C. Table-valued UDFs can be invoked in a SELECT list or a WHERE clause.
+D. Table-valued UDFs can be invoked in the FROM clause of a SELECT statement.
+
+3. Which sentence best describes the difference between an inline table-valued UDF and a multistatement table-valued UDF?
+A. An inline table-valued UDF defines the schema of a table variable, with column names and data types, and inserts data into the table variable.
+B. An inline table-valued UDF defines the schema of a permanent table, with column names and data types, and then inserts data into that table.
+C. A multistatement table-valued UDF defines the schema of a table variable, with column names and data types, and inserts data into the table variable.
+D. A multistatement table-valued UDF defines the schema of a permanent table, with column names and data types, and then inserts data into that table.
+ANSWERS : 1.C   2.D     3.C 
+ 
+=== ANALYSING QUERY PERF TOOLS
+= QUERY OPTIMIZATION
+1. What are the actions of the optimization phase of query execution? (Choose all that apply.)
+A. Generation of the algebrized tree
+B. Generation of candidate plans
+C. Selection of the best candidate plan
+D. Caching the plan
+E. Query execution
+2. In which phase of query execution does SQL Server check whether the objects referred to by the query exist?
+A. In the parsing phase
+B. In the binding phase
+C. In the optimization phase
+D. In the execution phase
+3. Which of the following is not a part of an Extended Events package?
+A. Predicates
+B. Targets
+C. Sources
+D. Actions
+ANSWERS : 1.B,C   2.B     3.C 
+
+= USING SET SESSION OPTION
+1. Which SET session options are useful for query optimization? (Choose all that apply.)
+A. SET STATISTICS IO
+B. SET STATISTICS EXECUTION_DETAILS
+C. SET IDENTITY_INSERT
+D. SET STATISTICS TIME
+2. How do you read a graphical execution plan?
+A. From top to bottom, from left to right
+B. From top to bottom, from right to left
+C. From left to right, from top to bottom
+D. From right to left, from top to bottom
+
+3. Which commands turn on an XML plan? (Choose all that apply.)
+A. SET EXECUTION_XML ON
+B. SET SHOWPLAN_XML ON
+C. SET XML PLAN ON
+D. SET STATISTICS XML ON
+ANSWERS : 1.A,D   2.D     3.B,D 
+
+= DYNAMIC MANAGEMENT OBJECTS
+1. Which DMO gives you information about index usage?
+A. sys.dm_exec_query_stats
+B. sys.dm_exec_query_text
+C. sys.dm_db_index_usage_stats
+D. sys.indexes
+2. What is the most important drawback of DMOs?
+A. You must have enough data collected from the last restart of SQL Server.
+B. DMOs are complex to use.
+C. DMOs are not available in the Standard edition of SQL Server.
+D. You have to recreate DMOs before each analysis.
+
+3. How can you find the text of the query executed by using DMOs?
+A. This info is provided in the sys.dm_exec_query_stats dynamic management view.
+B. By querying the sys.dm_exec_sql_text dynamic management function.
+C. The sys.dm_exec_query_plan dynamic management function returns the query text.
+D. You cannot find the query text through DMOs.
+ANSWERS : 1.C   2.A     3.B 
+ 
+=== IMPLEMENTING INDEXES AND STATISTICS
+= INDEXES
+1. What levels can an index have? (Choose all that apply.)
+A. Intermediate level
+B. Heap level
+C. Root level
+D. Leaf level
+2. How many clustered indexes can you create on a table?
+A. 999
+B. 16
+C. 1
+D. 900
+3. What is the row locator when a table is stored as a balanced tree?
+A. RID.
+B. Columnstore index key.
+C. Clustering key.
+D. A table is never stored as a balanced tree.
+ANSWERS : 1.A,C,D   2.C     3.C 
+
+= USING SEARCH ARGUMENTS
+1. How can you support the SELECT clause of a query by using a nonclustered index that is already used for the WHERE clause?
+A. You could use SELECT *.
+B. You could modify the index that is already used to include the columns from the select list that are not part of the key.
+C. You could add column aliases.
+D. There is no way to support the SELECT clause with indexes.
+2. Where does SQL Server sort the data, if a sort is needed?
+A. In the current database
+B. In the master database
+C. In the msdb database
+D. SQL Server sorts data in memory, or spills the data to tempdb if it does not fit in memory.
+3. You create an index to support the WHERE clause of a query. However, SQL Server does not use the index. What are the possible reasons? (Choose all that apply.)
+A. The arguments in the predicate are not searchable.
+B. SQL Server does not consider using an index to support the WHERE clause.
+C. The predicate is not selective enough.
+D. You are in the context of the tempdb database, and SQL Server does not use indexes in this database.
+ANSWERS : 1.B   2.D     3.A,C 
+
+= UNDERSTANDING STATISTICS
+1. How can SQL Server estimate the cardinality of a query?
+A. SQL Server stores the cardinality information on leaf-level pages of indexes.
+B. SQL Server quickly executes the query on 10 percent of sample data.
+C. SQL Server cannot estimate the cardinality of a query if you do not provide a table hint.
+D. SQL Server uses statistics to estimate the cardinality of a query.
+2. Which of the following is not a reason to update statistics manually?
+A. You just rebuilt an index.
+B. You bulk-inserted a large amount of data to a table and want to query this table immediately after the insert.
+C. You upgraded the database.
+D. Query execution times are slow; however, you know that the queries are written correctly and supported with appropriate indexes.
+3. What is the limit for the number of steps in statistic histograms?
+A. 10 steps per histogram
+B. 200 histograms per column
+C. 200 pages per histogram
+D. 200 steps per histogram
+ANSWERS : 1.D   2.A     3.D 
+
+=== CURSORS SETS TEMPORARY TABLES -- Corrected
+= cursor (ITERATIVE ) solution VS SET_BASED solution
+1. When you fetch rows from a cursor, how do you know when there are no more rows to fetch?
+A. When the @@FETCH_STATUS function returns 0
+B. When the @@FETCH_STATUS function returns -1
+C. When the @@FETCH_STATUS function returns -2
+D. When the @@FETCH_STATUS function generates an error
+2. Why is it important to prefer set-based solutions for querying tasks instead of iterative ones? (Choose all that apply.)
+A. Because set-based solutions are based on the relational model, which is the foundation of T-SQL
+B. Because set-based solutions always provide better performance than iterative solutions
+C. Because set-based solutions usually involve less code than iterative solutions
+D. Because set-based solutions enable you to rely on the order of data
+3. When you need to operate on one row at a time, what are the alternatives to using a cursor?
+A. Using the FOR EACH looping construct.
+B. Retrieving the minimum and maximum keys, and then looping with a counter that starts with the minimum and keeps being incremented by 1 in each iteration until it reaches the maximum.
+C. Using a TOP (1) query ordered by the key to fetch the first row. Then use a loop while the last key returned is not NULL. In each iteration of the loop, process the current row and then use a TOP (1) query where the key is greater than the last,ordered by the key, to fetch the next row.
+D. Define a per-row SELECT trigger.
+
+ANSWERS : 1.B   2.A,C     3.C 
+
+= TEMPORARY TABLES VS TABLE VARIABLES  ---corrected
+
+1. Which of the following cases is suitable for using table variables? (Choose all that apply.)
+A. When the tables are very small and the plan is trivial
+B. When the tables are very small and the plan is nontrivial
+C. When the tables are large and the plan is trivial
+D. When the tables are large and the plan is nontrivial
+2. Can you have indexes on table variables?
+A. No
+B. Yes, by running the CREATE INDEX command
+C. Yes, indirectly by defining primary key and unique constraints
+D. Yes, by defining foreign keys
+3. You are tasked with implementing a trigger. As part of the trigger’s code in specific conditions, you need to roll back the transaction. However, you need to copy the data from the inserted and deleted tables in the trigger into audit tables to keep track of what was supposed to be changed. How can you achieve this?
+A. Roll back the transaction, and then copy the data from the inserted and deleted tables into the audit tables.
+B. Copy the data from the inserted and deleted tables into the audit tables and then roll back the transaction.
+C. Copy the rows from the inserted and deleted tables into temporary tables, roll back the transaction, and then copy the data from the temporary tables into the audit tables.
+D. Copy the rows from the inserted and deleted tables into table variables, roll back the transaction, and then copy the data from the table variables into the audit tables.
+
+ANSWERS : 1.A,B,C   2.C     3.D 
+
+=== FURTHER OPTIMIZATION ASPECTS
+= PLAN ITERATORS
+1. What aggregation algorithms does SQL Server use? (Choose all that apply.)
+A. Merge aggregation
+B. Stream aggregation
+C. Hash aggregation
+D. Nested loops aggregation
+2. Which operator is used when SQL Server performs a nonclustered index seek to find a row, but then also needs data from the underlying table, which is organized as a clustered index?
+A. RID Lookup
+B. Clustered Index Scan
+C. Merge Join
+D. Key Lookup
+3. What is the scan called when SQL Server scans a clustered index in logical order of the index?
+A. Allocation order scan
+B. Clustered index scan
+C. Index order scan
+D. Index order seek
+
+ANSWERS : 1.B,C   2.D     3.C 
+= PARAMETRIZED QUERIES AND BATCH OPERATIONS
+1. What are possible reasons that SQL Server does not reuse an existing cached plan? (Choose all that apply.)
+A. Because a SET option that influences the query result was changed
+B. Because the query is manually parameterized in a stored procedure, and no recompilation option is used
+C. Because SQL Server cannot determine the selectivity of the parameterized predicate
+D. Because a different data type was used for a parameter in the parameterized predicate
+2. What is the main advantage of batch mode processing?
+A. It lowers the disk I/O.
+B. It speeds up network transfer.
+C. It lowers the CPU burden.
+D. It uses less memory.
+3. Which of the following SET commands would prevent execution plan reusage?
+A. SET STATISTICS IO ON
+B. SET STATISTICS PROFILE ON
+C. SET CONCAT_NULL_YIELDS_NULL OFF
+D. SET STATISTICS IO OFF
+
+ANSWERS : 1.A,C,D   2.C     3.C 
+
+= OPTIMIZER HINTS AND PLAN GUIDES
+1. What kind of optimizer hints does SQL Server 2012 support? (Choose all that apply.)
+A. Query
+B. Join
+C. Order
+D. Table
+2. What is not a type of plan guide?
+A. JOIN
+B. TEMPLATE
+C. SQL
+D. OBJECT
+3. What does the OPTION (ORDER GROUP) query hint force?
+A. Using indexes for joins
+B. Hash aggregation
+C. Aggregation in order—that is, a serial plan for aggregation
+D. Stream aggregation
+
+ANSWERS : 1.A,B,D   2.A     3.D 
+
+severity level :
+Severity level 0-10: These are just information message not actual error.
+
+Severity level 11 to 16: These are errors caused due to user mistakes. We have tried to divide value by 0 in previous article and hence we got severity error 16.
+
+Severity Level 17: This severity indicates that an operation making SQL Server out of resources or exceeding defined limit. That may be disk space or lock limit.
+
+Severity Level 18: This error represents nonfatal internal software error.
+
+Severity Level 19: This error represents some non-configurable internal limit has been exceeded and the current batch process is terminated. To be very frank, I have not seen this severity practically in my life.
+
+Severity Level 20: This severity indicates current statement has encountered a problem and because of this severity level client connection with SQL Server will be disconnected.
+
+Severity Level 21: This severity indicates that you have encountered a problem that affects all processes in the current database.
+
+Severity Level 22: This error indicates problem with database table or index. It may be corrupt or damaged.
+
+Severity Level 23: This error indicates problem with database integrity which may be fixed by DBCC command.
+
+Severity Level 24: This error indicates problem with the hardware of SQL Server. Need to check disk drive and related hardware extensively.
+
+======================================================70-463=======================================================================================
+
+
+Script Task   use c# to send an email with non default port mail.harriscomputer.com
+This is not nopCommerce issue, all you need to enable 3rd party application to access your gmail account. Follow this steps to fix this:
+1. Login to your gmail account.
+2. Visit this page https://accounts.google.com/DisplayUnlockCaptcha and click on button to allow access.
+3. Visit this page https://www.google.com/settings/security/lesssecureapps and enable access for less secure apps.
+
+		public void Main()
+		{
+			// TODO: Add your code here
+
+            SmtpClient smtp = new SmtpClient("smtp.gmail.com", 587);
+            smtp.EnableSsl = true;
+            smtp.Credentials = new NetworkCredential("kouss.hd@gmail.com", "password");
+            
+            MailMessage msg = new MailMessage();
+            msg.From = new MailAddress("ssis@nuggetlab.com");
+            msg.To.Add(new MailAddress("kouss.hd@gmail.com"));
+            msg.Subject = "AW2012 ETL process Complete";
+            msg.Body= string.Format("{0} records loaded into DimProduct.",0);
+            smtp.Send(msg);
+
+			Dts.TaskResult = (int)ScriptResults.Success;
+		}
+		
+		
+		
+	public void Main()
+		{
+            try
+            {
+                SmtpClient smtp = new SmtpClient(Dts.Variables["$Package::SMTPHost"].Value.ToString(),(int)Dts.Variables["$Package::SMTPPort"].Value);
+                smtp.EnableSsl = true;
+                smtp.Credentials = new NetworkCredential(Dts.Variables["$Package::EmailAddress"].Value.ToString(), "Versuz09*");
+                
+                MailMessage msg = new MailMessage();
+                msg.From = new MailAddress("SSIS_70463@MCRORAT05_MTLDB.com");
+                msg.To.Add(new MailAddress("kouss.hd@gmail.com"));
+                msg.Subject = "AW2012 ETL process Complete";
+                msg.Body = Dts.Variables["User::EmailBody"].Value.ToString();
+
+               // smtp.Send(msg);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString());
+            }
+			    Dts.TaskResult = (int)ScriptResults.Success;
+		}
+		
+=== Compare Project Deployment Model and // legacy Package Deployment Model
+ Project Deployment Model: During execution, events that are produced by the package are captured automatically and saved to the catalog. You can query these events with Transact-SQL views.
+ legacy Package Deployment Model: During execution, events that are produced by a package are not captured automatically. A log provider must be added to the package to capture events.
+--Fact table Granularity 
+ lowest level of information that will be stored in the fact table. This constitutes two steps:
+ - Determine which dimensions will be included.
+ - Determine where along the hierarchy of each dimension the information will be kept.
+The lower the level of detail(granularity), the larger the data amount in the fact table (example : Change granularity of the fact table to month instead of hour....less rows . 
+		
+= Package execution : 
+TEXECUI otherwise known as “Execute Package Utility” is a user interface for running an SSIS package. DTEXEC is the command line execution utility and DTEXECUI is an execution utility with a GUI.
+/DumpOnError:		
+Optional. Creates the debug dump files, .mdmp and .tmp, when any error occurs while the package is running.		
+/F[ile] filespec:
+/L[ogger] classid_or progid;configstring:
+Optional. Associates one or more log providers with the execution of an SSIS package. The classid_orprogid parameter specifies the log provider, and can be specified as a class GUID. The configstring is the string that is used to configure the log provider.
+To execute an SSIS package that is saved in the file system, and specify logging options, use the following code:		
+dtexec /f "c:\pkgOne.dtsx" /l "DTS.LogProviderTextFile;c:\log.txt"                                               		
+ The following list shows the available log providers:
+  Text file:  DTS.LogProviderTextFile
+  SQL Server Profiler: DTS.LogProviderSQLProfiler
+  SQL Server:DTS.LogProviderSQLServer
+  Windows Event Log:DTS.LogProviderEventLog
+  XML File:DTS.LogProviderXMLFile
+  
+/SQ[L] package_path:
+Loads a package that is stored in SQL Server, in msdb database. Packages that are stored in the msdb database, are deployed using the package deployment model. To run packages that are deployed to the Integration Services server using the project deployment model, use the /ISServer option. For more information about the package and project deployment models, see Deployment of Projects and Packages.
+  
+  /Ca[llerInfo]:
+Optional. Specifies additional information for a package execution. When you run a package using SQL Server Agent, agent sets this argument to indicate that the package execution is invoked by SQL Server Agent. This parameter is ignored when the dtexec utility is run from the command line.
+
+/CheckF[ile] filespec:
+Optional. Sets the CheckpointFileName property on the package to the path and file spemandcified in filespec. This file is used when the package restarts. If this option is specified and no value is supplied for the file name, the CheckpointFileName for the package is set to an empty string. If this option is not specified, the values in the package are retained.
+
+/CheckP[ointing] {on\off}:
+Optional. Sets a value that determines whether the package will use checkpoints during package execution. The value on specifies that a failed package is to be rerun. When the failed package is rerun, the run-time engine uses the checkpoint file to restart the package from the point of failure.
+The default value is on if the option is declared without a value. Package execution will fail if the value is set to on and the checkpoint file cannot be found. If this option is not specified, the value set in the package is retained. For more information, see Restart Packages by Using Checkpoints.
+The /CheckPointing on option of dtexec is equivalent to setting the SaveCheckpoints property of the package to True, and the CheckpointUsage property to Always.
+
+/Com[mandFile] filespec:
+(Optional). Specifies the command options that run with dtexec. The file specified in filespec is opened and options from the file are read until EOF is found in the file. filespec is a text file. The filespec argument specifies the file name and path of the command file to associate with the execution of the package.
+
+/Conf[igFile] filespec: Optional. Specifies a configuration file to extract values from. Using this option, you can set a run-time configuration that differs from the configuration that was specified at design time for the package. You can store different configuration settings in an XML configuration file and then load the settings before package execution by using the /ConfigFile option.
+You can use the /ConfigFile option to load additional configurations at run time that you did not specify at design time. However, you cannot use the /ConfigFile option to replace configured values that you also specified at design time. To understand how package configurations are applied, see Package Configurations.
+
+/Conn[ection] id_or_name;connection_string [[;id_or_name;connection_string]…]:
+Optional. Specifies that the connection manager with the specified name or GUID is located in the package, and specifies a connection string.
+This option requires that both parameters be specified: the connection manager name or GUID must be provided in the id_or_name argument, and a valid connection string must be specified in the connection_string argument. For more information, see Integration Services (SSIS) Connections.
+At run time, you can use the /Connection option to load package configurations from a location other than the location that you specified at design time. The values of these configurations then replace the values that were originally specified. However you can use the /Connection option only for configurations, such as SQL Server configurations, that use a connection manager. To understand how package configurations are applied, see Package Configurations and Behavior Changes to Integration Services Features in SQL Server 2014.
+
+/Cons[oleLog] [[displayoptions];[list_options;src_name_or_guid]...]: Optional. Displays specified log entries to the console during package execution. If this option is omitted, no log entries are shown in the console. If the option is specified without parameters that limit the display, every log entry will display. To limit the entries that are displayed to the console, you can specify the columns to show by using the displayoptions parameter, and limit the log entry types by using the list_options parameter.
+  The displayoptions values are as follows:
+N (Name)
+C (Computer)
+O (Operator)
+S (Source Name)
+G (Source GUID)
+X (Execution GUID)
+M (Message)
+T (Time Start and End)
+The list_options values are as follows:
+I - Specifies the inclusion list. Only the source names or GUIDs that are specified are logged.
+E - Specifies the exclusion list. The source names or GUIDs that are specified are not logged.
+The src_name_or_guid parameter specified for inclusion or exclusion is an event name, source name, or source GUID.
+
+/D[ts] package_path:
+Optional. Loads a package from the SSIS Package Store. Packages that are stored in the SSIS Package Store, are deployed using the legacy package deployment model. To run packages that are deployed to the Integration Services server using the project deployment model, use the /ISServer option. For more information about the package and project deployment models, see Deployment of Projects and Packages.
+The package_path argument specifies the relative path of the SSIS package, starting at the root of the SSIS Package Store, and includes the name of the SSIS package. If the path or file name specified in the package_path argument contains a space, you must put quotation marks around the package_path argument.
+The /DTS option cannot be used together with the /File or /SQL option. If multiple options are specified, dtexec fails.
+/De[crypt]  password: Optional. Sets the decryption password that is used when you load a package with password encryption.
+/Dump error code: "/Dump 0xC020801C"
+Optional Creates the debug dump files, .mdmp and .tmp, when one or more specified events occur while the package is running. The error code argument specifies the type of event code—error, warning, or information—that will trigger the system to create the debug dump files. To specify multiple event codes, separate each error code argument by a semi-colon (;). Do not include quotes with the error code argument.
+The following example generates the debug dump files when the DTS_E_CANNOTACQUIRECONNECTIONFROMCONNECTIONMANAGER error occurs.
+/F[ile] filespec:
+Optional. Loads a package that is saved in the file system. Packages that are saved in the file system, are deployed using the legacy package deployment model. To run packages that are deployed to the Integration Services server using the project deployment model, use the /ISServer option. For more information about the package and project deployment models,
+/ISServer packagepath:
+Optional. Runs a package that is deployed to the Integration Services server. The PackagePath argument specifies the full path and file name of the package deployed to the Integration Services server. If the path or file name specified in the PackagePath argument contains a space, you must put quotation marks around the PackagePath argument.
+ 
+/Par[ameter] [$Package:: | $Project:: | $ServerOption::] parameter_name [(data_type)]; literal_value:     "/parameter CM.SourceServer.ServerName;. "
+ Optional. Specifies parameter values. Multiple /Parameter options can be specified. The data types are CLR TypeCodes as strings. For a non-string parameter, the data type is specified in parenthesis, following the parameter name.
+The /Parameter option can be used only with the /ISServer option.
+You use the $Package, $Project, and $ServerOption prefixes to indicate a package parameter, project parameter, and a server option parameter, respectively. The default parameter type is package.
+
+
+/Proj[ect] ProjectFile:
+Optional. Specifies the project from which to retrieve the package that is executed. The ProjectFile argument specifies the .ispac file name. This parameter is used primarily when you execute the package from Visual Studio.
+
+/Ser[ver] server:
+Optional. When the /SQL or /DTS option is specified, this option specifies the name of the server from which to retrieve the package.
+
+/Rep[orting] level [;event_guid_or_name[;event_guid_or_name[...]]: Optional. Specifies what types of messages to report. The available reporting options for level are as follows:
+N No reporting.
+E Errors are reported.
+W Warnings are reported.
+I Informational messages are reported.
+C Custom events are reported.
+D Data Flow task events are reported.
+P Progress is reported.
+V Verbose reporting.
+
+If the /Reporting option is not specified then the default level is E (errors), W (warnings), and P (progress).
+All events are preceded with a timestamp in the format "YY/MM/DD HH:MM:SS", and a GUID or friendly name if available.
+The optional parameter event_guid_or_name is a list of exceptions to the log providers. The exception specifies the events that are not logged that otherwise might have been logged.
+You do not have to exclude an event if the event is not ordinarily logged by default
+/Res[tart] {deny | force | ifPossible}: Optional. Specifies a new value for the P:Microsoft.SqlServer.Dts.Runtime.Package.CheckpointUsage property on the package. The meaning of the parameters are as follows:
+Deny Sets P:Microsoft.SqlServer.Dts.Runtime.Package.CheckpointUsage property to DTSCU_NEVER.
+Force Sets P:Microsoft.SqlServer.Dts.Runtime.Package.CheckpointUsage property to DTSCU_ALWAYS.
+ifPossible Sets P:Microsoft.SqlServer.Dts.Runtime.Package.CheckpointUsage property to DTSCU_IFEXISTS.
+The default value of force is used if no value is specified.
+
+
+
+50- SSIS : Modify the path where the SSIS package writes event data to a text file.> Modify the Connection Manager.
+51- SSIS : Add another instance of custom data flow component to the toolbox > Copy the assembly to the appropriate folder.
+52- SSIS : Ensure data flow insert only those rows that do not already exist in the destination table from source query > 1-Use the Lookup transformation. OR 2- use Merge Join transformation.
+          source query to a destination table.
+53- SSIS : Ensure package version information is writen to texfile > VersionGIUD variable       
+54- SSIS : Ensure that packqage to extract multiple text files in same directory > 1- Add variable to package 2- Add foreach loop container to the package 3- add expresion to te flatfile connection manager  
+55- SSIS : Ensure each query in each row data flow before the Merge join (sorted before the merge) > Update sorting properties in each source component.    
+56- SSIS : Execute  package using OLE DB connection manager to connect to third party DB server not suporting windows authentication _ avoid login failure > edit XML configuration file 
+57- SSRS : Ensure report items are grouped by the first character in the lastName Column >  use expression =Fields!LastName.value.substring(0,1) 
+58- SSRS : Ensure private shared function compiles susccessfully and can be called by other reports : Create a custom assembly using Microsoft Visual Basic.NET. Declare the fucntion as Public shared.  
+59- SSRS : Ensure report executes wthout user interaction from Report Manager | configure default value for the parameter based on expression
+60- SSRS : Ensure that windows forms application distributed to remote users (with no acces to SSRS) renders the report correectly : Use the ReportView control along with the localReport property .
+61- SSRS : modify report to help query multiple predicate values : modify query to use the IN operator insead of = operator
+62- SSIS : Create deployment manifest for all ssis packages in the project | build the Integration services project . 
+63- SSIS : ensure package DEVServer accesses The PRODServer without errors: on connection manager tab of execute package utility , modify connection string
+64- SSIS : ensure  all tasks of a package are run in single transaction but the last not > set the transactionOption of the package to required and the transactionOption of the last task to notSuported 
+65- SSIS: ensure that DEV package with connection string in its XML config file executes successfully in  the production environement > Configure to use EncryptSensitiveWithPassword package protection level.
+66- SSIS: ensure that a package resumes execution during failover of windows cluster > implement checkpoints withing the package and restart the package whenever a failover occurs.
+67- SSIS: ensure package that download file via FTP tasks then processes data via execute SQl tasks Restarts at point of failure after files download> configure package to use checkpoints
+68- SSRS: ensure data-driven subscription successfully execute for a report > configure stored credential in the report.
+
+
+
+
+3- SSAS :
+Eabling the Query Log
+Te query log captures the query activity as users and applications interact with the server.
+T enable the query log in SSMS, right-click the Analysis Services server node, and then select Properties>General> set the QueryLog properties
+Log \ Query log \ CreateQueryLog Table = true
+Log \ Query log \ QueryLogConnection String = [my connection string]
+Log \ Query log \ QueryLogSampling = 10
+Log \ Query log \ QueryLog TableName = OLAPQueryLog
+
+
+34- SSAS : ensure that the users of the application can successfully access the SSAS database =| Configure Kerberos authentication 
+35- SSAS: ensure only one measure group is deployed in production environment Cube from the two available in devlopment : Use SSMS to run an XMLA command
+36- SSAS: when changing dimension attribute binding : run XMLA processClear and processdefault to reload objects state.
+37- SSAS : to update new changed functionality in dev cube on production devlopment :  use Synchronize database Wizard
+38- SSAS :(performance) collect temporary file usage when database is processed :MSAS 2008:Proc Aggregations 
+39- SSAS : Key performance indicator KPI- GPMargin : set tren expression to show difference vales compared with previous quarter=> insert KPIvalue("GPmargin")>(KPIValue("GPMargin"),
+40- SSAS : Ensure Aggregation on factsales measure group referencing Dimtime dimension include attributname month) | set aggregationUsage property appropiately    
+41- SSAS :dimension key customer and related attribute country : ensure measure values based on city and country > set source=custmer & related attribute=Country  
+41- SSAS : Proactive caching for partition enabled ; ensure SSAS query data when multidimensional storage is being updated > set partition OnlineMode = immediate 
+42- SSAS : Ensure Amount measure is calculated against DimCustomer dimension, value calculated based on the Ownership measure> MeasureExpression property of the Amount measure to [Amount]*[Ownership].
+43- DimProduct that contains an attribute named Price, ensure that aggregations are not associated with the Price attribute> Set the AttributeHierarchyEnabled of the Price attribute to False.
+44- SSRS : Dimension, the weighted value is calculated based on the Ownership measure. Configure Kerberos only authentication support : edit RSReportServer.config file 
+45- SSRS : On SQL serve  failover cluster scale-out deployment : install SSRS on both cluster to use the same ReportServer database .
+46- SSRS : When migrating reports from a server to a new one with SSRS just copy the database and configure using Reporting services Configuration Tool.
+47- SSRS : Ensure managers group can view/modify reports in the managment folders and not other groups: remove all groups from folder + add managers group to the folder with content manager role
+48- SSRS : Create new synamic subscribtion on the report server : select report created.  click subscription tab > click New Data driver subcription.
+49- SSRS : Multidimensional expresssion DMX :query generates an error when executed > replace CHAPTERS axis with ROWS axis

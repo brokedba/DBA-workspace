@@ -1,0 +1,258 @@
+USE [master]
+GO
+
+/****** Object:  Database [demodb]    Script Date: 2016-08-11 3:35:26 PM ******/
+--DROP DATABASE [demodb]
+--GO
+
+/****** Object:  Database [demodb]    Script Date: 2016-08-11 3:35:26 PM ******/
+CREATE DATABASE [demodb]
+ CONTAINMENT = PARTIAL
+ ON  PRIMARY 
+( NAME = N'DemoDB', FILENAME = N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\DemoDB.mdf' , SIZE = 5120KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB ), 
+ FILEGROUP [Data]  DEFAULT 
+( NAME = N'DemoDB_data', FILENAME = N'E:\Components\DemoDB_data.ndf' , SIZE = 13312KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB ), 
+( NAME = N'DemoDB_data2', FILENAME = N'E:\Components\DemoDB_data2.ndf' , SIZE = 13312KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB ), 
+ FILEGROUP [Data2] 
+( NAME = N'DemoDB_Data3', FILENAME = N'E:\Components\SQL_DATA\DemoDB_Data3.ndf' , SIZE = 13312KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB ), 
+( NAME = N'DemoDB_Data4', FILENAME = N'E:\Components\SQL_DATA\DemoDB_DB.ndf' , SIZE = 13312KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB ), 
+ FILEGROUP [index] 
+( NAME = N'DemoDB_index', FILENAME = N'E:\Components\DemoDB_index.ndf' , SIZE = 5120KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB ), 
+ FILEGROUP [OldData] 
+( NAME = N'DemoDB_OldData', FILENAME = N'E:\Components\SQL_DATA\Old_data.ndf' , SIZE = 1024KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB )
+ LOG ON 
+( NAME = N'DemoDB_log', FILENAME = N'E:\Components\DemoDB_log.ldf' , SIZE = 219264KB , MAXSIZE = 2048GB , FILEGROWTH = 10%)
+GO
+
+ALTER DATABASE [demodb] SET COMPATIBILITY_LEVEL = 110
+GO
+
+IF (1 = FULLTEXTSERVICEPROPERTY('IsFullTextInstalled'))
+begin
+EXEC [demodb].[dbo].[sp_fulltext_database] @action = 'enable'
+end
+GO
+
+ALTER DATABASE [demodb] SET ANSI_NULL_DEFAULT OFF 
+GO
+
+ALTER DATABASE [demodb] SET ANSI_NULLS OFF 
+GO
+
+ALTER DATABASE [demodb] SET ANSI_PADDING OFF 
+GO
+
+ALTER DATABASE [demodb] SET ANSI_WARNINGS OFF 
+GO
+
+ALTER DATABASE [demodb] SET ARITHABORT OFF 
+GO
+
+ALTER DATABASE [demodb] SET AUTO_CLOSE OFF 
+GO
+
+ALTER DATABASE [demodb] SET AUTO_CREATE_STATISTICS ON 
+GO
+
+ALTER DATABASE [demodb] SET AUTO_SHRINK OFF 
+GO
+
+ALTER DATABASE [demodb] SET AUTO_UPDATE_STATISTICS ON 
+GO
+
+ALTER DATABASE [demodb] SET CURSOR_CLOSE_ON_COMMIT OFF 
+GO
+
+ALTER DATABASE [demodb] SET CURSOR_DEFAULT  GLOBAL 
+GO
+
+ALTER DATABASE [demodb] SET CONCAT_NULL_YIELDS_NULL OFF 
+GO
+
+ALTER DATABASE [demodb] SET NUMERIC_ROUNDABORT OFF 
+GO
+
+ALTER DATABASE [demodb] SET QUOTED_IDENTIFIER OFF 
+GO
+
+ALTER DATABASE [demodb] SET RECURSIVE_TRIGGERS OFF 
+GO
+
+ALTER DATABASE [demodb] SET  DISABLE_BROKER 
+GO
+
+ALTER DATABASE [demodb] SET AUTO_UPDATE_STATISTICS_ASYNC OFF 
+GO
+
+ALTER DATABASE [demodb] SET DATE_CORRELATION_OPTIMIZATION OFF 
+GO
+
+ALTER DATABASE [demodb] SET TRUSTWORTHY OFF 
+GO
+
+ALTER DATABASE [demodb] SET ALLOW_SNAPSHOT_ISOLATION OFF 
+GO
+
+ALTER DATABASE [demodb] SET PARAMETERIZATION SIMPLE 
+GO
+
+ALTER DATABASE [demodb] SET READ_COMMITTED_SNAPSHOT OFF 
+GO
+
+ALTER DATABASE [demodb] SET HONOR_BROKER_PRIORITY OFF 
+GO
+
+ALTER DATABASE [demodb] SET RECOVERY FULL 
+GO
+
+ALTER DATABASE [demodb] SET  MULTI_USER 
+GO
+
+ALTER DATABASE [demodb] SET PAGE_VERIFY CHECKSUM  
+GO
+
+ALTER DATABASE [demodb] SET DB_CHAINING OFF 
+GO
+
+ALTER DATABASE [demodb] SET DEFAULT_FULLTEXT_LANGUAGE = 1033 
+GO
+
+ALTER DATABASE [demodb] SET DEFAULT_LANGUAGE = 1033 
+GO
+
+ALTER DATABASE [demodb] SET NESTED_TRIGGERS = ON 
+GO
+
+ALTER DATABASE [demodb] SET TRANSFORM_NOISE_WORDS = OFF 
+GO
+
+ALTER DATABASE [demodb] SET TWO_DIGIT_YEAR_CUTOFF = 2049 
+GO
+
+ALTER DATABASE [demodb] SET FILESTREAM( NON_TRANSACTED_ACCESS = OFF ) 
+GO
+
+ALTER DATABASE [demodb] SET TARGET_RECOVERY_TIME = 0 SECONDS 
+GO
+
+ALTER DATABASE [demodb] SET ENCRYPTION ON
+GO
+
+ALTER DATABASE [demodb] SET  READ_WRITE 
+GO
+
+USE [demodb]
+GO
+
+USE [demodb]
+GO
+
+/****** Object:  Table [dbo].[Employees]    Script Date: 2016-08-11 3:49:28 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Employees](
+	[EmployeeID] [int] NOT NULL,
+	[FirstName] [nvarchar](59) NOT NULL,
+	[LastName] [nvarchar](75) NOT NULL,
+	[Emai] [nvarchar](50) NULL,
+	[Title] [nvarchar](100) NULL,
+	[HireDate] [datetime] NOT NULL,
+	[VacationHours] [smallint] NOT NULL,
+	[Salary] [decimal](19, 4) NOT NULL,
+	[ActiveFlag] [bit] NOT NULL,
+	[ModifiedDate] [datetime] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[EmployeeID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+USE [demodb]
+GO
+
+/****** Object:  Table [dbo].[locktest]    Script Date: 2016-08-11 3:49:56 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[locktest](
+	[ID] [smallint] NULL,
+	[Somedata] [nvarchar](50) NULL
+) ON [Data]
+
+GO
+
+USE [demodb]
+GO
+
+/****** Object:  Table [dbo].[LotsOFSales]    Script Date: 2016-08-11 3:50:37 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[LotsOFSales](
+	[SaleID] [int] NOT NULL,
+	[PRODUCTID] [int] NOT NULL,
+	[Quantity] [smallint] NOT NULL,
+	[SaleAmount] [numeric](16, 2) NOT NULL,
+	[SalesDate] [datetime] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[SaleID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
+)
+
+GO
+
+USE [demodb]
+GO
+
+/****** Object:  Table [dbo].[Sales]    Script Date: 2016-08-11 3:51:06 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Sales](
+	[SaleID] [int] NOT NULL,
+	[PRODUCTID] [int] NOT NULL,
+	[Quantity] [smallint] NOT NULL,
+	[SaleAmount] [numeric](16, 2) NOT NULL,
+	[SalesDate] [datetime] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[SaleID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
+)
+
+GO
+USE [demodb]
+GO
+
+/****** Object:  Table [dbo].[sales_archive]    Script Date: 2016-08-11 3:51:34 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[sales_archive](
+	[SaleID] [int] NOT NULL,
+	[PRODUCTID] [int] NOT NULL,
+	[Quantity] [smallint] NOT NULL,
+	[SaleAmount] [numeric](16, 2) NOT NULL,
+	[SalesDate] [datetime] NOT NULL
+) ON [OldData]
+
+GO

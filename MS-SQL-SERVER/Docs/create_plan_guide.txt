@@ -1,0 +1,29 @@
+OBJECT TYPE PLAN GUIDE :  If due to stored procedure being in a deployed application, you cannot directly modify the application code create the following plan guide.
+
+USE AdventureWorks2012 
+sp_create_plan_guide   
+@name = N'Guide1',  
+@stmt = N'SELECT *FROM Sales.SalesOrderHeader AS h,  
+        Sales.Customer AS c,  
+        Sales.SalesTerritory AS t  
+        WHERE h.CustomerID = c.CustomerID   
+            AND c.TerritoryID = t.TerritoryID  
+            AND CountryRegionCode = @Country_region',  
+@type = N'OBJECT',  
+@module_or_batch = N'Sales.GetSalesOrderByCountry',  
+@params = NULL,  
+@hints = N'OPTION (OPTIMIZE FOR (@Country_region = N''US''))';
+
+
+examples @hints = N’OPTION (OPTIMIZE FOR (@_SubscribedId=24915,@_EventId=0,@_AuthZ=”A”))’     are table field variable 
+
+SQL TYPE PLAN GUIDE : module_or_batch=null   /// When @type = 'SQL' and @module_or_batch is set to NULL, the value of @module_or_batch is set to the value of @stmt. 
+
+USE AdventureWorks2012 
+sp_create_plan_guide   
+@name = N'Guide2',   
+@stmt = N'SELECT TOP 1 * FROM Sales.SalesOrderHeader ORDER BY OrderDate DESC',  
+@type = N'SQL',  
+@module_or_batch = NULL,   
+@params = NULL,   
+@hints = N'OPTION (MAXDOP 1)';  

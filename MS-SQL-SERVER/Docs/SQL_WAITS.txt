@@ -1,0 +1,37 @@
+
+- SOS_SCHEDULER_YIELD Causes
+ However, if the SOS_SCHEDULER_YIELD waits are new and unusual, and are caused by large scans, you should investigate why the query plans are using scans. Maybe someone dropped a critical nonclustered index, or statistics are out-of-date and so an incorrect query plan was chosen, or maybe an unusual parameter value was passed to a stored procedure and the query plan called for a scan, or a code change occurred without supporting index additions.
+ 
+ - What does the CXPACKET wait type mean?
+ queries running in parallel and you will *always* see CXPACKET waits for a parallel query (for the control thread). CXPACKET waits do NOT mean you have problematic parallelism – you need to dig deeper to determine that.
+As an example of a parallel operator, consider the Repartition Streams operator (see exec plan):
+There is always a 'control' thread for any parallel plan, which thread ID 0 that always registers a CXPACKET wait, with the duration equal to the length of time the plan takes to execute.
+The only time non-control threads will register CXPACKET waits is if they complete before the other threads in the operator. This can happen if one of the threads gets stuck waiting for a resource for a long time.
+This can also happen because of a skewed work distribution among the threads.
+run MS_CHECK_PARALLEL.sql
+
+
+- FILESTREAM_WORKITEM_QUEUE
+
+- LCK_M_U
+A transaction is waiting to acquire an update lock. This lock prevents other transactions from accessing data while one transaction performs an update.
+The lock is converted to an exclusive lock (LCK_M_X) if the transaction modifies the locked object.It also avoids a common type of deadlock that can happen if multiple transactions are reading,locking and intending to update objects simultaneously.
+After you find the query that causes lock escalation, look for ways to create new indexes or to add columns to an existing index to remove index or table scans and to maximize the efficiency of index seeks 
+(index seeks return as few rows as possible to minimize the cost of Bookmark Lookups).
+
+lock escalation :Lock escalation serves a very useful purpose in SQL Server by maximizing the efficiency of queries that are otherwise slowed down by the overhead of acquiring and releasing several thousands of lock
+disabled by runing trace flag 1211 (DBCC TRACEON (1211, -1) or startup parameters add -T1211).
+Gathering Blocking Information :
+- Right-click the server object, expand Reports, expand Standard Reports, and then click Activity – All Blocking Transactions. This report shows the transactions at the head of blocking chain. If you expand the transaction, the report will show the transactions that are blocked by the head transaction. This report will also show the "Blocking SQL Statement" and the "Blocked SQL Statement."
+- Use DBCC INPUTBUFFER(<spid>) to find the last statement that was submitted by a SPID.
+examine the sys.sysprocesses output to determine the heads of the blocking chains
+Status	          Meaning
+---------------- ----------------------------------------------------------------------------------------------------------------------------------------------------------- 
+Background	    The SPID is running a background task, such as deadlock detection.
+Sleeping	    The SPID is not currently executing. This usually indicates that the SPID is awaiting a command from the application.
+Running	            The SPID is currently running on a scheduler.
+Runnable	    The SPID is in the runnable queue of a scheduler and waiting to get scheduler time.
+Sos_scheduler_yield The SPID was running, but it has voluntarily yielded its time slice on the scheduler to allow another SPID to acquire scheduler time.
+Suspended	    The SPID is waiting for an event, such as a lock or a latch.
+Rollback	    The SPID is in rollback of a transaction.
+Defwakeup	    Indicates that the SPID is waiting for a resource that is in the process of being freed. The waitresource field should indicate the resource in question.

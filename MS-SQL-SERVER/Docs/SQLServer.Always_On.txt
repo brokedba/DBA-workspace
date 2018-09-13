@@ -1,0 +1,40 @@
+AlwaysOn Nodes
+----------------
+
+The nodes that you will use in your SQL Server 2012 AlwaysOn solution have to be part of a WSFC. The first step we need to undertake in preparing our AlwaysOn nodes is to add the Failover Cluster Feature to each node. 
+I’ll go into detail later on in this article.
+
+AlwaysOn Storage
+
+SQL Server versions prior to SQL Server 2012, being setup as clustered instance on a WSFC require the storage to be presented as shared storage. 
+This requirement leads to the storage being more expensive and a little bit more complicated to configure and administer. 
+With SQL Server 2012 AlwaysOn your solution does not have to utilise shared storage, but can use SAN, DAS, NAS or Local Disk depending on your budget and requirements.
+ I suggest working with your storage providers to come up with the solution you need.
+ 
+ Availability Groups
+ --------------------
+
+SQL Server 2012 AlwaysOn allows for the more granular control of your environment with the introduction of AlwaysOn Availability Groups (AAG’s). AAG’s allow you to configure groups of databases that you would like to failover all together when there is a problem with the host server. When configuring your AAG’s you:
+
+Configure your AAG on the Primary Replica (Your AAG contains the group of DBs that you wish to group together to failover to your secondary replicas)
+You will need to configure between one and four secondary replicas, with any combination of Synchronous (Maximum of two) and Asynchronous Mirroring (Your primary replica is available for read and write connectivity, while your secondary replicas can be configured for read-only, read intent or no access)
+More in-depth information on Availability Groups is covered later.
+
+Maintenance Tasks/ Reporting
+-----------------------------
+
+AlwaysOnallows you to use the secondary replicas that you would have created when you setup your AAGs to undertake some regular database maintenance tasks to remove some of the performance overheads from your primary production server. Some of the tasks that you could look at undertaking on a secondary replica are:
+
+Database Backups
+Full Backup With Copy_Only
+Transaction Log Backups
+DBCC CheckDB
+Reporting
+Database Snapshots 
+
+
+Licensing
+-----------
+
+With SQL Server 2012 AlwaysOn's ability to have multiple secondaries you need to take into account the licensing when you are going to be implementing multiple secondaries.
+ If you setup a secondary server to perform any of the tasks listed above in Maintenance Tasks/Reporting, then this secondary is also active and needs to be licensed.

@@ -1,0 +1,92 @@
+C:\Program Files\Microsoft SQL Server\110\Setup Bootstrap\Log\20160715_165357\ConfigurationFile.ini
+
+
+======================================================================
+ERROR INSTALL TITLE: Microsoft SQL Server 2012 Service Pack 1 Setup 
+======================================================================
+------------------------------
+ The following error has occurred: Error while enabling Windows feature : NetFx3, 
+ Error Code : -2146498298 , 
+ Please try enabling Windows feature : NetFx3 from Windows management tools and then run setup again. 
+ For more information on how to enable Windows features , see http://go.microsoft.com/fwlink/?linkid=227143 For help, click: http://go.microsoft.com/fwlink?LinkID=20476&ProdName=Microsoft%20SQL%20Server&EvtSrc=setup.rll&EvtID=50000&ProdVer=11.0.3000.0&EvtType=0x681D636F%25401428%25401 
+ ------------------------------ BUTTONS: OK ------------------------------
+ dism /online /enable-feature /featurename:NetFX3 /all /Source:E:\sources\sxs /LimitAccess
+ dism.exe /online /enable-feature /featurename:NetFX3 /all
+ 
+ DB engine/agent  accounts NT authority/system
+ 
+ Default for SIS 
+ 
+ 
+ Method 0: Specify settings for optional component installation and component repair Group Policy setting 
+ - click Search, type group policy, and then click Edit group policy.
+ - Expand Computer Configuration, expand Administrative Templates, and then select System. The screen shot for this step is listed below.
+ - Open the Specify settings for optional component installation and component repair Group Policy setting, and then select Enabled. The screen shot for this step is listed below.
+ - If it is applicable to do this, select the Contact Windows Update directly to download repair content instead of Windows Server Update Services (WSUS) check box.
+     Tap or click OK.
+   At an elevated command prompt, type the following command, and then press Enter to apply the policy immediately:
+    F:> gpupdate /force
+
+Step 1: Uninstall any of these updates in: Control Panel -> Uninstall a Program -> View Installed Updates.
+•KB2966826
+•KB2966827
+•KB2966828
+
+Step 2: Then, retry installing the feature using the GUI (Server Manager), command line (dism), or PowerShell (Install-WindowsFeature)
+
+
+Additional information on enabling features
+
+
+Method 1: Using GUI - Server Manager
+
+
+Server Manager -> Add Roles and Features -> Role-based or feature-based installation -> Select Server -> Features -> .NET Framework 3.5 Features
+
+Method 2: Using Command Line - dism
+
+dism : Using local installation media/Windows update/WSUS
+
+
+dism /online /enable-feature /featurename:NetFx3 /all
+
+DISM: With a local 'Alternate Source'
+
+
+dism /online /enable-feature /featureName:NetFx3 /all /limitAccess /source:drive_letter:\sources\sxs 
+
+Please replace drive_letter with the drive letter of your local drive where the installation files reside
+
+DISM: With a remote 'Alternate Source'
+
+
+dism /online /enable-feature /featurename:netfx3 /all /LimitAccess /source:\\share_name\sources\sxs
+
+Please replace share_name with the the UNC of the shared location where the installation files reside
+
+Method 3: Using PowerShell
+
+PowerShell: Using local installation media/Windows update/WSUS
+
+
+Install-WindowsFeature –name NET-Framework-Core
+
+PowerShell: With a local 'Alternate Source'
+
+
+Install-WindowsFeature –name NET-Framework-Core –source x:\sources\sxs /source:drive_letter:\sources\sxs 
+
+Please replace drive_letter with the drive letter of your local drive where the installation files reside
+
+PowerShell: With a remote 'Alternate Source'
+
+
+Install-WindowsFeature –name NET-Framework-Core –source \\share_name\sources\sxs
+
+
+check if installed :
+F:>  Import-Module ServerManager
+ F:> Add-WindowsFeature as-net-framework
+
+Please replace share_name with the the UNC of the shared location where the installation files reside
+ 

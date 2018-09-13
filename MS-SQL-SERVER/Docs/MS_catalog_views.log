@@ -1,0 +1,155 @@
+
+-- uncommenet out the following 4 lines if used in  sqlcmd
+
+:setvar sqlcmdheaders            40     -- "page size"
+:setvar sqlcmdcolwidth          132     -- line width
+:setvar sqlcmdmaxfixedtypewidth  32     -- max column width (fixed length)
+:setvar sqlcmdmaxvartypewidth    32     -- max column width (varying length)
+
+
+===============================================================
+List of catalog views
+===============================================================
+Database Mirroring Witness Catalog Views (Transact-SQL)	
+Azure SQL Database Catalog Views	
+AlwaysOn Availability Groups Catalog Views (Transact-SQL)	
+Messages (for Errors) Catalog Views (Transact-SQL)         [sys.messages]
+Change Tracking Catalog Views (Transact-SQL)	           [sys.change_tracking_databases/sys.change_tracking_tables]
+CLR Assembly Catalog Views (Transact-SQL)	
+Policy-Based Management Views (Transact-SQL)               [syspolicy_conditions /syspolicy_policy_group_subscriptions/syspolicy_policies /syspolicy_policy_groups/syspolicy_policy_execution_history	syspolicy_system_health_state/syspolicy_policy_execution_history_details]
+Data Collector Views (Transact-SQL)	
+Query Store Catalog Views (Transact-SQL)
+Database Mail Views (Transact-SQL)	                   [dbo.sysmail_sentitems,..]
+Scalar Types Catalog Views (Transact-SQL)
+Endpoints Catalog Views (Transact-SQL)	
+Service Broker Catalog Views (Transact-SQL)
+Extended Events Catalog Views (Transact-SQL)	
+Server-wide Configuration Catalog Views (Transact-SQL)
+Extended Properties Catalog Views (Transact-SQL)	
+Spatial Data Catalog Views
+External Operations Catalog Views (Transact-SQL)	
+SQL Data Warehouse and Parallel Data Warehouse Catalog Views
+Stretch Database Catalog Views (Transact-SQL)
+XML Schemas (XML Type System) Catalog Views (Transact-SQL)
+Linked Servers Catalog Views (Transact-SQL)
+
+=======================================
+Schemas Catalog Views (Transact-SQL)
+=======================================
+sys.schemas 
+sys.syslogins  
+
+=======================================
+DM views SESSIONS
+=======================================
+
+SELECT name, type, type_desc FROM sys.system_objects
+WHERE name LIKE 'dm[_]%' ORDER BY name
+
+SQL Server Operating System
+------------------------------
+sys.dm_os_performance_counters
+sys.dm_os_schedulers
+sys.dm_os_nodes
+sys.dm_os_waiting_tasks
+sys.dm_os_wait_stats
+
+I/O Related
+---------------
+sys.dm_io_virtual_file_stats
+
+Execution Related
+-------------------
+sys.dm_exec_connections
+sys.dm_exec_sessions
+sys.dm_exec_requests
+sys.dm_exec_cached_plans
+sys.dm_exec_query_plans
+sys.dm_exec_sql_text
+sys.dm_exec_query_stats
+
+Index Related
+----------------
+sys.dm_db_index_physical_stats
+sys.dm_db_index_usage_stats
+
+
+
+	
+=======================================
+Object Catalog Views (Transact-SQL)
+=======================================
+ 
+sys.objects                               sys.table_types                           sys.columns                 
+sys.synonyms                              sys.views                                 sys.partitions  	    
+sys.parameters                            sys.tables                                sys.foreign_keys	    
+sys.sql_dependencies                      sys.stats                                 sys.foreign_key_columns     
+sys.sql_expression_dependencies           sys.function_order_columns                sys.key_constraints         
+sys.allocation_units	                  sys.check_constraints                     sys.default_constraints        
+sys.assembly_modules	                  sys.trigger_events                        sys.masked_columns                            
+sys.periods                               sys.triggers                              sys.identity_columns                          
+sys.procedures                            sys.trigger_event_types	            sys.computed_columns                          
+sys.sequences                                                                       sys.stats_columns                             
+sys.service_queues                                                                  sys.index_columns	                      
+sys.events	                                                                    sys.indexes	                             
+sys.event_notifications	                                                                                           
+sys.extended_procedures	           
+sys.sql_modules                             
+sys.numbered_procedure_parameters                              
+sys.memory_optimized_tables_internal_attributes  
+sys.numbered_procedures	                          
+    
+================================================
+Databases and Files Catalog Views (Transact-SQL)
+================================================
+
+sys.master_files 
+sys.database_files
+sys.backup_devices
+sys.database_recovery_status	                
+sys.database_scoped_configurations    
+sys.databases     	                       
+sys.database_mirroring 	
+sys.database_usage (Azure SQL Database)
+sys.database_connection_stats (Azure SQL Database)
+
+===============================================
+Security Catalog Views (Transact-SQL)
+===============================================
+DATABASE VIEWS :                                   SERVER VIEWS:                                                             Encryption Views                                                    SQL Server Audit Views
+------------------                              ----------------------------------------------------                  ------------------------------------------                             ------------------------------------------          
+sys.database_permissions	                sys.sql_logins sys.login_token	                                     sys.asymmetric_keys	 sys.cryptographic_providers                   sys.server_audits	                      
+sys.database_principals	                        sys.credentials 	                                             sys.certificates	         sys.key_encryptions                           sys.server_audit_specifications	
+sys.database_role_members	                sys.server_role_members          	                             sys.column_encryption_key_values	sys.openkeys                           sys.database_audit_specifications	
+sys.user_token                                  sys.server_permissions	                                             sys.column_encryption_keys	sys.security_policies                          sys.server_file_audits      
+sys.master_key_passwords                        sys.server_principals                                                sys.column_master_key_definitions	sys.security_predicates                sys.server_audit_specifications_details 
+                                                sys.system_components_surface_area_configuration                     sys.crypt_properties	                                               sys.audit_database_specification_details                            
+                                                sys.securable_classes                                                sys.symmetric_keys 
+
+===============================================
+Partition Function Catalog Views (Transact-SQL)
+===============================================
+sys.partition_functions	
+sys.partition_range_values
+sys.partition_parameters	
+
+===============================================
+Data Spaces (Transact-SQL)
+===============================================
+sys.data_spaces	
+sys.filegroups
+sys.destination_data_spaces	
+sys.partition_schemes
+
+=====================================================
+Filestream and FileTable Catalog Views (Transact-SQL)
+=====================================================
+sys.database_filestream_options ( level of non-transactional access to FILESTREAM data in FileTables )
+sys.filetable_system_defined_objects ( system-defined objects that are related to FileTables)
+sys.filetables ( Inherits from sys.tables.)
+===============================================
+Resource Governor Catalog Views (Transact-SQL)
+===============================================
+=================================================================
+Full-Text Search and Semantic Search Catalog Views (Transact-SQL)
+=================================================================	

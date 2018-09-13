@@ -1,0 +1,496 @@
+installation :
+- Install & configure sp_BlitzFirst to collect data MAster DB
+Open “Install-Core-Blitz-No-Query-Store.sql” and run it – that’ll install sp_Blitz, sp_BlitzFirst, sp_BlitzCache, and friends.
+
+Create a database to hold your First Responder Kit data, like say FirstResponderKit or DBAtools:
+Then, set up a SQL Server Agent job to run sp_BlitzFirst every 15 minutes, like this:
+EXEC sp_BlitzFirst 
+  @OutputDatabaseName = 'DBAtools', 
+  @OutputSchemaName = 'dbo', 
+  @OutputTableName = 'BlitzFirst',
+  @OutputTableNameFileStats = 'BlitzFirst_FileStats',
+  @OutputTableNamePerfmonStats = 'BlitzFirst_PerfmonStats',
+  @OutputTableNameWaitStats = 'BlitzFirst_WaitStats',
+  @OutputTableNameBlitzCache = 'BlitzCache';
+
+- Point the First Responder Kit Power BI file at your SQL Server
+- Analyze your SQL Server’s performance bottlenecks
+- Drill down into a single query’s history
+- Learn more advanced tips & tricks
+
+ 
+
+
+===============================================
+1- sp_BlitzFirst: Real-Time Performance Advice
+===============================================
+Here are the ones specific to sp_BlitzFirst:
+* @ExpertMode   = 1 – doesn’t do more in-depth checks, but DOES return a whole lot more data, including sections on wait stats, file stats, and Perfmon counters.
+* @SinceStartup = 1 – displays wait stats, file stats, and Perfmon counters since the SQL Server started up.
+* @Seconds      = 5 – by default, we take a 5-second sample of activity, but you can take a longer sample if you want to run a load test or demo.
+You can also use these parameters to persist additional performance diagnostics over time:
+* @OutputTableNameFileStats – contents of sys.dm_io_virtual_file_stats
+* @OutputTableNamePerfmonStats – contents of sys.dm_os_performance_counters
+* @OutputTableNameWaitStats – contents of sys.dm_os_wait_stats, with common harmless waits filtered out
+* @OutputServerName, @OutputDatabaseName, @OutputSchemaName, @OutputTableName – you can write sp_Blitz’s results to a central server for easier reporting or on local service_DBA  DB
+
+### Storing sp_BlitzFirst Results in a Table
+EXEC sp_BlitzFirst   @OutputDatabaseName = 'DBAtools', @OutputSchemaName = 'dbo', @OutputTableName = 'BlitzFirstResults'
+- SCEHDULE A JOB runing every 5 minute the below stats:
+EXEC sp_BlitzFirst  @Seconds=60, @OutputDatabaseName = 'DBAtools', @OutputSchemaName = 'dbo', @OutputTableName = 'BlitzFirstResults',@OutputTableNameFileStats='BlitzFirstResults_FileStats',@OutputTableNamePerfmonStats='BlitzFirstResults_PerfmonStats',@OutputTableNameWaitStats='BlitzFirstResults_WaitStats'
+
+EXEC sp_BlitzFirst @AsOf = '2015-02-23 18:45', @OutputDatabaseName = 'DBAtools', @OutputSchemaName = 'dbo', @OutputTableName = 'BlitzFirstResults' 
+
+------------------------------------
+QUERY DELTAS 10-minute time window:
+------------------------------------
+query past data, use the delta views of sp_BlitzFirst. were, just add _Deltas to the end of table name inputs, and you’ll get data with differences from each pass.
+
+DECLARE @CheckDateStart VARCHAR(50) = '2016-08-09 13:40 -07:00';
+DECLARE @CheckDateEnd VARCHAR(50) = DATEADD(MI, 10, CAST(@CheckDateStart AS DATETIMEOFFSET));
+SELECT wait_type, SUM(wait_time_ms_delta / 60 / 1000) AS wait_time_minutes, SUM(waiting_tasks_count_delta) AS waiting_tasks
+FROM DBAtools.dbo.BlitzFirstResults_WaitStats_Deltas d
+WHERE d.CheckDate BETWEEN @CheckDateStart AND @CheckDateEnd
+---AND ServerName = 'MCRORAT02\SQL2016'
+GROUP BY wait_type
+HAVING SUM(waiting_tasks_count_delta) > 0
+ORDER BY 2 DESC;
+
+SELECT object_name, counter_name, MIN(CheckDate) AS CheckDateMin, MAX(CheckDate) AS CheckDateMax,
+   MIN(cntr_value) AS cntr_value_min, MAX(cntr_value) AS cntr_value_max,
+   (1.0 * MAX(cntr_value) - MIN(cntr_value)) / (DATEDIFF(ss,MIN(CheckDate), MAX(CheckDate))) AS BatchRequestsPerSecond
+FROM DBAtools.dbo.BlitzFirstResults_PerfmonStats d
+WHERE d.CheckDate BETWEEN @CheckDateStart AND @CheckDateEnd
+---AND ServerName = 'MCRORAT02\SQL2016'
+GROUP BY object_name, counter_name
+ORDER BY 1, 2;
+
+SELECT DatabaseName, TypeDesc, FileLogicalName, DatabaseID, FileID,
+   MIN(CheckDate) AS CheckDateMin, MAX(CheckDate) AS CheckDateMax,
+   MAX(num_of_reads) - MIN(num_of_reads) AS Reads,
+   (MAX(bytes_read) - MIN(bytes_read)) / 1024.0 / 1024 AS ReadsMB,
+   ISNULL((MAX(bytes_read * 1.0) - MIN(bytes_read)) / NULLIF((MAX(num_of_reads) - MIN(num_of_reads)),0) / 1024, 0) AS ReadSizeAvgKB,
+   ISNULL((MAX(io_stall_read_ms) - MIN(io_stall_read_ms)) / NULLIF((MAX(num_of_reads * 1.0) - MIN(num_of_reads)), 0), 0) AS ReadAvgStallMS,
+   MAX(num_of_writes) - MIN(num_of_writes) AS Writes,
+   (MAX(bytes_written) - MIN(bytes_written)) / 1024.0 / 1024 AS WritesMB,
+   ISNULL((MAX(bytes_written * 1.0) - MIN(bytes_written)) / NULLIF((MAX(num_of_writes) - MIN(num_of_writes)),0) / 1024, 0) AS WriteSizeAvgKB,
+   ISNULL((MAX(io_stall_write_ms) - MIN(io_stall_write_ms)) / NULLIF((MAX(num_of_writes * 1.0) - MIN(num_of_writes)), 0), 0) AS WriteAvgStallMS
+FROM DBAtools.dbo.BlitzFirstResults_FileStats d
+WHERE d.CheckDate BETWEEN @CheckDateStart AND @CheckDateEnd
+AND ServerName = 'MCRORAT02\SQL2016'
+GROUP BY DatabaseName, TypeDesc, FileLogicalName, DatabaseID, FileID
+HAVING MAX(num_of_reads) > MIN(num_of_reads) OR MAX(num_of_writes) > MIN(num_of_writes)
+ORDER BY DatabaseName, TypeDesc, FileLogicalName, DatabaseID, FileID;
+
+GRANT PERMISSION TO NON DBA_
+------------------------------
+USE master;
+GO
+CREATE CERTIFICATE sp_BlitzFirst_cert ENCRYPTION BY PASSWORD = '5OClockSomewhere' WITH SUBJECT = 'Certificate for sp_BlitzFirst', START_DATE = '20130711', EXPIRY_DATE = '21000101';
+GO
+CREATE LOGIN sp_BlitzFirst_login FROM CERTIFICATE sp_BlitzFirst_cert;
+GO
+CREATE USER sp_BlitzFirst_login FROM CERTIFICATE sp_BlitzFirst_cert;
+GO
+GRANT EXECUTE ON dbo.sp_BlitzFirst TO sp_BlitzFirst_login;
+GO
+GRANT CONTROL SERVER TO sp_BlitzFirst_login;
+GO
+ADD SIGNATURE TO sp_BlitzFirst BY CERTIFICATE sp_BlitzFirst_cert WITH PASSWORD = '5OClockSomewhere';
+GO
+GRANT EXECUTE ON dbo.sp_BlitzFirst TO [public];
+GO
+ 
+ * If sp_BlitzFirst is updated : reassign the permissions by adding the signature again:
+ ADD SIGNATURE TO sp_BlitzFirst BY CERTIFICATE sp_BlitzFirst_cert WITH PASSWORD = 'Get lucky';
+ GO
+ GRANT EXECUTE ON dbo.sp_BlitzFirst TO [public];
+ GO
+ 
+ ==================================
+2- sp_Blitz: Overall Health Check
+==================================
+Run sp_Blitz daily or weekly for an overall health check. Just run it from SQL Server Management Studio, and you'll get a prioritized list of issues on your server right now:
+Output columns include:
+
+* Priority - 1 is the most urgent, stuff that could get you fired. The warnings get progressively less urgent.
+* FindingsGroup, Findings - describe the problem sp_Blitz found on the server.
+* DatabaseName - the database having the problem. If it's null, it's a server-wide problem.
+* URL - copy/paste this into a browser for more information.
+* Details - not just bland text, but dynamically generated stuff with more info.
+
+ Parameter explanations: Commonly used parameters:
+* @Help = 1 – explains the rest of sp_Blitz’s parameters
+* @CheckUserDatabaseObjects = 0 – turns off database checks like heaps and triggers. This makes sp_Blitz run way faster.1=review user databases for triggers, heaps, etc. Takes more time for more databases and objects.        
+* @BringThePain = 1 - required if you want to run @CheckUserDatabaseObjects = 1 with over 50 databases. It's gonna be slow.
+* @CheckServerInfo = 1 - includes additional rows at priority 250 with server configuration details like service accounts.show server info like CPUs, memory, virtualization 
+* @IgnorePrioritiesAbove = 50 - if you want a daily bulletin of the most important warnings, set @IgnorePrioritiesAbove = 50 to only get the urgent stuff.
+* @OutputServerName, @OutputDatabaseName, @OutputSchemaName, @OutputTableName – you can write sp_Blitz’s results to a central server for easier reporting or on local service_DBA  DB
+* @CheckProcedureCache		1=top 20-50 resource-intensive cache plans and analyze them for common performance issues.
+* @OutputProcedureCache		1=output the top 20-50 resource-intensive plans even if they did not trigger an alarm
+* @CheckProcedureCacheFilter	''CPU'' | ''Reads'' | ''Duration'' | ''ExecCount''
+* @OutputType					''TABLE''=table | ''COUNT''=row with number found | ''MARKDOWN''=bulleted list | ''SCHEMA''=version and field list | ''NONE'' = none
+
+For the rest of the parameters, see https://www.BrentOzar.com/blitz/documentation for details.
+ 
+#### Writing sp_Blitz Output to a Table - Creates table DBAtools.dbo.BlitzResults, then adds output of sp_Blitz into this table
+
+Exec sp_Blitz @OutputDatabaseName = 'DBAtools', @OutputSchemaName = 'dbo', @OutputTableName = 'BlitzResults';
+Note: support multiple outputs from multiple servers, so you can track your server's configuration history over time.
+
+#### Skipping Checks or Databases
+
+CREATE TABLE dbo.BlitzChecksToSkip (ServerName NVARCHAR(128),DatabaseName NVARCHAR(128),CheckID INT);
+INSERT INTO dbo.BlitzChecksToSkip (ServerName, DatabaseName, CheckID) VALUES (NULL, 'SalesDB', 50);
+ INSERT INTO dbo.BlitzChecksToSkip select null,db_name(d.database_id),50 from sys.databases d where db_name(d.database_id) <>'virtuo';
+Go
+-----
+sp_Blitz @SkipChecksDatabase = 'DBAtools', @SkipChecksSchema = 'dbo', @SkipChecksTable = 'BlitzChecksToSkip'
+
+ exec master.dbo.sp_Blitz @IgnorePrioritiesAbove = 50, @CheckUserDatabaseObjects = 0 ,@OutputDatabaseName = 'DBAtools', @OutputSchemaName = 'dbo', @OutputTableName = 'BlitzResults', @SkipChecksDatabase = 'DBAtools', @SkipChecksSchema = 'dbo', @SkipChecksTable = 'BlitzChecksToSkip'
+
+Checks DBAtools.dbo.BlitzChecksToSkip table (ServerName, DatabaseName, and CheckID). 
+For each row:
+* If the DatabaseName is populated but CheckID is null, then all checks will be skipped for that database
+* If both DatabaseName and CheckID are populated, then that check will be skipped for that database
+* If CheckID is populated but DatabaseName is null, then that check will be skipped for all databases
+
+
+==========================================================
+3- sp_BlitzCache: Find the Most Resource-Intensive Queries
+==========================================================
+
+### sp_BlitzCache Parameters
+* @databaseName ='Mydb' restricted 
+* @SortOrder – find the worst queries sorted by reads (most data), CPU, duration (longest), executions(the most),XPM (exec per minute), memory grant (draining RAm resource), or recent compilations (newst compiled).  
+* @Top – by default, we only look at the top 10 queries, but you can use a larger number here like @Top = 50. Just know that the more queries you analyze, the slower it goes.
+* @ExpertMode = 1 – turns on the more-detailed analysis of things like memory grants. (Some of this information is only available in current SP/CUs of SQL Server 2012/2014, and all 2016.)
+* @ExportToExcel = 1 – excludes result set columns that would make Excel blow chunks when you copy/paste the results into Excel, like the execution plans. Good for sharing plan cache metrics with team.
+@Help = 1 – explains the rest of sp_BlitzCache’s parameters, plus the output columns as well.
+
+sp_BlitzCache @databaseName ='Mydb',@SortOrder='reads',@Top=5,@ExpertMode = 1;
+
+Exec sp_BlitzCache @OutputDatabaseName = 'DBAtools', @OutputSchemaName = 'dbo', @OutputTableName = 'BlitzCacheResults';
+exec master.dbo.sp_BlitzCache @databaseName ='virtuo',@SortOrder = 'duration,CPU', @Top = 10, @ExpertMode =1,@exportToExcel=1
+
+=====================================
+4- sp_BlitzIndex: Tune Your Indexes
+=====================================
+###   sp_BlitzIndex Parameters
+ @Help = 1 – explains the rest of sp_BlitzIndex’s parameters.
+
+* @GetAllDatabases = 1 – runs index tests across all of the databases on the server instead of just your current database context.  
+* @DatabaseName, @SchemaName, @TableName – if you only want to examine indexes on a particular table, fill all three of these out.
+* @SkipPartitions = 1 – goes faster on databases with large numbers of partitions, like over 500.
+* @BringThePain = 1 - required if you want to run @CheckUserDatabaseObjects = 1 with over 50 databases. It's gonna be slow.
+@Mode – options are:
+ 0 (default) – basic diagnostics of urgent issues
+ 1 – summarize database metrics
+ 2 – index usage detail only
+ 3 – missing indexes only
+ 4 – in-depth diagnostics, including low-priority issues and small objects
+
+@ThresholdMB = 250 – number of megabytes that an object must be before we display its data in @Mode = 0.
+@Filter – only works in @Mode = 0. Options are:
+ 0 (default) – no filter
+ 1 – no low-usage warnings for objects with 0 reads
+ 2 – only warn about objects over 500MB
+ 
+exec sp_BlitzIndex @GetAllDatabases = 1 
+ -- After checking More info column
+exec sp_BlitzIndex @DatabaseName='DemoDB', @SchemaName='dbo', @TableName='Sales';
+exec sp_BlitzIndex  @DatabaseName='Medipay_c158_QA' 
+
+============================================
+5- sp_BlitzRS
+============================================
+
+### Description: Displays information about a single SQL Server Reporting Services instance based on the ReportServer database contents. 
+Run this against the server with the ReportServer database (usually, but not necessarily the server running the SSRS service).
+
+Output: One result set is presented that contains data from the ReportServer database tables. Other result sets can be included via parameter.
+
+============================================
+5- sp_BlitzLock: Deadlock Analysis
+============================================
+Checks either the System Health session or a specific Extended Event session that captures deadlocks and parses out all the XML for you.
+
+Variables you can use:
+* @Top: Use if you want to limit the number of deadlocks to return. This is ordered by event date ascending.
+* @DatabaseName: If you want to filter to a specific database
+* @StartDate: The date you want to start searching on.
+* @EndDate: The date you want to stop searching on.
+* @ObjectName: If you want to filter to a specific table. The object name has to be fully qualified 'Database.Schema.Table'
+* @StoredProcName: If you want to search for a single stored proc.
+* @AppName: If you want to filter to a specific application.
+* @HostName: If you want to filter to a specific host.
+* @LoginName: If you want to filter to a specific login.
+* @EventSessionPath: If you want to point this at an XE session rather than the system health session.
+
+usage : use master 
+exec dbo.sp_blitzlock @DatabaseName='BILODEAU', @Top=20
+
+===============================================================================================================================================================================================================
+============================================================================//==================================================\\=============================================================================
+                                                                                Ola Hallengren’s free MaintenanceSolution.sql
+============================================================================\\==================================================//=============================================================================
+===============================================================================================================================================================================================================
+
+
+
+######################################################
+#                                                      #
+# 1-  DatabaseBackup: SQL Server Backup
+#                                                      #
+######################################################
+
+
+######################################################
+#                                                      #
+# 2-    DatabaseIntegrityCheck: SQL Server Integrity Check #
+#                                                      #
+######################################################
+
+Parameters :
+* @Databases: SYSTEM_DATABASES, USER_DATABASES,ALL_DATABASES    (combinations : USER_DATABASES, -Db1 /Db1, Db2/%Db% ,-Db1/ALL_DATABASES, -%Db%)
+* @CheckCommands : CHECKDB (database.default), CHECKFILEGROUP,CHECKTABLE (including indexed views),CHECKALLOC (Check disk space allocation structures),CHECKCATALOG (catalog consistency) // Combination :  CHECKALLOC,CHECKCATALOG/	CHECKFILEGROUP,CHECKCATALOG/ CHECKALLOC,CHECKTABLE,CHECKCATALOG	
+* @PhysicalOnly : Y (physical structure only) ,N( default)
+* @ExtendedLogicalChecks : Y,N (Do not perform extended logical checks)            // cannot combine the options PhysicalOnly and ExtendedLogicalChecks.
+* @NoIndex  : Y,N(default)
+* @TabLock  : Y (Use locks to perform the consistency checks),N (default)
+* @FileGroups :  ALL_FILEGROUPS,Db1.FileGroup1 // ALL_FILEGROUPS, -Db1.FileGroup1 // Db1.%FileGroup%
+* @Objects  :  ALL_OBJECTS // ALL_OBJECTS,-Db1.Schema1.Object1 // Db1.Schema1.Tbl1,Db2.Schema2.Object2	 //Db1.Schema1.%
+* @MaxDOP : # if  not specified, the global maximum degree of parallelism is used.
+* @LockTimeout : seconds, that a command waits for a lock to be releasedBy default, the time is not limited.
+* @LogToTable : Y(Log commands to the table) ,N (default)
+* @Execute    : Y (Execute commands/default),N(only print
+
+- Examples: 
+
+A. Check the integrity of all user databases        
+ 
+
+#
+
+B. Check the physical integrity of all user databases
+-------------------------------------------------------
+EXECUTE dbo.DatabaseIntegrityCheck @Databases = 'USER_DATABASES',@CheckCommands = 'CHECKDB',@PhysicalOnly = 'Y'
+
+C. Check the integrity of all user databases, using the option not to check nonclustered indexes
+-------------------------------------------------------------------------------------------------
+EXECUTE dbo.DatabaseIntegrityCheck @Databases = 'USER_DATABASES',@CheckCommands ='CHECKDB',@NoIndex = 'Y'
+
+D. Check the integrity of all user databases, using the option to perform extended logical checks
+--------------------------------------------------------------------------------------------------
+EXECUTE dbo.DatabaseIntegrityCheck @Databases = 'USER_DATABASES',@CheckCommands = 'CHECKDB',@ExtendedLogicalChecks = 'Y'
+
+E. Check the integrity of the filegroup PRIMARY in the database AdventureWorks
+-------------------------------------------------------------------------------
+EXECUTE dbo.DatabaseIntegrityCheck @Databases = 'AdventureWorks',@CheckCommands = 'CHECKFILEGROUP',@FileGroups = 'AdventureWorks.PRIMARY'
+
+F. Check the integrity of all filegroups except the filegroup PRIMARY in the database AdventureWorks
+-----------------------------------------------------------------------------------------------------
+EXECUTE dbo.DatabaseIntegrityCheck @Databases = 'USER_DATABASES',@CheckCommands = 'CHECKFILEGROUP',@FileGroups = 'ALL_FILEGROUPS, -AdventureWorks.PRIMARY'
+
+G. Check the integrity of the table Production.Product in the database AdventureWorks
+----------------------------------------------------------------------------------------
+EXECUTE dbo.DatabaseIntegrityCheck
+@Databases = 'AdventureWorks',@CheckCommands = 'CHECKTABLE',@Objects = 'AdventureWorks.Production.Product'
+
+H. Check the integrity of all tables except the table Production.Product in the database AdventureWorks
+-------------------------------------------------------------------------------------------------------
+
+EXECUTE dbo.DatabaseIntegrityCheck @Databases = 'USER_DATABASES',@CheckCommands = 'CHECKTABLE',@Objects = 'ALL_OBJECTS, -AdventureWorks.Production.Product'
+
+I. Check the disk-space allocation structures of all user databases
+--------------------------------------------------------------------
+EXECUTE dbo.DatabaseIntegrityCheck @Databases = 'USER_DATABASES',@CheckCommands = 'CHECKALLOC'
+
+J. Check the catalog consistency of all user databases
+------------------------------------------------------
+EXECUTE dbo.DatabaseIntegrityCheck @Databases = 'USER_DATABASES',@CheckCommands = 'CHECKCATALOG'
+
+#############################################################
+#                                                           #
+# 3- IndexOptimize: SQL Server Index and Statistics Maintenance|
+#                                                           #
+#############################################################
+
+Parameters
+
+* @Databases: SYSTEM_DATABASES, USER_DATABASES,ALL_DATABASES    (combinations : USER_DATABASES, -Db1 /Db1, Db2/%Db% ,-Db1/ALL_DATABASES, -%Db%)
+
+* @FragmentationLow: Specify index maintenance operations to be performed on a low-fragmented index.
+   INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE,INDEX_REORGANIZE
+   INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE	Rebuild index online. Rebuild index offline if online rebuilding is not supported on an index.
+   INDEX_REBUILD_ONLINE,INDEX_REORGANIZE	Rebuild index online. Reorganize index if online rebuilding is not supported on an index.
+   INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE	Reorganize index. Rebuild index online if reorganizing is not supported on an index. Rebuild index offline if reorganizing and online rebuilding are not supported on an index.
+   NULL	Do not perform index maintenance. This is the default for a low-fragmented index.
+   Multiple index-maintenance operations for each fragmentation group prioritized from left to right:   
+
+* @FragmentationMedium : Specify index maintenance operations to be performed on a medium-fragmented index.
+   INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE	Rebuild index online. Rebuild index offline if online rebuilding is not supported on an index.
+   INDEX_REBUILD_ONLINE,INDEX_REORGANIZE	Rebuild index online. Reorganize index if online rebuilding is not supported on an index.
+   INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE	Reorganize index. Rebuild index online if reorganizing is not supported on an index. Rebuild index offline if reorganizing and online rebuilding are not supported on an index. This is the default for a medium-fragmented index.
+   NULL	Do not perform index maintenance.
+    
+
+* @FragmentationHigh : Specify index maintenance operations to be performed on a high-fragmented index.
+   INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE	Rebuild index online. Rebuild index offline if online rebuilding is not supported on an index.
+   This is the default for a high-fragmented index.
+   INDEX_REBUILD_ONLINE,INDEX_REORGANIZE	Rebuild index online. Reorganize index if online rebuilding is not supported on an index.
+   INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE	Reorganize index. Rebuild index online if reorganizing is not supported on an index. Rebuild index offline if reorganizing and online rebuilding are not supported on an index.
+   NULL	Do not perform index maintenance.
+    
+
+IndexOptimize uses the SQL Server ALTER INDEX command: REBUILD WITH (ONLINE = ON) to rebuild indexes online, REBUILD WITH (ONLINE = OFF) to rebuild indexes offline, and REORGANIZE to reorganize indexes.
+
+* @FragmentationLevel1: Set the lower limit, as a percentage, for medium fragmentation. The default is 5 percent. This is based on Microsoft’s recommendation in Books Online.
+
+   IndexOptimize checks avg_fragmentation_in_percent in sys.dm_db_index_physical_stats to determine the fragmentation.
+
+* @FragmentationLevel2:Set the lower limit, as a percentage, for high fragmentation. The default is 30 percent. This is based on Microsoft’s recommendation in Books Online.
+
+   IndexOptimize checks avg_fragmentation_in_percent in sys.dm_db_index_physical_stats to determine the fragmentation.
+
+* @PageCountLevel: Set a size, in pages; indexes with fewer pages are skipped for index maintenance. The default is 1000 pages. This is based on Microsoft’s recommendation in this white paper.
+
+  IndexOptimize checks page_count in sys.dm_db_index_physical_stats to determine the size of the index.
+
+* @SortInTempdb : Use tempdb for sort operations when rebuilding indexes. Y(Use tempdb for sort operations when rebuilding indexes),N (Do not/ default).
+  The SortInTempdb option in IndexOptimize uses the SORT_IN_TEMPDB option in the SQL Server ALTER INDEX command.
+
+* @MaxDOP : # if  not specified, the global maximum degree of parallelism is used.
+
+   The MaxDOP option in IndexOptimize uses the MAXDOP option in the SQL Server ALTER INDEX command.
+
+* @FillFactor: Indicate, as a percentage, how full the pages should be made when rebuilding indexes. If a percentage is not specified, the fill factor in sys.indexes is used.
+
+  The FillFactor option in IndexOptimize uses the FILLFACTOR option in the SQL Server ALTER INDEX command.
+
+* @PadIndex: Apply the percentage of free space that the fill factor specifies to the intermediate-level pages of the index.Y(Apply % of free space that the fill factor specifies to the intermediate-level pages of the index),
+                                                                                                                            N(The intermediate-level pages of the index are filled to near capacity. default).
+   The PadIndex option in IndexOptimize uses the PADINDEX option in the SQL Server ALTER INDEX command.
+
+* @LOBCompaction : Compact pages that contain large object (LOB) columns, when reorganizing indexes.
+   Y	Compact pages that contain LOB columns, when reorganizing indexes. This is the default.
+   N	Do not compact pages that contain LOB columns, when reorganizing indexes.
+
+The LOBCompaction option in IndexOptimize uses the LOB_COMPACTION option in the SQL Server ALTER INDEX command.
+
+* @UpdateStatistics : ALL (Update index and column statistics ,INDEX(Update index statistics),COLUMNS(Update column statistics),NULL(don't run statistics /default)
+IndexOptimize uses the SQL Server UPDATE STATISTICS command to update statistics.
+
+* @OnlyModifiedStatistics : Y(Update statistics only if any rows have been modified since the most recent statistics update),  N (Update statistics regardless of whether any rows have been modified)
+
+ IndexOptimize checks modification_counter in sys.dm_db_stats_properties, in SQL Server 2008 R2 starting with Service Pack 2 and in SQL Server 2012 starting with Service Pack 1, to determine whether any rows have been modified since the most recent statistics update. In earlier versions it checks rowmodctr in sys.sysindexes.
+
+* @StatisticsSample :Indicate, as a percentage, how much of a table is gathered when updating statistics. A value of 100 is equivalent to a full scan. If no value is specified, then SQL Server automatically computes the required sample.
+
+The StatisticsSample option in IndexOptimize uses the SAMPLE and FULLSCAN options in the SQL Server UPDATE STATISTICS command.
+
+* @StatisticsResample : Y(Update statistics with the most recent sample), N(Let SQL Server automatically compute the required sample/ default)
+
+   You cannot combine the options StatisticsSample and StatisticsResample. The StatisticsResample option in IndexOptimize uses the RESAMPLE option in the SQL Server UPDATE STATISTICS command. 
+
+* @PartitionLevel: Y(Maintain partitioned indexes on the partition level/ the default), N (Maintain partitioned indexes at index level)
+
+* @MSShippedObjects: Maintain indexes and statistics on objects that are created by internal SQL Server components.
+
+     Y	Maintain indexes and statistics on objects that are created by internal SQL Server components.
+     N	Do not maintain indexes and statistics on objects that are created by internal SQL Server components. This is the default.
+
+IndexOptimize checks is_ms_shipped in sys.objects to determine whether an object was created by an internal SQL Server component.
+
+* @Indexes :Select indexes. If this parameter is not specified, all indexes are selected. The hyphen character (-) is used to exclude indexes, and the percent character (%) is used for wildcard selection. 
+     ALL_INDEXES
+     Db1.Schema1.Tbl1.Idx1	
+     Db1.Schema1.Tbl1.Idx1, Db2.Schema2.Tbl2.Idx2	 
+     Db1.Schema1.Tbl1	
+     Db1.Schema1.Tbl1, Db2.Schema2.Tbl2	
+     Db1.Schema1.% // %.Schema1.%	All indexes in the schema Schema1 in all databases
+     ALL_INDEXES, -Db1.Schema1.Tbl1.Idx1//	ALL_INDEXES, -Db1.Schema1.Tbl1	All indexes except indexes on the object Schema1.Tbl1 in the database Db1
+
+* @TimeLimit :Set the time, in seconds, after which no commands are executed. By default, the time is not limited.
+ 
+* @Delay : Set the delay, in seconds, between index commands. By default, there is no delay.
+
+* @WaitAtLowPriorityMaxDuration: The time, in minutes that an online index rebuild operation will wait for low priority locks.
+
+       The WaitAtLowPriorityMaxDuration option in IndexOptimize uses the WAIT_AT_LOW_PRIORITY and MAX_DURATION options in the SQL Server ALTER INDEX command.
+
+* @WaitAtLowPriorityAbortAfterWait: The action that will be performed after an online index rebuild operation has been waiting for low priority locks.
+    NONE	Continue waiting for locks with normal priority.
+    SELF	Abort the online index rebuild operation.
+    BLOCKERS	Kill user transactions that block the online index rebuild operation.
+       The WaitAtLowPriorityAbortAfterWait option in IndexOptimize uses the WAIT_AT_LOW_PRIORITY and ABORT_AFTER_WAIT options in the SQL Server ALTER INDEX command.
+
+* @LockTimeout : seconds, that a command waits for a lock to be releasedBy default, the time is not limited.
+
+         The LockTimeout option in IndexOptimize uses the SET LOCK_TIMEOUT set statement in SQL Server.
+
+* @LogToTable : Y(Log commands to the table) ,N (default)
+* @Execute    : Y (Execute commands/default),N(only print)
+
+
+
+Examples:
+==========
+
+A. Rebuild or reorganize all indexes with fragmentation on all user databases
+
+EXECUTE dbo.IndexOptimize
+@Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',@FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 = 5,@FragmentationLevel2 = 30
+
+B. Rebuild or reorganize all indexes with fragmentation and update modified statistics on all user databases
+
+EXECUTE dbo.IndexOptimize
+@Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',@FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 = 5,@FragmentationLevel2 = 30,
+@UpdateStatistics = 'ALL',@OnlyModifiedStatistics = 'Y'
+
+C. Update statistics on all user databases
+
+EXECUTE dbo.IndexOptimize @Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = NULL,@FragmentationHigh = NULL,@UpdateStatistics = 'ALL'
+
+D. Update modified statistics on all user databases
+
+EXECUTE dbo.IndexOptimize @Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = NULL,@FragmentationHigh = NULL,
+@UpdateStatistics = 'ALL',@OnlyModifiedStatistics = 'Y'
+
+E. Rebuild or reorganize all indexes with fragmentation on all user databases, performing sort operations in tempdb and using all available CPUs
+
+EXECUTE dbo.IndexOptimize @Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',@FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 = 5,@FragmentationLevel2 = 30,
+@SortInTempdb = 'Y',@MaxDOP = 0
+
+F. Rebuild or reorganize all indexes with fragmentation on all user databases, using the option to maintain partitioned indexes on the partition level
+
+EXECUTE dbo.IndexOptimize @Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',@FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 = 5,@FragmentationLevel2 = 30,
+@PartitionLevel = 'Y'
+
+G. Rebuild or reorganize all indexes with fragmentation on all user databases, with a time limit so that no commands are executed after 3600 seconds
+
+EXECUTE dbo.IndexOptimize @Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',@FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 = 5,@FragmentationLevel2 = 30,
+@TimeLimit = 3600
+
+H. Rebuild or reorganize all indexes with fragmentation on the table Production.Product in the database AdventureWorks
+
+EXECUTE dbo.IndexOptimize @Databases = 'AdventureWorks',@FragmentationLow = NULL,@FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',@FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 = 5,@FragmentationLevel2 = 30,
+@Indexes = 'AdventureWorks.Production.Product'
+
+I. Rebuild or reorganize all indexes with fragmentation except indexes on the table Production.Product in the database AdventureWorks
+
+EXECUTE dbo.IndexOptimize@Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',@FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 = 5,@FragmentationLevel2 = 30,
+@Indexes = 'ALL_INDEXES, -AdventureWorks.Production.Product'
+
+J. Rebuild or reorganize all indexes with fragmentation on all user databases and log the results to a table
+
+EXECUTE dbo.IndexOptimize @Databases = 'USER_DATABASES',@FragmentationLow = NULL,@FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',@FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 = 5,@FragmentationLevel2 = 30,
+@LogToTable = 'Y'

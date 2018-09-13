@@ -1,0 +1,3259 @@
+Always use SQL Server tools such as SQL Server Configuration Manager to change the account used by the SQL Server Database Engine or SQL Server Agent services, or to change the password for the account. In addition to changing the account name, SQL Server Configuration Manager performs additional configuration such as updating the Windows local security store which protects the service master key for the Database Engine. Other tools such as the Windows Services Control Manager can change the account name but do not change all the required settings.
+For Analysis Services instances that you deploy in a SharePoint farm, always use SharePoint Central Administration to change the server accounts for Power Pivot service applications and the Analysis Services service. Associated settings and permissions are updated to use the new account information when you use Central Administration.
+To change Reporting Services options, use the Reporting Services Configuration Tool.
+
+Services Installed by SQL Server
+=================================
+Depending on the components that you decide to install, SQL Server Setup installs the following services:
+SQL Server Database Services :  The service for the SQL Server relational Database Engine. The executable file is <MSSQLPATH>\MSSQL\Binn\sqlservr.exe.
+SQL Server Agent : Executes jobs, monitors SQL Server, fires alerts, and enables automation of some administrative tasks. The SQL Server Agent service is present but disabled on instances of SQL Server Express. The executable file is <MSSQLPATH>\MSSQL\Binn\sqlagent.exe.
+Analysis Services : Provides online analytical processing (OLAP) and data mining functionality for business intelligence applications. The executable file is <MSSQLPATH>\OLAP\Bin\msmdsrv.exe.
+Reporting Services : Manages, executes, creates, schedules, and delivers reports. The executable file is <MSSQLPATH>\Reporting Services\ReportServer\Bin\ReportingServicesService.exe.
+Integration Services : Provides management support for Integration Services package storage and execution. The executable path is <MSSQLPATH>\130\DTS\Binn\MsDtsSrvr.exe
+SQL Server Browser : The name resolution service that provides SQL Server connection information for client computers. The executable path is c:\Program Files (x86)\Microsoft SQL Server\90\Shared\sqlbrowser.exe
+Full-text search : Quickly creates full-text indexes on content and properties of structured and semistructured data to provide document filtering and word-breaking for SQL Server.
+SQL Writer : Allows backup and restore applications to operate in the Volume Shadow Copy Service (VSS) framework.
+SQL Server Distributed Replay Controller : Provides trace replay orchestration across multiple Distributed Replay client computers.
+SQL Server Distributed Replay Client : One or more Distributed Replay client computers that work together with a Distributed Replay controller to simulate concurrent workloads against an instance of the SQL Server Database Engine.
+SQL Server Trusted Launchpad : A trusted service that hosts external executables that are provided by Microsoft, such as the R runtime installed as part of R Services (In-database). Satellite processes can be launched by the Launchpad process but will be resource governed based on the configuration of the individual instance. The Launchpad service runs under its own user account, and each satellite process for a specific, registered runtime will inherit the user account of the Launchpad. Satellite processes are created and destroyed on demand during execution time.
+
+========================================
+Stand-alone Server or Domain Controller
+==========================================
+SQL Server 2016	C:\Windows\SysWOW64\SQLServerManager13.msc
+SQL Server 2014	C:\Windows\SysWOW64\SQLServerManager12.msc
+SQL Server 2012	C:\Windows\SysWOW64\SQLServerManager11.msc
+SQL Server 2008	C:\Windows\SysWOW64\SQLServerManager10.ms
+
+---------------------------------------- --------------------- -------------------------------------------------
+Component	                         Windows Server 2008	Windows 7 and Windows Server 2008 R2 and higher
+--------------------------------------- ---------------------- -------------------------------------------------
+Database Engine	                         NETWORK SERVICE	Virtual Account*
+SQL Server Agent	                 NETWORK SERVICE	Virtual Account*
+SSAS	                                 NETWORK SERVICE	Virtual Account*
+SSIS	                                 NETWORK SERVICE	Virtual Account*
+SSRS	                                 NETWORK SERVICE	Virtual Account*
+SQL Server Distributed Replay Controller NETWORK SERVICE	Virtual Account*
+SQL Server Distributed Replay Client	 NETWORK SERVICE	Virtual Account*
+FD Launcher (Full-text Search)	         LOCAL SERVICE	        Virtual Account
+SQL Server Browser	LOCAL SERVICE	 LOCAL SERVICE
+SQL Server VSS Writer	LOCAL SYSTEM	 LOCAL SYSTEM
+Advanced Analytics Extensions	         NTSERVICE\MSSQLLaunchpad NTSERVICE\MSSQLLaunchpad
+
+Managed Service Accounts, Group Managed Service Accounts, and Virtual Accounts
+ these acounts are designed to provide crucial applications such as SQL Server with the isolation of their own accounts, eliminating need for manually administring the Service Principal Name (SPN) & credentials for these accounts.
+ ==> long term management of service account users/passwords/SPNs much easier.
+ 
+ Managed Service Accounts(MSA)
+------------------------------
+ is a type of domain account created and managed by the domain controller. It is assigned to a single member computer for use running a service. The password is managed automatically by the domain controller. You cannot use a MSA to log into a computer, but a computer can use a MSA to start a Windows service. An MSA has the ability to register Service Principal Name (SPN) with the Active Directory. A MSA is named with a $ suffix, for example DOMAIN\ACCOUNTNAME$. When specifying a MSA, leave the password blank. Because a MSA is assigned to a single computer, it cannot be used on different nodes of a Windows cluster.
+System_CAPS_ICON_note.jpg Note
+
+The MSA must be created in the Active Directory by the domain administrator before SQL Server setup can use it for SQL Server services.
+  
+Virtual Accounts 
+-----------------
+Virtual accounts in Windows Server 2008 R2 and Windows 7 are managed local accounts that provide the following features to simplify service administration.
+The virtual account is auto-managed, and the virtual account can access the network in a domain environment. 
+If the default value is used for the service accounts during SQL Server setup on Windows Server 2008 R2 or Windows 7, a virtual account using the instance name as the service name is used, in the format NT SERVICE\<SERVICENAME>. 
+Services that run as virtual accounts access network resources by using the credentials of the computer account in the format <domain_name>\<computer_name>$. 
+When specifying a virtual account to start SQL Server, leave the password blank. If the virtual account fails to register the Service Principal Name (SPN), register the SPN manually. 
+(For more information on registering a SPN manually, see Manual SPN Registration).  
+
+Service                                           	                Virtual Account Name
+---------------------------------------------------------------------- --------------------------
+Default/ instance of the Database Engine service                       NT SERVICE\MSSQLSERVER    -- NT SERVICE\MSSQL$PAYROLL 	  NT Service\MSSQL$MTLDB       
+SQL Server Agent service on the default/Named(PAYROLL) instance        NT SERVICE\SQLSERVERAGENT -- NT SERVICE\SQLAGENT$PAYROL     NT Service\SQLAgent$MTLDB
+SSAS:                                                                  SQLServerMSASUser$ComputerName$MSSQLSERVER -- SQLServerMSASUser$MCR-ORA-t05$MTLDB
+SSRS: (reporting)                                                      NT SERVICE\ReportServer   -- NT Service\ReportServer$MTLDB
+SSIS: ()                                                               NT SERVICE\MsDtsServer130
+SQL Server Browser                                                     SQLServer2005SQLBrowserUser$ComputerName
+
+Note: Virtual accounts cannot be used for SQL Server Failover Cluster Instance, because the virtual account would not have the same SID on each node of the cluster.
+       Use a MSA or virtual account when possible or use a specific low-privilege user account or domain account instead of a shared account for SQL Server services
+       
+ - Reviewing Additional Considerations
+ -----------------------------------
+The following table shows the permissions that are required for SQL Server services to provide additional functionality.
+Service/Application	        Functionality	                                       Required permission
+------------------------------  -------------------------------------------------     ------------------------------------------------------------------------------------------
+SQL Server (MSSQLSERVER)	Write to a mail slot using xp_sendmail.	                 Network write permissions.
+SQL Server (MSSQLSERVER)	Run xp_cmdshell for a user other than SQL Server admin.  Act as part of operating system and replace a process-level token.
+SQL Server Agent (MSSQLSERVER)	Use the autorestart feature.	                         Must be a member of the Administrators local group.
+Database Engine Tuning Advisor	Tunes databases for optimal query performance.	         On first use, a user who has system administrative credentials must initialize the application. After initialization, dbo users can use the Database Engine Tuning Advisor to tune only those tables that they own. For more information, see "Initializing Database Engine Tuning Advisor on First Use" in SQL Server Books Online.
+
+Before you upgrade SQL Server, enable Windows Authentication for SQL Server Agent and verify the required default configuration: SQL Server Agent service account is member of SQL Serversysadmin group !ß.
+Registry Permissions: The registry hive is created under HKLM\Software\Microsoft\Microsoft SQL Server\<Instance_ID> 
+
+If Microsoft .NET Framework 3.5 is not installed or enabled prior to SQL Server setup, Windows will attempt to install Microsoft .NET Framework 3.5 during the SQL Server installation process.
+ An incomplete installation of SQL Server may result if Windows is not able to successfully access and install Microsoft .NET Framework 3.5.
+
+
+BUGs:
+1-ERROR INSTALL Microsoft SQL Server 2012 Service Pack 1 Setup 
+------------------------------
+ The following error has occurred: Error while enabling Windows feature : NetFx3, 
+ Error Code : -2146498298 , 
+ Please try enabling Windows feature : NetFx3 from Windows management tools and then run setup again. 
+ For more information on how to enable Windows features , see http://go.microsoft.com/fwlink/?linkid=227143 For help, click: http://go.microsoft.com/fwlink?LinkID=20476&ProdName=Microsoft%20SQL%20Server&EvtSrc=setup.rll&EvtID=50000&ProdVer=11.0.3000.0&EvtType=0x681D636F%25401428%25401 
+ ------------------------------ BUTTONS: OK ------------------------------
+ dism /online /enable-feature /featurename:NetFX3 /all /Source:d:\sources\sxs /LimitAccess
+ dism.exe /online /enable-feature /featurename:NetFX3 /all
+ PowerShell :
+ Install-WindowsFeature –name NET-Framework-Core
+ 
+ 2- You cannot open the SQL Server Analysis Services properties dialog box
+ • You try to select Properties for the instance of SSAS in order to view or change the properties of the instance.
+  In this scenario, the properties dialog box does not appear. Additionally, you receive the following error message: 
+  ---" Item has already been added. Key in dictionary: '4096' Key being added: '4096' (mscorlib)" ..
+  Solution : download // Cumulative Update 7 for SQL Server 2012 SP1 //  https://support.microsoft.com/en-ca/kb/2772858
+  Workaround: Open Microsoft SQL Server Analysis Services 2012  %ProgramFiles%\Microsoft SQL Server\MSAS11.<Instance name>\OLAP\Config\Msmdsrv.ini File and edit the properies when needed
+  
+ 
+ 
+  ============================================================================================================================================================================================
+                      ====================================DATABASE INTERNALS==============================
+           
+  ============================================================================================================================================================================================
+
+--------------------
+USERS / SCHEMAS/SCHEMA OWNERS (profile/role) :
+
+
+Server Role	Database Role or Permission	Login	Table Creation Method	               Owner
+-------------- -------------------------------- ------- -------------------------------------- -----
+sysadmin	--	                        sa	Enterprise manager	                dbo
+sysadmin	--	                        sa	create table [test1](abc int)	        dbo
+sysadmin	--	                        sa	create table [fred].[test1](abc int)	fred
+--	        db_owner	                sam	Enterprise Manager	                dbo
+--	        db_owner	                sam	create table [test2](abc int)	        sam
+--	        db_owner	                sam	create table [dbo].[test2](abc int)	dbo
+--	        db_owner	                sam	create table [fred].[test2](abc int)	fred
+--	        create table permission	        fred	Enterprise Manager	                fred
+--	        create table permission	        fred	create table [test3](abc int)	        fred
+--	        create table permission	        fred	Create table [dbo].[test3](abc int)	ERROR
+--	        owns the database	        sue	Enterprise Manager	                dbo
+--	        owns the database	        sue	create table [test4](abc int)	        dbo
+--	        owns the database	        sue	create table [fred].[test4](abc int)	fred
+
+Basically, an object created by an account operating with sa rights or the owner of the database defaults to dbo ownership. 
+confusion begins when object is created with script by a member of the db_owner role without explicitly specifying dbo as the owner. 
+Fred can't create a table with the dbo owner at all since he isn't a member of the db_owner role.
+
+
+- Only user accounts in the db_owner role can create objects owned by dbo user account that creates the object will also own the object Only user accounts in the db_owner role can create objects owned by dbo
+- If an object is owned by an account other than dbo, the ownership must be transferred to another user if the original account is to be deleted ( object/table must be transferred to another user account using the sp_changeobjectowner )
+- The schema has an owner, but the owner is not tied to the name , so owner of the schema can be changed without breaking any code (source package referrence).dbo schema is available if no schema are created.
+- rename table from a schema is done using the following command :
+use demodb
+exec sp_rename 'dbo.[TM_WORLD_BORDERS-0.3]','World_borders'ALTER USER [kh85124] WITH DEFAULT_SCHEMA=[INFORMATION_SCHEMA]
+GO
+SQL Server Has ten pre-defined schemas that have the same names as the built-in database users and roles.
+
+Default schemas :
+------------------
+Sys                        // systen objects 
+INFORMATION_SCHEMA        // system objects 
+dbo                      //  Default schema for a newly created database. Owned by dbo user account. New users have dbo as their default schema but don't inherit the permissions of the dbo user account.only schema permisions on schema objects   
+guest
+
+Types of Users:
+---------------
+Windows User :
+SQl user with password (Only connect to the current database )
+SqlUser with login (to connect to serveral databases)
+SqlUser without login (no password)
+SqlUser mapped to certificate
+SqlUser mapped to an Asymetric Key
+
+===========================
+SQL user creation with password
+===========================
+-- Creates the login DEmoContuser   '.  
+USE [DemoDB]
+CREATE LOGIN DEmoContuser  WITH PASSWORD = '12345' ,CHECK_EXPIRATION=OFF, CHECK_POLICY=OFF
+GO  
+
+-- Creates a database user for the login created above.  
+USE [DemoDB]
+CREATE USER [DemocontUser] FOR LOGIN [DemocontUser] WITH DEFAULT_SCHEMA=[db_owner]
+GO
+ 
+implicit: ALTER ROLE [db_owner] ADD MEMBER [DemocontUser]
+
+
+
+Roles :
+sp_addsrvrolemember [ @loginame= ] 'login' , [ @rolename = ] 'role'
+sp_addsrvrolemember @loginname='kh85124' ,@rolename='sysadmin'
+
+List:
+sysadmin
+securityadmin
+serveradmin
+setupadmin
+processadmin
+diskadmin
+dbcreator
+bulkadmin
+
+
+ 
+
+
+
+================================
+SERVERPROPERTY (Transact-SQL)
+================================
+-- System functions 
+--Configuration Functions
+select @@version,SERVERPROPERTY('Edition'),@@SERVERNAME,@@SERVICENAME,DB_NAME()
+select @@CONNECTIONS,SYSTEM_USER,CURRENT_USER,SUSER_SNAME()
+
+
+
+
+
+
+Property	Values returned
+---------       -------------------------------------------------------------------------------------------------------------------------------------------------
+BuildClrVersion       Version of the Microsoft.NET Framework common language runtime (CLR) that was used while building the instance of SQL Server.
+                      NULL = Input is not valid, an error, or not applicable.
+                      Base data type: nvarchar(128)
+Collation	      Name of the default collation for the server.
+                      NULL = Input is not valid, or an error.
+                      Base data type: nvarchar(128)
+CollationID	          ID of the SQL Server collation. 
+                          Base data type: int
+ComparisonStyle	           Windows comparison style of the collation.
+                           Base data type: int
+ComputerNamePhysicalNetBIOS	NetBIOS name of the local computer on which the instance of SQL Server is currently running.
+                                For a clustered instance of SQL Server on a failover cluster, this value changes as the instance of SQL Server fails over to other nodes in the failover cluster.
+                                On a stand-alone instance of SQL Server, this value remains constant and returns the same value as the MachineName property.
+                                Note: If the instance of SQL Server is in a failover cluster and you want to obtain the name of the failover clustered instance, use the MachineName property.
+                                NULL = Input is not valid, an error, or not applicable.                      
+                                Base data type: nvarchar(128)
+
+Edition	                              Installed product edition of the instance of SQL Server. Use the value of this property to determine the features and the limits, such as Compute Capacity Limits by Edition of SQL Server. 64-bit versions of the Database Engine append (64-bit) to the version.
+                                      
+                                      Returns:
+                                      'Enterprise Edition', ‘Enterprise Edition: Core-based Licensing’,'Enterprise Evaluation Edition',‘Business Intelligence Edition’
+                                      'Developer Edition','Express Edition','Express Edition with Advanced Services','Standard Edition','Web Edition','SQL Azure' indicates SQL Database or SQL Data Warehouse
+                                      
+                                           Base data type: nvarchar(128)
+EditionID	                      EditionID represents the installed product edition of the instance of SQL Server. Use the value of this property to determine features and limits, such as Compute Capacity Limits by Edition of SQL Server.
+                                      
+                                        1804890536 = Enterprise
+                                        
+                                        1872460670 = Enterprise Edition: Core-based Licensing
+                                        
+                                        610778273= Enterprise Evaluation
+                                        
+                                        284895786 = Business Intelligence
+                                        
+                                        -2117995310 = Developer
+                                        
+                                        -1592396055 = Express
+                                        
+                                        -133711905= Express with Advanced Services
+                                        
+                                        -1534726760 = Standard
+                                        
+                                        1293598313 = Web
+                                        
+                                        1674378470 = SQL Database
+                                        
+                                        Base data type: bigint
+EngineEdition	                        Database Engine edition of the instance of SQL Server installed on the server.
+                                                                               
+                                          2 = Standard (This is returned for Standard, Web, and Business Intelligence.)
+                                          
+                                          3 = Enterprise (This is returned for Evaluation, Developer, and both Enterprise editions.)
+                                          
+                                          4 = Express (This is returned for Express, Express with Tools and Express with Advanced Services)
+                                          
+                                          5 = SQL Database
+                                          
+                                          6 - SQL Data Warehouse
+                                          
+                                          Base data type: int
+HadrManagerStatus	              Applies to: SQL Server 2012 through SQL Server 2016.  Indicates whether the Always On Availability Groups manager has started.
+
+                                        0 = Not started, pending communication.
+                                        1 = Started and running.
+                                        2 = Not started and failed.
+                                        NULL = Input is not valid, an error, or not applicable.
+
+InstanceDefaultDataPath	                 Name of the default path to the instance data files. Applies to: SQL Server 2012 through current version in updates beginning in late 2015.
+                                         
+                                         
+InstanceDefaultLogPath	                 Name of the default path to the instance log files.  Applies to: SQL Server 2012 through current version in updates beginning in late 2015.
+                                         
+                                     
+InstanceName	                          Name of the instance to which the user is connected.
+                                          Returns NULL if the instance name is the default instance, if the input is not valid, or error.
+                                          NULL = Input is not valid, an error, or not applicable.
+                                          Base data type: nvarchar(128)
+                                          
+IsAdvancedAnalyticsInstalled	   Returns 1 if the Advanced Analytics feature was installed during setup; 0 if Advanced Analytics was not installed.
+
+IsClustered	                   Server instance is configured in a failover cluster.
+                                    1 = Clustered.
+                                    0 = Not Clustered.
+                                    NULL = Input is not valid, an error, or not applicable.
+                                    Base data type: int
+
+IsFullTextInstalled	       The full-text and semantic indexing components are installed on the current instance of SQL Server.
+                               1 = Full-text and semantic indexing components are installed.
+                               0 = Full-text and semantic indexing components are not installed.                         
+                               NULL = Input is not valid, an error, or not applicable.
+                                Base data type: int
+
+IsHadrEnabled	              Always On Availability Groups is enabled on this server instance.Applies to: SQL Server 2012 through SQL Server 2016.
+                               0 = The Always On Availability Groups feature is disabled.                 
+                               1 = The Always On Availability Groups feature is enabled.                  
+                               NULL = Input is not valid, an error, or not applicable.
+                               Base data type: int
+                               For availability replicas to be created and run on an instance of SQL Server, Always On Availability Groups must be enabled on the server instance. For more information, see Enable and Disable AlwaysOn Availability Groups (SQL Server).
+                              Note: The IsHadrEnabled property pertains only to Always On Availability Groups. Other high availability or disaster recovery features, such as database mirroring or log shipping, are unaffected by this server property.
+
+IsIntegratedSecurityOnly	Server is in integrated security mode.
+                                1 = Integrated security (Windows Authentication)
+                                0 = Not integrated security. (Both Windows Authentication and SQL Server Authentication.)
+                                NULL = Input is not valid, an error, or not applicable.
+                                Base data type: int
+IsLocalDB	               Server is an instance of SQL Server Express LocalDB.Applies to: SQL Server 2012 through SQL Server 2016.
+                               NULL = Input is not valid, an error, or not applicable.
+
+IsPolybaseInstalled	Applies to: SQL Server 2016.
+                        Returns whether the server instance has the PolyBase feature installed.
+                        0 = PolyBase is not installed.
+                        1 = PolyBase is installed.
+                        Base data type: int
+
+
+IsSingleUser	Server is in single-user mode.
+                1 = Single user.
+                0 = Not single user
+                NULL = Input is not valid, an error, or not applicable.
+                Base data type: int
+
+IsXTPSupported	Applies to: SQL Server (SQL Server 2014 through SQL Server 2016), SQL Database.
+                Server supports In-Memory OLTP.
+                1= Server supports In-Memory OLTP.
+                0= Server does not supports In-Memory OLTP.
+                NULL = Input is not valid, an error, or not applicable.
+                Base data type: int
+
+LCID	        Windows locale identifier (LCID) of the collation.
+                Base data type: int
+
+LicenseType	Unused. License information is not preserved or maintained by the SQL Server product. Always returns DISABLED.
+                 Base data type: nvarchar(128)
+                 
+MachineName	Windows computer name on which the server instance is running.
+                For a clustered instance, an instance of SQL Server running on a virtual server on Microsoft Cluster Service, it returns the name of the virtual server.
+                NULL = Input is not valid, an error, or not applicable.
+                Base data type: nvarchar(128)
+
+NumLicenses	Unused. License information is not preserved or maintained by the SQL Server product. Always returns NULL.
+                Base data type: int
+
+ProcessID	Process ID of the SQL Server service. ProcessID is useful in identifying which Sqlservr.exe belongs to this instance.
+                NULL = Input is not valid, an error, or not applicable.
+                Base data type: int
+
+ProductBuild	Applies to: SQL Server 2014 beginning October, 2015. The build number.
+
+ProductBuildType	Type of build of the current build.Applies to: SQL Server 2012 through current version in updates beginning in late 2015. 
+                        Returns one of the following:
+                        OD = On Demand release a specific customer.
+                        GDR = General Distribution Release released through windows update.
+                        NULL= Not applicable.
+
+ProductLevel	Level of the version of the instance of SQL Server.
+                 Returns one of the following:
+                 'RTM' = Original release version
+                 'SPn' = Service pack version
+                 'CTPn', = Community Technology Preview version
+                 Base data type: nvarchar(128)
+
+ProductMajorVersion	The major version.Applies to: SQL Server 2012 through current version in updates beginning in late 2015. 
+
+ProductMinorVersion	The minor version.Applies to: SQL Server 2012 through current version in updates beginning in late 2015.
+
+ProductUpdateLevel	CU indicates a cumulative update.Applies to: SQL Server 2012 through current version in updates beginning in late 2015.Update level of the current build. 
+                         Returns one of the following:
+                         CUn = Cumulative Update
+                         NULL= Not applicable.
+
+ProductUpdateReference	Applies to: SQL Server 2012 through current version in updates beginning in late 2015.
+                        KB article for that release.
+
+ProductVersion	      Version of the instance of SQL Server, in the form of 'major.minor.build.revision'.
+                     Base data type: nvarchar(128)
+
+ResourceLastUpdateDateTime	Returns the date and time that the Resource database was last updated.
+                                Base data type: datetime
+
+ResourceVersion	Returns the version Resource database.
+                         Base data type: nvarchar(128)
+
+ServerName	Both the Windows server and instance information associated with a specified instance of SQL Server.
+                NULL = Input is not valid, or an error.
+                Base data type: nvarchar(128)
+
+SqlCharSet	 The SQL character set ID from the collation ID.
+                 Base data type: tinyint
+
+SqlCharSetName	 The SQL character set name from the collation.
+                 Base data type: nvarchar(128)
+
+SqlSortOrder	 The SQL sort order ID from the collation
+                 Base data type: tinyint
+SqlSortOrderName  The SQL sort order name from the collation.
+                  Base data type: nvarchar(128)
+
+FilestreamShareName The name of the share used by FILESTREAM.
+                     NULL = Input is not valid, an error, or not applicable.
+
+FilestreamConfiguredLevel The configured level of FILESTREAM access. For more information, see filestream access level.
+
+FilestreamEffectiveLevel  The effective level of FILESTREAM access. This value can be different than the FilestreamConfiguredLevel if the level has changed and either an instance restart or a computer restart is pending. For more information, see filestream access level.
+
+=================
+create filestream
+=================
+
+
+USE [master]
+GO
+ALTER DATABASE [AdventureWorks2012] SET FILESTREAM( NON_TRANSACTED_ACCESS = FULL, DIRECTORY_NAME = N'MtldbFSData' ) WITH NO_WAIT
+GO
+
+
+EXEC sp_configure filestream_access_level, 2
+RECONFIGURE
+go
+check cconfiguration :
+exec sp_configure 'filestream access level
+go 
+name                                minimum     maximum     config_value run_value
+----------------------------------- ----------- ----------- ------------ -----------
+filestream access level                       0           2            2           2
+
+USE [master]
+GO
+ALTER DATABASE [AdventureWorks2012] ADD FILEGROUP [MtldbFSFG] CONTAINS FILESTREAM 
+GO
+
+USE [master]
+GO
+ALTER DATABASE [AdventureWorks2012] ADD FILE ( NAME = N'MtldbFilestreamData', FILENAME = N'E:\Components\MtldbFilestreamData' ) TO FILEGROUP [MtldbFSFG]
+GO
+
+check result:
+
+SELECT convert(varchar(20),DB_NAME(database_id))'DB', convert(varchar(20),non_transacted_access) non_transacted_access,  convert(varchar(20), non_transacted_access_desc)non_transacted_access_desc , convert(varchar(20),directory_name) 'directory_name' FROM sys.database_filestream_options where db_name(database_id) like 'Adventureworks2012';
+
+DB                   non_transacted_access non_transacted_access_desc directory_name
+-------------------- --------------------- -------------------------- --------------------
+AdventureWorks2012   2                     FULL                       MtldbFSData
+
+
+
+
+
+create schema [CBTDemos] authorization [dbo] 
+go
+
+create table CBTdemos.files
+([ID] uniqueidenifier ROWGUIDCOL NOT NULL PRIMARY KEY,
+ [DATA] varbinary(max) FILESTREAM NULL
+ )
+GO
+
+Insert into files values (NEWID(),CAST('CBTNUGGET<VE?! as varbinary (max))
+go
+select * from files 
+go
+===========
+2 File table
+===========
+
+CREATE TABLE CBTdemos.Morefiles   AS FileTable
+WITH
+(
+      FileTable_Directory =   'More Files',
+      FileTable_Collate_Filename = database_default
+);
+GO
+
+select * from cbtdemos.morefiles;
+Go
+
+
+==========================
+SQL SERVER AGENTS
+==========================
+-------------------------
+Configure Database mail
+-------------------------
+
+this walk through will execute a number of stored procedures to accomplish the following tasks:
+
+Enable the Database Mail feature
+Create a profile for Database Mail
+Create an account for use with the profile
+Send a test email to the DBAs email address
+Enable the SQL Server Agent to use Database Mail
+Add the ‘DBAs’ as an operator for notifications
+
+1) Enable the Database Mail XPs:
+
+USE master
+sp_configure 'show advanced options',1
+GO
+RECONFIGURE WITH OVERRIDE
+GO
+sp_configure 'Database Mail XPs',1
+GO
+RECONFIGURE 
+GO
+
+2) Create a new mail profile:
+
+USE msdb
+GO
+EXECUTE msdb.dbo.sysmail_add_profile_sp
+@profile_name = 'admin',
+@description = 'Profile for sending Automated DBA Notifications'
+GO
+
+
+
+3) Create an account for the notifications (changing the email address, mail server, port as appropriate to your environment):
+
+EXECUTE msdb.dbo.sysmail_add_account_sp
+@account_name = 'SQLAlerts',
+@description = 'Account for Automated DBA Notifications',
+@email_address = 'MSSQL_alerts@medisolution.com',
+@display_name = 'SQL Alerts',
+@mailserver_name = 'mail.harriscomputer.com',
+@port = 25
+GO
+
+4) Add the account to the profile:
+
+EXECUTE msdb.dbo.sysmail_add_profileaccount_sp
+@profile_name = 'admin', ---profile
+@account_name = 'SQLAlerts',
+@sequence_number = 1
+GO
+
+5) Enable the SQL Server Agent to use Database Mail profile by updating the registry settings:
+
+USE msdb
+GO
+EXEC master.dbo.xp_instance_regwrite
+N'HKEY_LOCAL_MACHINE',N'SOFTWARE\Microsoft\Microsoft SQL Server\SQLServerAgent',N'UseDatabaseMail',N'REG_DWORD', 1
+EXEC master.dbo.xp_instance_regwrite
+N'HKEY_LOCAL_MACHINE',N'SOFTWARE\Microsoft\Microsoft SQL Server\SQLServerAgent',N'DatabaseMailProfile',N'REG_SZ',N'admin'
+GO
+0 row(s) affected
+
+6) Restart the SQL Server Agent:   
+If Database Mail is being configured on a SQL Server cluster, you’ll need to perform this using the Cluster Administrator tool by selecting the appropriate cluster group, 
+then restarting the SQL Server Agent resource for the appropriate instance: 
+Windows Server 2003: C:WINDOWSClusterCluAdmin.exe    Windows Server 2008: C:WindowsSystem32Cluadmin.msc
+
+7) Once the SQL Server Agent has been restarted, try sending an email to test the configuration is working as expected:
+
+EXECUTE msdb.dbo.sp_send_dbmail
+@profile_name = 'admin',
+@recipients = 'kosseila.haddalene@medisolution.com',
+@Subject = 'DB:MTLDB SERVER:MCRORAT05 Test Message generated from SQL Server Database Mail',
+@Body = 'This is a test message from SQL Server Database Mail'
+GO
+
+8) Finally, setup an operator called ‘DBAs’ for the job notifications (24×7 schedule in this case) for the email address you supplied earlier:
+
+EXEC msdb.dbo.sp_add_operator @name=N'DBAs', 
+@enabled=1, 
+@weekday_pager_start_time=0, 
+@weekday_pager_end_time=235959, 
+@saturday_pager_start_time=0, 
+@saturday_pager_end_time=235959, 
+@sunday_pager_start_time=0, 
+@sunday_pager_end_time=235959,
+@pager_days=127, 
+@email_address=N'kosseila.haddalene@medisolution.com', 
+@category_name=N'[Uncategorized]'
+GO
+
+USE [msdb]
+GO
+EXEC msdb.dbo.sp_update_operator @name=N'DBAs', @email_address=N'kosseila.haddalene@medisolution.com'
+GO
+
+- Check DatabaseMail state (started/stopped) :                                                   databasemail process activity history
+execute msdb.dbo.sysmail_help_status_sp                                                          select * from msdb.dbo.sysmailog
+GO
+Status
+-------
+STARTED
+- check sent items/mails 
+select * from msdb.dbo.sysmail_items
+
+mail_item_id mailitem
+
+
+
+
+sysmail_start_sp /sysmail_stop_sp
+
+==========
+ CHECK JOBS
+==========
+
+
+SELECT
+     --job.job_id,
+	 SUSER_SNAME(owner_sid) AS owner,
+     notify_level_email,
+     name,
+     enabled,
+     description,
+     step_name,
+     command,
+     server,
+     database_name
+FROM
+  msdb.dbo.sysjobs job
+INNER JOIN 
+    msdb.dbo.sysjobsteps steps        
+ON
+    job.job_id = steps.job_id
+WHERE
+    job.enabled = 0/1 -- remove this if you wish to return all jobs
+	order by 1
+==============
+Create ALert
+==============
+
+USE [msdb]
+GO
+EXEC msdb.dbo.sp_add_alert @name=N'transactionCountToHigh', 
+		@enabled=1, 
+		@delay_between_responses=0, 
+		@include_event_description_in=1, 
+		@performance_condition=N'Databases|Transactions/sec|AdventureWorks2012|>|10', 
+		@job_id=N'00000000-0000-0000-0000-000000000000'
+GO
+EXEC msdb.dbo.sp_add_notification @alert_name=N'transactionCountToHigh', @operator_name=N'DBAs', @notification_method = 1
+GO
+
+-------------
+Test script :
+-------------
+USE AdventureWorks2012
+GO
+Create table CBTDemos.t1(c1 int);
+go
+
+USE AdventureWorks2012
+GO
+Declare @counter int
+ SET @counter=1
+ While (@counter<=20000)
+  BEGIN
+     PRINT @counter
+     INSERT CBTDEMOS.t1 SELECT @counter
+     SET @COUNTER +=1
+  END
+ GO
+
+
+SELECT * from cbtdemos.t1;
+
+EXEC msdb.dbo.sp_set_sqlagent_properties @email_save_in_sent_folder=1, 
+		@databasemail_profile=N'Admin', 
+		@use_databasemail=1
+GO
+
+
+=====================
+Implement Compression
+=====================
+Use MyDB
+GO
+ALTER TABLE person.person rebuild partition =all
+with (DATA_COMPRESSION=PAGE) -- Or RAW
+Go
+---enable index Page compression 
+Alter INDEX IX_person_lasName_firstName_MiddleName On Person.person
+      REBUILD PARTITION=ALL WITH (DATA_COMPRESSION=PAGE)
+Go
+
+
+Estimate compression saving
+---------------------------
+exec sp_estimate_data_compression_savings 'Person','person',NULL,NULL,'PAGE' 
+
+=====================
+Implement encryption
+=====================
+1- Create Master Key :
+use master 
+CREATE master Key encryption by password ='m@5te7P@55w0rd'
+Go
+
+2- cretae certicate for Db encryption
+use master 
+CREATE certificate  SERVCERT with subject='TDE Serv Cert'
+Go
+
+3- CREATE AND Enable Database encryption key 
+Use DemoDB
+Go
+Create Database ENCRYPTION KEY WITH ALGORITHM=AES_128
+ENCRYPTION BY SERVER CERTIFICATE SERVCERT 
+Go
+
+ALTER DATABASE DEMODB SET ENCRYPTION ON
+Go
+
+4- Backup certificate stored in master database
+  Use master
+  BACKUP CERTIFICATE SERVCERT to file='TDE SERV CERT'
+    With private key (FILE='PrivateKeyfile',ENCRYPTION BY PASSWORD='\o/_P@55w0rd\o/')
+Go     
+
+6- Recreate Certificate 
+  CREATE CERTIFICATE ServCert to file='TDE SERV CERT' FROM FILE='TDE SERV CERT'
+   With private key (FILE='PrivateKeyfile',DECRYPTION BY PASSWORD'\o/_P@55w0rd\o/') 
+Go
+
+7- Dynamic view to see encryption state 
+  Select * from sys.dm_database_encryption_keys
+  go
+  default location : ..\Data\
+  
+  
+  8- backup encrypted database 
+  
+BACKUP DATABASE [DemoDB] TO  DISK = N'E:\MSSQL_backup\Backup\Demodb_encrypted1.bak' WITH NOFORMAT, NOINIT,
+       NAME = N'DemoDB-Full Database encrypted Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10
+GO
+
+9- restore the database 
+ Prereq:
+    - Create the Master key on the target instance 
+    - Recreate certificate by using the path of private key +certificat OR copy privatekeufile+certificatee to target instance
+    - change restore File locations accordingly 
+
+USE [master]
+BACKUP LOG [DemoDB] TO  DISK = N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\Backup\DemoDB_LogBackup_systimestamp.bak' WITH NOFORMAT, NOINIT,  NAME = N'DemoDB_LogBackup_2016-07-29_10-06-49', NOSKIP, NOREWIND, NOUNLOAD,  NORECOVERY ,  STATS = 5
+RESTORE DATABASE [DemoDB] FROM  DISK = N'E:\MSSQL_backup\Backup\Demodb_encrypted.bak' WITH  FILE = 1,  MOVE N'DemoDB' TO N'F:\dump\DemoDB.mdf',
+        MOVE N'DemoDB_data' TO N'F:\dump\DemoDB_data.ndf',  MOVE N'DemoDB_data2' TO N'F:\dump\DemoDB_data2.ndf',
+        MOVE N'DemoDB_index' TO N'F:\dump\DemoDB_index.ndf',  MOVE N'DemoDB_log' TO N'F:\dump\DemoDB_log.ldf',
+        NOUNLOAD,  STATS = 5
+GO  
+
+======================
+Implement partitioning
+======================
+ USE [DemoDB]
+GO
+ALTER DATABASE [DemoDB] MODIFY FILE (NAME=N'DemoDB_DB', NEWNAME=N'DemoDB_Data4')  ---DO IT FOR TWO DATAFILES
+ 
+ 1- Create partition function to hold data  per filegroup
+   CREATE  PARTITION FUNCTION pf25Krange(int)
+   AS RANGE LEFT FOR VALUES (500000)
+   Go
+ 
+ 2- Create partition scheme and attach partition function with filegroups
+  CREATE PARTITION SCHEME PsSalesFGs  AS PARTITION pf25kRange TO (DATA,DATA2);   -- each range goes to a FG respectively
+  Go
+  3- Create Table On Partition SCHEME
+    CREATE TABLE LotsOFSales
+    (SaleID INT PRIMARY KEY,PRODUCTID int NOT NULL, Quantity smallint NOT NULL, 
+     SaleAmount Numeric (16,2) NOT NULL,SalesDate datetime NOT NULL)
+     ON PsSalesFGs(SaleID)
+  Go
+ 
+ 4--GENERATE TEST DATA FOR TABLE
+  
+  INSERT INTO LotsOFSales SELECT TOP 1000000   
+  ROW_NUMBER() OVER (ORDER BY a.name) as SaleID,
+  (ABS(CHECKSUM(NEWID()))%100)+1 AS ProductID,
+  (ABS(CHECKSUM(NEWID()))%15)+1 AS Quantity,
+  ABS(cast(cast(NEWID() AS VARBINARY) AS INT) % 100000)*0.1 AS Saleamount,
+  DATEADD(DAY,ABS(CHECKSUM(NEWID())% 3650),'2002-01-01') AS SaleDate
+  FROM
+  SYS.ALL_COLUMNS A
+  CROSS JOIN SYS.ALL_COLUMNS B
+  GO
+  
+  5--CREATE INDEX ON PARTITION SCHEME SPREAD ACROSS THE FGs
+  
+   CREATE NONCLUSTERED INDEX IX_ProductID
+   ON LotsOFSales(ProductID) ---NEW INDEX COLUMN  
+   ON psSalesFGs(SaleID)     --- PARTITION
+   GO    
+   
+ ======================
+ DBCC COMMANDS
+======================
+ checkalloc,checkcatalog,checkconstraints,checkdb,checkfilegroup,checkident,checktable,cleantable,dbreindex,dropcleanbuffers
+ free,freeproccache,freesessioncache,freesystemcache ,help,indexdefrag,inputbuffer,opentran,outputbuffer,pintable,proccache,
+ show_statistics,showcontig,shrinkdatabase,shrinkfile,sqlperf,traceoff,traceon,tracestatus,unpintable,updateusage,useroptions
+ 
+ DBCC SQLPERF
+ DBCC SHOW_STATISTICS ('tabname','statname')
+ sp_helpstats 'tabname','all'
+ DBCC USEROPTIONS   -- to see text size date format , isolation level
+ DBCC DBREINDEX
+ DBCC CLEANTABLE
+ DBCC CHECKTABLE
+ DBCC CHECKFILEGROUP
+ DBCC CHECKDB
+ 
+ DBCC HELP('checkdb') --- Syntax for dbcc statement (use dbcc help('?') for list
+ DBCC TRACEON(610)  -- enable traceflag 610 on current session (minimally logged inserts into tables)   DBCC TRACEON(610,-1) globally 
+ DBCC TRACEOFF(610) -- disable traceflag current session (global (610,-1)
+ DBCC TRACESTATUS(610) -- check traceflag status 
+ 
+ =======================
+ Instance Level settings 
+ =======================
+ --- Turn on  advanced options
+ sp_configure, 'show advanced options',1
+ go
+ reconfigure
+ go
+
+ -- Configure max server memory
+ sp_configure, 'min server memory',0
+ go 
+ reconfigure
+ go
+ 
+ -- Configure max server memory
+ sp_configure, 'max server memory',2048
+ go
+ reconfigure
+ go
+
+  -- configure processor affinity
+ Alter server set process affinity CPU=1,2 --AUTO
+ go 
+ 
+ -- Configure fill factor
+ sp_configure, 'fill factor',75
+ go
+ reconfigure
+ go
+
+ -- Set option on MODEL  database
+ ALTER DATABASE model set AUTO_CLOSE ON
+ go
+
+ ALTER DATABASE model set AUTO_SHRINK ON
+ go 
+ 
+ ALTER DATABASE model set AUTO_CREATE_STATISTICS ON
+ go
+ 
+ ALTER DATABASE model set AUTO_CREATE_STATISTICS ON
+ go
+ 
+ ALTER DATABASE model set AUTO_UPDATE_STATISTICS ON
+ go
+ -- Set option on User  database 
+ 
+ ALTER DATABASE DBdemo set AUTO_SHRINK OFF
+ go
+ ALTER DATABASE DemoDB set SINGLE_USER -- READ ONLY/ MULTI_USER (default)
+ go
+ 
+ =======================
+ Resource tool
+ =======================
+ I- Windows OS based tool
+ ------------------------
+  Windows resource manager feature :
+   (Removed from windows server 2012 R2)
+ Using Process matching criteria (chose group of services/application) 
+  linked to ===> Ressource allocation Policies ( CPU % /emmory...etc) 
+ 
+ II- SQL SERVER base Tool :
+ --------------------------
+ RESOURCE GOVERNOR:
+ 
+ Use master 
+ 1-- Create resource pool for peak time workloads
+ CREATE RESOURCE POOL pPeakhours
+ WITH ( MIN_CPU_PERCENT= 60,MAX_CPU_PERCENT=100,
+        MIN_MEMORY_PERCENT=60,MAX_MEMORY_PERCENT=100)
+ Go
+ 
+ 2-- Create workload group for Peak times
+ CREATE WORKLOAD GROUP wgPeakHours
+ WITH 
+ (IMPORTANCE=HIGH)  Using pPeakHours
+ Go
+ 
+ 3-- Create resource pool for normal time workloads
+ CREATE RESOURCE POOL pBusinessHours
+ WITH(MIN_CPU_PERCENT=30,MAX_CPU_PERCENT=100,
+     MIN_MEMORY_PERCENT=30,MAX_MEMORY_PERCENT=100)
+ Go
+ 
+ 4-- Create workload grou for normal hours 
+ CREATE WORKLOAD GROUP wgBusinessHours
+ WITH(IMPORTANCE=MEDIUM)
+ USING pBusinessHours
+ Go
+ 
+ 5- Create resource Pool for off hour times
+  CREATE RESOURCE POOL pOffHours
+ WITH(MIN_CPU_PERCENT=10,MAX_CPU_PERCENT=100,
+     MIN_MEMORY_PERCENT=10,MAX_MEMORY_PERCENT=100)
+     Go
+     
+ 6-- Create workload grou for normal hours 
+ CREATE WORKLOAD GROUP wgOffHours
+ WITH(IMPORTANCE=Low)
+ USING pOffHours
+ Go
+ 
+ 7-- Create Classifier table to hold times per classification
+ Create table dbo.RGclassificationTimes
+ (Name sysname NOT NULL, StarTime Time NOT NULL, EndTime Time NOT NULL)
+ Go
+ 
+ -- Add time data for classifier function to deteremine workload group to use
+ INSERT RGClassificationTimes VALUES('wgBusinessHours','6:00 AM','5:00 PM')
+ INSERT RGClassificationTimes VALUES('wgPeakHours','5:00 PM','8:00 PM')
+ INSERT RGClassificationTimes VALUES('wgOffHours','8:00 PM','6:00 AM')
+ Go
+ ---classifier function 
+ CREATE FUNCTION fnClassifier()
+      RETURNS Sysname
+ WITH SCHEMABINDING
+ AS 
+ BEGIN
+    DECLARE @name sysname 
+    DECLARE @loginTime Time 
+    SET @loginTime = CONVERT(time,GETDATE())
+  SELECT TOP 1  @name = Name
+    FROM
+    dbo.RGClassificationTimes
+  WHERE StarTime <= @LoginTime AND EndTime >=@LoginTime
+  IF(@Name is not null)
+  RETURN @name
+  RETURN N'default'
+  END
+  Go
+  
+  --save and submit changes to Resource governor
+  ALTER RESOURCE GOVERNOR WITH (CLASSIFIER_FUNCTION= dbo.fnclassifier)
+ ALTER RESOURCE GOVERNOR RECONFIGURE
+ GO 
+ 
+-- Disable RESOURCE GOVERNOR                                --  ENABLE RESOURCE GOVERNOR 
+ ALTER RESOURCE GOVERNOR DISABLE;                             ALTER RESOURCE GOVERNOR RECONFIGURE  
+ GO  
+ =====================
+ ERROR LOGS MANAGEMENT
+ =====================
+ 
+ USE [master] --change the number of log files
+GO
+EXEC xp_instance_regwrite N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer', N'NumErrorLogs', REG_DWORD, 7
+GO
+
+
+--Cycle SQL server log
+EXEC master.dbo.sp_cycle_errorlog
+Go
+
+-- Cycle SQL Agent Logs
+EXEC msdb.dbo.sp_cycle_agent_errorlog
+GO
+
+=============================
+Failover clustered instances
+=============================
+
+Prerequisit :
+
+servers : 4
+--------------
+- Domain Controler 
+- Node1 (cluster owner)
+- Node2
+- file server (SAN server /storage)
+
+Application:
+-------------
+SAN server :
+-install Windows ISCSI software target 
+- Configure target : (SQLSAN) / add ISCSI initiator nodes :DNS node1/node2.nuget.com 
+- Devices: create virtual disks attach to target above: sqlDATA 5G /sqllog 1G /quorum 512M >disk access /Mount 
+- Initiliase and format the disks NTFS  S: L: Q:
+
+1- loging to node1 launch ISCSI initiator # target = San server DNS  sannugget.com / quick connect ->OK / Volume & devices :Auto config
+2- go to server manager disk management : switch the 3 disks online 
+3- Install failover cluster Feature on node 1 node 2 DC server
+    server manager >add feature >failover clustering
+4- Create cluster : go to server Manager>Failover Cluster manager> Create cluster /add nodes node1,node2.nug.com / naming Cluster = SQL cluster (182.168.100.2)
+5 -Set disk witness (quorum disk)
+click  sqlCluster> More action>Cluster quorum setting : select Node and Disk Majority 
+6- install sql server on both nodes
+A- Node 1 master : New sql server failover cluster Install 
+      # Features DB engine , SQL server replication/ Fulltext extraction
+      # Instance config: SQl server Net Name: SQL CLUSTER  / instance name EVAL
+      # Cluster resource group  : SQL SERVER (EVAL)  showing in the FC manager 
+      # disk selection :  DISK 1 and 2
+      # Cluster net config: IP of the cluster 192.168.100.3
+      #Service configuration : add  domain account DB engine +SQL agent 
+      #database engine Directory :point Dblog and tempdblog to the right disk L:
+      
+B- Node 2 : Add Node to SQL server failover Cluster
+     # Cluster Node configuration: select instance /cluster network name/ nodes ...etc
+     # Service accounts : add the domain account for SQL DB engine /SQL agent 
+     #finish
+     
+ 7-    Validation and other tasks
+   check connection using MSSMS   sqlcluster/eval   test
+   Structure: 
+   #sqlcluster 
+      - service application 
+         SQL SERVER (EVAL)   -- resource group
+      -nodes
+         node1
+         node2
+         Storage
+         
+ 7 FAILOVER
+-------------------
+
+7.1 Manual failover 
+failover cluster manager >services and applications right click > Move service to another node '' node2''         
+7.2 automatic failover 
+Node 1 failing :            
+  - failover cluster manager >Nodes > node1 right click>More actions> evict
+  -  Fix and then re run sql server setup to add it back to the cluster      
+                
+
+=============================                                                                        
+Resolving concurency Isssues 
+=============================
+
+Tools :
+--View current isolation level
+DBCC USEROPTIONS
+
+-- Stored procedure to display current locks/process
+exec sp_lock
+
+--- Sproc to display current activity/process
+exec sp_who2 /sp_who3
+Go
+
+-- DMV to view locking information
+SELECT * FROM sys.dm_tran_locks
+Go
+
+-- DMV to view blocked transactions
+
+Select * from sys.dm_exec_requests where status ='suspended'
+Go
+
+-- Trace flag to log deadlocks
+DBCC traceon(1222,-1)
+GO
+
+
+I Locking Simulation:
+
+---Create table for blocking deadlocking simulation
+use DemoDB
+CREATE table locktest ( ID smallint, Somedata nvarchar (50) )  
+Go
+
+Insert lockTest values(1,'row1')
+Insert lockTest values(1,'row2')
+Insert lockTest values(1,'row3')
+
+
+1 --Run this from session 1 (locks1) to create row lock
+BEGIN TRAN 
+UPDATE LockTest SET somedata='Updating row1' WHERE id=1
+
+2 --Run this from session 2 (locks2) , it will wait for the first query to end (blocked)
+BEGIN TRAN 
+UPDATE LockTest SET somedata='Waiting for query 1' WHERE ID = 1
+UPDATE LockTest SET somedata='Updaing row2'WHERE ID = 2 
+
+3-- Ru this from session 3 (Locks 3) , it will wait for the second query (also waiting) to finish
+BEGIN TRAN
+UPDATE Locktest SET somedata ='Waiting for query 2' WHERE ID=2
+UPDATE Locktest SET somedata ='updating row 3' WHERE ID=3     
+
+
+
+
+II DeadLocking Simulation:
+
+-- table for deadlocking simulation
+CREATE Table Locktest2 
+(ID smallint, somedata nvarchar(50))
+Go
+
+Insert lockTest2 values(1,'row1')  
+Insert lockTest2 values(1,'row2')  
+Insert lockTest2 values(1,'row3')  
+
+
+ 
+
+1 --Run this from session A (locks1) to create a table lock on t1
+BEGIN TRAN 
+UPDATE LockTest2 SET somedata=REPLACE(SomeData,'Row','table1 row')
+
+2 --Run this from session B (locks2) , to run table lock on T2
+BEGIN TRAN 
+UPDATE LockTest2 SET somedata=REPLACE(SomeData,'Row','table2 row')
+ 
+3-- Ru this from current session A (Locks1) , to create lock on T2
+
+SELECT * from Locktest2
+
+4-- Run this from session B (Locks2) to create Deadlock 
+Select * from Locktest
+
+
+ERROR : after 5 seconds
+Session A will be killed (victim)
+Msg 1205, Level 13, State 56, Server MCR-ORA-T05\MTLDB, Line 1
+Transaction (Process ID 52) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction.
+
+--Create DEADLOCK extended event 
+CREATE EVENT SESSION [deadlocks] ON SERVER 
+ADD EVENT sqlserver.xml_deadlock_report(
+    ACTION(package0.callstack,package0.process_id,sqlserver.client_app_name,sqlserver.client_hostname,sqlserver.database_id,sqlserver.database_name,sqlserver.nt_username,sqlserver.plan_handle,sqlserver.request_id,sqlserver.session_id,sqlserver.sql_text,sqlserver.transaction_id,sqlserver.transaction_sequence,sqlserver.username)
+    WHERE ([sqlserver].[database_name]=N'adventureworks2012')) 
+ADD TARGET package0.ring_buffer
+WITH (STARTUP_STATE=OFF)
+GO
+ALTER EVENT SESSION [deadlocks] ON SERVER  STATE= START
+GO
+
+---check blocking sessions:
+SELECT
+DATEADD(mi, DATEDIFF(mi, GETUTCDATE(), CURRENT_TIMESTAMP), DeadlockEventXML.value('(event/@timestamp)[1]', 'datetime2')) AS [EventTime],
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@hostname)[1]', 'nvarchar(max)') AS HostName,
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@clientapp)[1]', 'nvarchar(max)') AS ClientApp,
+DB_NAME(DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@currentdb)[1]', 'nvarchar(max)')) AS [DatabaseName],
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@transactionname)[1]', 'nvarchar(max)') AS VictimTransactionName,
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@isolationlevel)[1]', 'nvarchar(max)') AS IsolationLevel,
+DeadlockEventXML.query('(event/data[@name="xml_report"]/value/deadlock)[1]') AS DeadLockGraph,
+DeadlockEventXML
+FROM
+(
+SELECT
+XEvent.query('.') AS DeadlockEventXML,Data.TargetData
+FROM
+(SELECT  CAST(target_data AS XML) AS TargetData
+FROM sys.dm_xe_session_targets st
+JOIN sys.dm_xe_sessions s ON s.address = st.event_session_address
+WHERE s.name = 'Deadlocks' AND st.target_name = 'ring_buffer') AS Data ---the EE session here is Deadlocks
+CROSS APPLY TargetData.nodes('RingBufferTarget/event[@name="xml_deadlock_report"]') AS XEventData(XEvent)
+) AS DeadlockInfo                                                                                  
+
+--Create DEADLOCK extended event 
+CREATE EVENT SESSION [deadlocks] ON SERVER 
+ADD EVENT sqlserver.xml_deadlock_report(
+    ACTION(package0.callstack,package0.process_id,sqlserver.client_app_name,sqlserver.client_hostname,sqlserver.database_id,sqlserver.database_name,sqlserver.nt_username,sqlserver.plan_handle,sqlserver.request_id,sqlserver.session_id,sqlserver.sql_text,sqlserver.transaction_id,sqlserver.transaction_sequence,sqlserver.username)
+    WHERE ([sqlserver].[database_name]=N'adventureworks2012')) 
+ADD TARGET package0.ring_buffer
+WITH (STARTUP_STATE=OFF)
+GO
+ALTER EVENT SESSION [deadlocks] ON SERVER  STATE= START
+GO
+
+SELECT
+DATEADD(mi, DATEDIFF(mi, GETUTCDATE(), CURRENT_TIMESTAMP), DeadlockEventXML.value('(event/@timestamp)[1]', 'datetime2')) AS [EventTime],
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@hostname)[1]', 'nvarchar(max)') AS HostName,
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@clientapp)[1]', 'nvarchar(max)') AS ClientApp,
+DB_NAME(DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@currentdb)[1]', 'nvarchar(max)')) AS [DatabaseName],
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@transactionname)[1]', 'nvarchar(max)') AS VictimTransactionName,
+DeadlockEventXML.value('(//process[@id[//victim-list/victimProcess[1]/@id]]/@isolationlevel)[1]', 'nvarchar(max)') AS IsolationLevel,
+DeadlockEventXML.query('(event/data[@name="xml_report"]/value/deadlock)[1]') AS DeadLockGraph,
+DeadlockEventXML
+FROM
+(
+SELECT
+XEvent.query('.') AS DeadlockEventXML,Data.TargetData
+FROM
+(SELECT  CAST(target_data AS XML) AS TargetData
+FROM sys.dm_xe_session_targets st
+JOIN sys.dm_xe_sessions s ON s.address = st.event_session_address
+WHERE s.name = 'Deadlocks' AND st.target_name = 'ring_buffer') AS Data ---the EE session here is Deadlocks
+CROSS APPLY TargetData.nodes('RingBufferTarget/event[@name="xml_deadlock_report"]') AS XEventData(XEvent)
+) AS DeadlockInfo 
+
+
+
+
+---------------------------- 
+Trace flag to log deadlocks
+----------------------------
+  
+DBCC TRACEON(1222,-1)
+GO
+
+
+Then check alert log for details
+---------------------------------------
+08/04/2016 10:50:27,spid14s,Unknown,waiter id=process271ed0cf8 mode=S requestType=wait
+08/04/2016 10:50:27,spid14s,Unknown,waiter-list
+08/04/2016 10:50:27,spid14s,Unknown,owner id=process271ed1498 mode=X
+08/04/2016 10:50:27,spid14s,Unknown,owner-list
+08/04/2016 10:50:27,spid14s,Unknown,ridlock fileid=3 pageid=10 dbid=6 objectname=DemoDB.dbo.locktest id=lock26ec05780 mode=X associatedObjectId=72057594039304192
+08/04/2016 10:50:27,spid14s,Unknown,waiter id=process271ed1498 mode=Sch-S requestType=wait
+08/04/2016 10:50:27,spid14s,Unknown,waiter-list
+08/04/2016 10:50:27,spid14s,Unknown,owner id=process271ed0cf8 mode=Sch-M
+08/04/2016 10:50:27,spid14s,Unknown,owner-list
+08/04/2016 10:50:27,spid14s,Unknown,objectlock lockPartition=0 objid=309576141 subresource=FULL dbid=6 objectname=309576141 id=lock26ec05c00 mode=Sch-M associatedObjectId=309576141
+08/04/2016 10:50:27,spid14s,Unknown,resource-list
+08/04/2016 10:50:27,spid14s,Unknown,select * from locktest;
+08/04/2016 10:50:27,spid14s,Unknown,inputbuf
+08/04/2016 10:50:27,spid14s,Unknown,select * from locktest;
+08/04/2016 10:50:27,spid14s,Unknown,frame procname=adhoc line=1 sqlhandle=0x0200000067fa311fc088c0b778265ff3a2958f074151815f0000000000000000000000000000000000000000
+08/04/2016 10:50:27,spid14s,Unknown,executionStack
+08/04/2016 10:50:27,spid14s,Unknown,process id=process271ed0cf8 taskpriority=0 logused=4896 waitresource=RID: 6:3:10:0 waittime=1879 ownerId=7787286 transactionname=user_transaction lasttranstarted=2016-08-03T17:23:40.797 XDES=0x26b7583a8 lockMode=S schedulerid=1 kpid=41436 status=suspended spid=54 sbid=0 ecid=0 priority=0 trancount=2 lastbatchstarted=2016-08-03T17:35:46.060 lastbatchcompleted=2016-08-03T17:34:05.750 lastattention=1900-01-01T00:00:00.750 clientapp=SQLCMD hostname=MCR-ORA-T05 hostpid=7448 loginname=MEDISOLUTION\kh85124 isolationlevel=read committed (2) xactid=7787286 currentdb=6 lockTimeout=4294967295 clientoption1=536870944 clientoption2=128056
+08/04/2016 10:50:27,spid14s,Unknown,SELECT * from Locktest2
+08/04/2016 10:50:27,spid14s,Unknown,inputbuf
+08/04/2016 10:50:27,spid14s,Unknown,SELECT * from Locktest2
+08/04/2016 10:50:27,spid14s,Unknown,frame procname=adhoc line=2 stmtstart=-1 sqlhandle=0x010006006b06ca0bb04278670200000000000000000000000000000000000000000000000000000000000000
+08/04/2016 10:50:27,spid14s,Unknown,executionStack
+08/04/2016 10:50:27,spid14s,Unknown,process id=process271ed1498 taskpriority=0 logused=492 waitresource=OBJECT: 6:309576141:0  waittime=90460 ownerId=7786570 transactionname=user_transaction lasttranstarted=2016-08-03T17:23:18.867 XDES=0x27f05e568 lockMode=Sch-S schedulerid=1 kpid=53976 status=suspended spid=52 sbid=0 ecid=0 priority=0 trancount=1 lastbatchstarted=2016-08-03T17:34:17.480 lastbatchcompleted=2016-08-03T17:23:18.867 lastattention=1900-01-01T00:00:00.867 clientapp=SQLCMD hostname=MCR-ORA-T05 hostpid=33884 loginname=MEDISOLUTION\kh85124 isolationlevel=read committed (2) xactid=7786570 currentdb=6 lockTimeout=4294967295 clientoption1=536870944 clientoption2=128056
+08/04/2016 10:50:27,spid14s,Unknown,process-list
+08/04/2016 10:50:27,spid14s,Unknown,deadlock victim=process271ed1498
+08/04/2016 10:50:27,spid14s,Unknown,deadlock-list
+
+OR
+Create Alert and notification
+----------------------------- 
+USE [msdb]
+GO
+EXEC msdb.dbo.sp_add_alert @name=N'Trace_deadLock', 
+		@enabled=1, 
+		@delay_between_responses=0, 
+		@include_event_description_in=1, 
+		@notification_message=N'Dead lock have been noticed in the database', 
+		@performance_condition=N'Locks|Number of Deadlocks/sec|_Total|>|0', 
+		@job_id=N'00000000-0000-0000-0000-000000000000'
+GO
+EXEC msdb.dbo.sp_add_notification @alert_name=N'Trace_deadLock', @operator_name=N'DBAs', @notification_method = 1
+GO
+
+
+2- check reports > all blocking sessions 
+
+3- Install performance_dashboard:run setup.sql
+    click >instance>Report>Custom Reports > open file : Tools\performance_dashboard_main.rdl file from SSMS .
+    
+=============================                                                                        
+Troubleshooting SQL serevr 
+=============================
+
+Tools
+1- SQL SERVER PROFILER
+  - create trace  : Name 
+  Events Selection  Texdata App Name  NT USERNAME LOGIN NAME  CPU  Reads Writes Duration Client process
+  ----------------- ------- --------- -----------  ---------- ---- ------ ----- --------- -------------
+  Security audi
+  Sessions
+  Stored Procedures
+  TSQL
+  SERVER
+  LOCKS\Oerformance\DATABASES\ERRORS warnings
+
+  #Column filter : Column  =like\not like\greater than \less than \=
+  #Run -watch -stop-change properties
+  
+2- EXTENDED EVENTS
+     go to extended events>sessions>create New session
+     Search event : library event| category| channel 
+     #selected event: name3 : double click >>
+     Global fields(actions) |Filter(predicate) [field/Operator/value ]|Event Fields (col1,col2,col3,...)
+     click on the list :filter by this value >> Filter 
+     
+3- Dynamic management views DMV:
+  -- sys.dm_os_= SQL SERVER OS Information
+  SELECT * FROM sys.dm_os_wait_stats
+  
+  --sys.dm_io_ =I/O information   
+  SELECT * FROM sys.dm_io_pending_io_requests
+  
+  -- sys.dm_exec_ =session & Query information
+  SELECT * FROM sys.dm_exec_sesssions
+  SELECT * FROM sys.dm_exec_requests
+  
+  --sys.dm_db_ = DAtabase $ Index Information
+  SELECT * FROM sys.dm_db_task_space_usage
+  SELECT * FROM sys.dm_db_index_operational_stats(NULL,NULL,NULL,NULL)
+  SELECT * FROM sys.dm_db_index_physical_stats(DB_ID(),NULL,NULL,NULL,'DETAILED')    --to check high %fragmented index to rebuild
+   click shift+f1 to see more about a specific DMV
+   
+   4- Data Collectors (non consistant over reboots)
+     a- Management>Sessions>Configure managemenet data warehouse > create  managemenet data warehouse 
+     server :   database New SQLstat(create New/add)
+     specify membership for sqlstats ---finish
+     b- Management>Sessions>Configure managemenet data warehouse> Set up a data acollection
+      Select #database 
+             #Temp Directory     -> finish
+             
+             c- check reports Data collections>reports>management data warehouse 
+             1- Server activity history   2- Disk usage summary        3- query stat history 
+             
+     
+  5- performance monitor :
+  Add counter :
+     Memory ( Available Mbytes- Pages/sec clause to 0 paging)
+     sqlserver Instance: access_method (
+     sqlserver Instance: memory manager ( target server memory (needed)- Total target memory (reel)
+     sqlserver Instance: buffer manager ( buffer cache hit ratio)
+     physical Disk:( %Disk time - Current Disk Queue
+     processor:
+     %privileged Time - %User time
+     System:
+     Processor Queue Length (time threads waiting)
+     
+=============================                                                                        
+AUDITING SQL SERVER 
+=============================
+
+--------------------------
+1- INSTANCE LEVEL AUDITING 
+--------------------------
+
+USE [master]
+ GO
+-- Log application event log , failing operation if log fails 
+CREATE SERVER AUDIT [Applog_Audits] TO APPLICATION_LOG 
+WITH (QUEUE_DELAY=1000,
+      ON_FAILURE=FAIL_OPERATION)
+      GO
+
+-- Log to security event log, shutting down instance if log fails 
+  -- Add service account to local policy (secpol.msc) Local Policies\User rights Asignement\General
+  --
+CREATE SERVER AUDIT [Security_audits] TO SECURITY_LOG
+WITH (QUEUE_DELAY=1000,
+     ON_FAILURE=SHUTDOWN)
+GO
+
+-- Log to file , continuing operation if log fails 
+CREATE SERVER AUDIT [FileLog_audits] TO FILE 
+(	FILEPATH = N'E:\Components\auditing'
+	,MAXSIZE = 0 MB
+	,MAX_ROLLOVER_FILES = 2147483647
+	,RESERVE_DISK_SPACE = OFF
+)
+WITH 
+ (QUEUE_DELAY= 1000
+  ,ON_FAILURE = CONTINUE)
+  GO
+       
+3 --- Create SERVER audit specification to track server restarts         
+drop SERVER AUDIT SPECIFICATION [ServerAuditSpecification-MTLDB_app]
+
+USE [master]
+GO
+CREATE SERVER AUDIT SPECIFICATION [InstanceAudits]
+FOR SERVER AUDIT [Applog_Audits]
+ADD (BACKUP_RESTORE_GROUP),     -- Audit action groups
+ADD (DBCC_GROUP),
+ADD (FAILED_LOGIN_GROUP)
+WITH (STATE=ON)
+GO
+
+--- Actions audited
+Server LEVEL :
+BACKUP DATABASE [DemoDB] TO  DISK = N'E:\MSSQL_backup\Backup\Demodb_encrypted1.bak' WITH NOFORMAT, NOINIT,
+       NAME = N'DemoDB-Full Database encrypted Backup', SKIP, NOREWIND, NOUNLOAD,  STATS = 10
+GO
+DBCC CHECKDB
+try to connect to the DB with a bad password 
+
+
+
+---check audit records 
+event viewer/windows log/application>Source MSSSQL with Task category=None  click properties
+
+
+--------------------------
+1- DATABASE LEVEL AUDITING 
+--------------------------
+
+USE [AdventureWorks2012]
+GO
+CREATE DATABASE AUDIT SPECIFICATION [AuditEmployeeTable]
+FOR SERVER AUDIT [FileLog_audits]
+ADD (SELECT ON OBJECT::[HumanResources].[Employee] BY [dbo]),
+ADD (INSERT ON OBJECT::[HumanResources].[Employee] BY [dbo]),
+ADD (UPDATE ON OBJECT::[HumanResources].[Employee] BY [dbo]),
+ADD (DELETE ON OBJECT::[HumanResources].[Employee] BY [dbo]),
+ADD (EXECUTE ON OBJECT::[dbo].[uspGetManagerEmployees] BY [dbo])
+WITH (STATE=ON)
+GO
+
+use adventureworks2012
+select * from humanresources.EMployee
+EXEC [dbo].[uspGetManagerEmployees]
+
+--- audit login 
+USE [master]
+GO
+EXEC xp_instance_regwrite N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer', N'AuditLevel', REG_DWORD, 3    --Successfull 1 --Failed 2 --Both 3 
+GO
+
+Use bad password and then check in the event viewer to track the Error login failed 
+
+-- Read audit log using Audit function
+SELECT
+[event_time],[session_server_principal_name], [session_id],  [server_principal_name],
+[database_principal_name], [server_instance_name], [database_name],[schema_name],
+[object_name],case action_id 
+           when 'SL' THEN 'SELECT'
+		   when 'UP' THEN 'UPDATE' 
+		   when 'IN' THEN 'INSERT'
+		   when 'DR' THEN 'DROP'
+		   when 'EX' THEN 'EXECUTE'
+		   when 'AUSC' then 'AUDIT SESSION CHANGED'
+		   else action_id 
+		   end Action,
+ [file_name], [statement],[object_id]
+FROM sys.fn_get_audit_file('E:\Components\auditing\*.sqlaudit' , default,default)
+go
+
+--------------------------
+1- DATABASE LEVEL AUDITING 
+--------------------------
+Instance> management> policy management
+  --Policies 
+  -- conditions 
+  -Facets
+  
+  1-Create COndition 
+  Declare @condition_id int
+EXEC msdb.dbo.sp_syspolicy_add_condition @name=N'ClockAutoShrink', @description=N'', @facet=N'Database', @expression=N'<Operator>
+  <TypeClass>Bool</TypeClass>
+  <OpType>EQ</OpType>
+  <Count>2</Count>
+  <Attribute>
+    <TypeClass>Bool</TypeClass>
+    <Name>AutoShrink</Name>
+  </Attribute>
+  <Function>
+    <TypeClass>Bool</TypeClass>
+    <FunctionType>False</FunctionType>
+    <ReturnType>Bool</ReturnType>
+    <Count>0</Count>
+  </Function>
+</Operator>', @is_name_condition=0, @obj_name=N'', @condition_id=@condition_id OUTPUT
+Select @condition_id
+
+GO
+2- Create Policy linked to condition
+Declare @object_set_id int
+EXEC msdb.dbo.sp_syspolicy_add_object_set @object_set_name=N'BlockAutoShrink_ObjectSet', @facet=N'Database', @object_set_id=@object_set_id OUTPUT
+Select  @object_set_id
+
+Declare @target_set_id int
+EXEC msdb.dbo.sp_syspolicy_add_target_set @object_set_name=N'BlockAutoShrink_ObjectSet', @type_skeleton=N'Server/Database', @type=N'DATABASE', @enabled=True, @target_set_id=@target_set_id OUTPUT
+Select @target_set_id
+
+EXEC msdb.dbo.sp_syspolicy_add_target_set_level @target_set_id=@target_set_id, @type_skeleton=N'Server/Database', @level_name=N'Database', @condition_name=N'', @target_set_level_id=0
+GO
+
+Declare @policy_id int
+EXEC msdb.dbo.sp_syspolicy_add_policy @name=N'BlockAutoShrink', @condition_name=N'BlockAutoShrink', @execution_mode=0, @policy_id=@policy_id OUTPUT, @object_set=N'BlockAutoShrink_ObjectSet'
+Select @policy_id
+GO
+
+
+Drop policy and conditions
+---------------------------
+EXEC msdb.dbo.sp_syspolicy_delete_policy @name=N'BlockAutoShrink' / @policy_id=30                               OR               EXEC msdb.dbo.sp_syspolicy_delete_target_set 17                  (granular)           
+GO                                                                                                                               EXEC msdb.dbo.sp_syspolicy_delete_object_set N'BlockAutoShrink_ObjectSet'
+EXEC msdb.dbo.sp_syspolicy_delete_condition @name = 'BlockAutoShrink'   /  @condition_id=select condition_id from msdb.dbo.syspolicy_conditions where name =N'BlockAutoShrink'                                                                                                                                        
+GO
+
+tables :
+[dbo].[syspolicy_conditions_internal]
+[dbo].[syspolicy_configuration_internal]
+[dbo].[syspolicy_execution_internal]
+[dbo].[syspolicy_facet_events]
+[dbo].[syspolicy_management_facets]
+[dbo].[syspolicy_object_sets_internal]
+[dbo].[syspolicy_policy_categories_internal]
+[dbo].[syspolicy_policies_internal]
+[dbo].[syspolicy_policy_execution_history_internal]
+[dbo].[syspolicy_target_set_levels_internal]
+[dbo].[syspolicy_target_sets_internal]
+
+METHOD 2 : MSSQL best practice
+-------------------------------
+
+Import policy
+
+policies > import policies> scrall down Xml preset
+select autoshrink
+
+
+
+
+=============================                                                                        
+BACKUP STRATEGIES 
+=============================
+If the master database is lost, restore it before you restore any differential backup of a user database.
+Back up the active log (a tail-log backup) both after a failure, before beginning to restore the database, or when failing over to a secondary database.
+permission: db_owner , db_backupoperator 
+-- Make sure recovery is full:
+Alter Database TestPiecemealRestores Set Recovery Full;
+Go
+
+You don’t have to perform piecemeal backups in order to perform a piecemeal restore.
+
+Add device : 
+
+USE [master]
+GO
+EXEC master.dbo.sp_addumpdevice  @devtype = N'disk', @logicalname = N'BACKUPDISK', @physicalname = N'E:\MSSQL_backup\Backup\backup.bak'
+GO
+
+--restore full-diff-transaction Log
+
+-- FULL BACKUP to Local Disk
+BACKUP DATABASE [DemoDB]
+ TO  DISK = N'E:\MSSQL_backup\Backup\Demodb_Full.bak' 
+  WITH NAME = N'DemoDB-Full Database Backup' 
+  Go
+  
+
+select database_name,backup_finish_date,backup_size,type from msdb.dbo.backupset;
+
+OR   restore headeronly from adv2012back; --define existing backupsets within device [adv2012back]; 
+
+SELECT server_name, database_name,name,M.physical_device_name,backup_set_id,type,backup_start_date,backup_finish_date,backup_size,database_backup_lsn 
+FROM   msdb.dbo.backupset s
+JOIN   msdb..backupmediafamily M ON M.media_set_id=S.media_set_id
+WHERE  database_name='adventureworks2012' AND s.type ='D' order by backup_finish_date desc
+
+
+
+----
+CREATE TABLE [dbo].[Employees](
+[EmployeeID] [int] NOT NULL,
+[FirstName] [nvarchar](59) NOT NULL,
+[LastName] [nvarchar](75) NOT NULL,
+[Emai] [nvarchar](50) NULL,
+[Title] [nvarchar](100) NULL,
+[HireDate] [datetime] NOT NULL,
+[VacationHours] [smallint] NOT NULL,
+[Salary] [decimal](19, 4)NOT NULL,
+[ActiveFlag] [bit] NOT NULL,
+[ModifiedDate] [datetime] NOT NULL,
+PRIMARY KEY CLUSTERED 
+([EmployeeID] ASC)
+  WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+--Add Employee records to simulate activity
+INSERT into DemoDB.dbo.Employees 
+ Select 1,'Bill','Gates','captn.billy@microsoft.com','Chairman','4/4/1975',100,100000,1,getDATE()    
+INSERT into DemoDB.dbo.Employees  
+Select 2,'Steve','Balmer','steve.balmer@microsoft.com','CEO','6/11/1980',100,50000,1,getdate()
+Go
+
+--DIFFERENTIAL Backup to local Disk     ± 2MB
+BACKUP DATABASE [DemoDb] TO DISK= N'E:\MSSQL_backup\Backup\Demodb_Diff.bak' 
+  WITH NAME = N'DemoDB-Differential Database Backup',DIFFERENTIAL 
+  GO
+  
+ --Add 1000 sale records to simulate activity
+ 
+     CREATE TABLE Demodb.dbo.Sales
+    (SaleID INT PRIMARY KEY,PRODUCTID int NOT NULL, Quantity smallint NOT NULL, 
+     SaleAmount Numeric (16,2) NOT NULL,SalesDate datetime NOT NULL)
+     ON PsSalesFGs(SaleID)
+  Go
+ 
+ 
+ 
+  INSERT INTO DEmoDB.dbo.Sales
+   SELECT TOP 1000
+   ROW_NUMBER() OVER (ORDER BY a.name) as SaleID,
+  (ABS(CHECKSUM(NEWID()))%100)+1 AS ProductID,
+  (ABS(CHECKSUM(NEWID()))%15)+1 AS Quantity,
+  ABS(cast(cast(NEWID() AS VARBINARY) AS INT) % 100000)*0.1 AS Saleamount,
+  DATEADD(DAY,ABS(CHECKSUM(NEWID())% 3650),'2002-01-01') AS SaleDate
+  FROM
+  SYS.ALL_COLUMNS A
+  CROSS JOIN SYS.ALL_COLUMNS B
+  GO   
+ 
+-- TRANSACTION LOG BACKUP  to local Disk 
+
+BACKUP LOG [Demodb] TO DISK =N'E:\MSSQL_backup\Backup\Demodb_Log.trn'
+WITH NAME ='DemoDB-Transaction Log Backup' 
+Go
+  
+-----------------------
+AUTOMATE BACKUPS
+-----------------------
+
+DECLARE @filepath VARCHAR(256) -- root path fo backup
+DECLARE @Filedate Varchar(20)   -- file date of backup
+DEClARE @filename varchar(256) --Full path with name and dtae
+
+SET @filepath
+  SELECT   @Filedate = CONVERT(VARCHAR(20)),GETDATE(),112)
+SET @filename =@filepath+'_'+"FileDate+'_FULL.bak'
+BACKUP DATABASE [DEMODB] TO DISK =@Filename WITH name ='DemoDb DB backup'
+GO
+
+management > maintenance plan wizzard    select FULL differencial /transaction Log - select schedules for each subplan
+
+
+-------------------------------
+FILEGROUP BACKUP for large DBs
+------------------------------
+
+Use master 
+go
+-- Add OldData Filegroup
+ALTER DATABASE Demodb ADD FILEGROUP OldData;
+GO
+
+select distinct so.name
+from sys.objects so
+inner join sys.indexes si
+on so.object_ID = si.object_ID
+inner join sys.data_spaces ds
+on si.data_space_id = ds.data_space_id
+inner join sys.filegroups fg
+on ds.data_space_id = fg.data_space_id
+where fg.name in ('OldData')
+In my case i came up with following results.
+queue_messages_1395848385
+queue_messages_1427848499
+queue_messages_1459848613
+
+ALTER DATABASE DemoDB ADD FILE( NAME ='DemoDB-OldData', FILENAME='E:\Components\SQL_DATA\Old_data.ndf', SIZE= 4096KB,FILEGROWTH =1024KB) TO FILEGROUP OldData
+Go
+ALTER DATABASE DemoDB ADD FILE( NAME ='DemoDB-OldData2', FILENAME='E:\Components\SQL_DATA\Old_data2.ndf', SIZE= 4096KB,FILEGROWTH =1024KB) TO FILEGROUP OldData
+ 
+ USe DemoDB
+ Go
+ --Create archive table on OldData filegroup
+ Select * into demodb.dbo.sales_archive OldData from  dbo.sales;
+ Go 
+
+ 
+ --move table to oldata filegroup 
+CREATE UNIQUE CLUSTERED INDEX PK_salesID ON Demodb.dbo.sales_archive(saleID) WITH (ONLINE=ON) ON OldData
+Go
+DROP INDEX    dbo.sales_archive.PK_salesID  
+ Go
+ insert into dbo.sales_archive select top 10 * from dbo.sales_archive;
+                                                                                                                    Syntax
+ -- FULL Filegroup BACKUP for (read Only) archived data  ==(ONCE A MONTH)                                           BACKUP DATABASE database                                                   
+                                                                                                                    { FILE = logical_file_name | FILEGROUP = logical_filegroup_name } [ ,...f ]
+ Backup DATABASE DemoDB Filegroup ='OldData' TO DISK ='E:\MSSQL_backup\Backup\Demodb_FULL_FG.bak'                   TO backup_device [ ,...n ]                                                 
+ WITH NAME ='Demo DB-Full Filegroup Backup', COMPRESSION [,DIFFERENTIAL]                                                          [ WITH with_options [ ,...o ] ] ;                                          
+ Go
+ 
+ -- FULL Filegroup BACKUP for read write Data (ONCE a WEEK)                                                       --Backup the files in the SalesGroup1 secondary filegroup.
+                                                                                                                           
+ Backup DATABASE DemoDB                                                                                                     BACKUP DATABASE Sales                                       
+ Filgeroup ='Data',                                                                                                            FILE = 'SGrp1Fi2',                                        
+ Filgeroup ='Data2',                                                                                                           FILE = 'SGrp2Fi2'                                         
+ Filgeroup ='Indexes'                                                                                                          TO DISK = 'E:\SQL Server Backups\Sales\SalesGroup1.bck'   
+ TO DISK =N'E:\MSSQL_backup\Backup\Demodb_FULL_FG.bak'                                                                        WITH DIFFERENTIAL,NAME ='differential backup of sales Files' GO                                                           
+ WITH NAME ='Demo DB-Full Filegroup Backup', COMPRESSION                                     
+ Go 
+ 
+ -- DIFFERENTIAL Filegroup BACKUP (ONCE A DAY)
+ 
+ Backup DATABASE DemoDB
+ Filgeroup ='Data',
+ Filgeroup ='Data2',
+ Filgeroup ='Indexes' 
+ TO DISK =N'E:\MSSQL_backup\Backup\Demodb_DIFF_FG.bak'
+ WITH NAME ='Demo DB-Full Filegroup Backup', DIFFERNTIAL,COMPRESSION
+ Go
+ 
+ + LOG backup + tail log backups 
+ 
+ ----------------
+ COPY ONLY BACKUP 
+ ----------------
+ 
+BACKUP DATABASE [DemoDB]
+ TO  DISK = N'E:\MSSQL_backup\Backup\Demodb_Full_copy.bak'    --- allows developpers /users to create backups without altering the differntila chain .  
+  WITH NAME = N'DemoDB-Full Database Backup' ,COPY_ONLY
+  Go
+  
+ -Partial backups are designed with SIMPLE recovery model databases in mind.it means that we can only restore to the last backup that was taken, most likely a full partial or a differential partial backup,
+  and so we do stand to lose some data modifications in the case of,(a midday failure).needs to decide if this type of backup will work for you 
+ -Just because this type of backup was designed mainly for SIMPLE recovery mode databases, it doesn’t mean that we can only use it in such cases. For a FULL recovery model database that has a much smaller window of data loss acceptability, such as an hour, 
+  but does contain a large section of read-only data, this backup type can still work to our advantage. We would, however, need to take transaction log backups in addition to the partial full and partial differentials
+  
+  
+    - DBCC TRACEOFF (3226,-1);   disable writing each succesfull backup to avoid filling the  errror log
+  
+  
+=============================                                                                        
+Restoring databases 
+=============================
+   
+To check the LSN number from the backup file do:
+restore headeronly from DISK = N'E:\MSSQL_backup\Backup\Demodb_Diff.bak'
+  Go 
+  
+BackupType Code	description:    device type : Disk:  2 = Logical 102 = Physical
+--------------  ------------
+ 1 = Database
+ 2 = Transaction log
+ 4 = File
+ 5 = Differential database
+ 6 = Differential file
+ 7 = Partial
+ 8 = Differential partial  
+ ---------------------
+ I --- INNER RESTORE  
+ ---------------------
+
+USE [master]
+ALTER DATABASE [DemoDB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
+BACKUP LOG [DemoDB] TO  DISK = N'E:\MSSQL_backup\Backup\DemoDB_LogBackup_2016-08-09_12-00-45.bak' WITH NOFORMAT, NOINIT,  NAME = N'DemoDB_LogBackup_2016-08-09_12-00-45', NOSKIP, NOREWIND, NOUNLOAD,  NORECOVERY ,  STATS = 5
+RESTORE DATABASE [DemoDB] FROM  DISK = N'E:\MSSQL_backup\Backup\Demodb_FULL.bak' WITH  FILE = 1,  NORECOVERY,  NOUNLOAD,  REPLACE,  STATS = 5
+RESTORE DATABASE [DemoDB] FROM  DISK = N'E:\MSSQL_backup\Backup\Demodb_Diff.bak' WITH  FILE = 1,  NORECOVERY,  NOUNLOAD,  STATS = 5
+RESTORE LOG [DemoDB] FROM  DISK = N'E:\MSSQL_backup\Backup\Demodb_Log.trn' WITH  FILE = 1,  NOUNLOAD,  STATS = 5
+ALTER DATABASE [DemoDB] SET MULTI_USER
+GO
+
+---RESTORE DATABASE  TO ANOTHER INSTANCE
+ a. Encryption: If enabled then recreate the encryption certificate on target instance using create certificate from file='' with private key file='', decryption by passowrd 'xxxx' ) go
+ b. Contained DB: enable contained database on target instance
+ 
+ 
+ USE [master]
+ RESTORE DATABASE [DemoDBNew]
+ FROM DISK N'E:\MSSQL_backup\Backup\Demodb_FULL.bak' WITH NORECOVERY,
+ MOVE N'DEMODB' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\DemoDbnew.mdf'
+ MOVE 'DEMODB_DATA' TO 'E:\Components\DemoDbNew_data.ndf'
+ MOVE 'DEMODB_DATA2' TO 'E:\Components\DemoDbNew_data2.ndf' 
+ MOVE 'DEMODB_DATA3' TO 'E:\Components\DemoDbNew_data.ndf'
+ MOVE 'DEMODB_DATA4' TO 'E:\Components\DemoDbNew_data4.ndf'
+ MOVE 'DEMODB_Index' TO 'E:\Components\DemoDbNew_index.ndf'
+ MOVE 'DEMODB_log' TO 'E:\Components\DemoDbNew_log.ldf'
+ Go   
+ --Restore most recent DIFF Backup
+ RESTORE DATABASE [DemoDBNew] FROM DISK=N'E:\MSSQL_backup\Backup\Demodb_DIFF.bak' WITH NORECOVERY
+ Go
+ -- Restore From LOG backups
+ RESTORE LOG [DemodbNew] FROM DISK ='N'E:\MSSQL_backup\Backup\Demodb_log.trn' WITH NORECOVERY
+ Go
+ --Restore  Tail log backup (buffer backed up recntly last active log)
+ RESTORE LOG [DemodbNew] FROM DISK ='N'E:\MSSQL_backup\Backup\DemoDB_LogBackup_2016-08-09_12-00-45.bak'
+ Go 
+ 
+ ----------------------------------------
+ II --- RESTORE DATABASE TO POINT IN TIME 
+ ----------------------------------------
+ USE [master]
+
+RESTORE DATABASE [DemoDB]
+FROM DISK = N'E:\MSSQL_backup\Backup\Demodb_Full.bak'
+WITH FILE = 1
+	,MOVE N'DemoDB_data' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\DemoDB_data.ndf'
+	,MOVE N'DemoDB_data2' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\DemoDB_data2.ndf'
+	,MOVE N'DemoDB_Data3' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\DemoDB_Data3.ndf'
+	,MOVE N'DemoDB_Data4' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\DemoDB_DB.ndf'
+	,MOVE N'DemoDB_index' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\DemoDB_index.ndf'
+	,MOVE N'DemoDB_log' TO N'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\DemoDB_log.ldf'
+	,NORECOVERY
+	,NOUNLOAD
+	,STATS = 5
+
+RESTORE DATABASE [DemoDB] FROM DISK = N'E:\MSSQL_backup\Backup\Demodb_Diff.bak' WITH FILE = 1,NORECOVERY,NOUNLOAD,STATS = 5
+RESTORE LOG [DemoDB] FROM DISK = N'E:\MSSQL_backup\Backup\Demodb_Log.trn' WITH FILE = 1,NOUNLOAD,STATS = 5,STOPAT = N'2016-08-09T11:59:12'
+GO
+  
+---------------------------------------------------
+ III -- Piecemeal Restore of Database (Full Recovery Model)
+---------------------------------------------------
+In this example, there are 1 log backups, including the tail-log backup. 
+Recovery model=>> full
+Before the disaster=>> all the filegroups PRIMARY, A, C are online. Filegroup B is read-only
+Backups =>  Primary:backup1, A:backup2, B(read Only):Backup2b, C:Backup2a, TL:TailLogBackup, LOG:Backup3,4,5                                                                                                                                                                                                                                
+Before the restore starts=>> a tail-log backup must be taken of the database. 
+All secondary filegroups must be restored in order of importance: A (highest), C, and lastly B.
+                                                                                                                                                                                                                                                                                                              
+ 1- backup tail log: Because database is damaged, creating the tail-log backup requires using the NO_TRUNCATE      
+ BACKUP LOG adb TO tailLogBackup WITH NORECOVERY, NO_TRUNCATE        
+ 
+2 Restore Sequences:
+   A-Partial restore of the primary and secondary filegroup A.    
+   RESTORE DATABASE demodb FILEGROUP='Primary' FROM backup1 WITH PARTIAL, NORECOVERY  
+   RESTORE DATABASE demodb FILEGROUP='A' FROM backup2 WITH NORECOVERY   
+   RESTORE LOG demodb FROM backup3 WITH NORECOVERY  
+   RESTORE LOG demodb FROM backup4 WITH NORECOVERY  
+   RESTORE LOG demodb FROM backup5 WITH NORECOVERY  
+   RESTORE LOG demodb FROM tailLogBackup WITH RECOVERY
+   
+   B- Online restore of filegroup C. 
+   RESTORE DATABASE demodb FILEGROUP='C' FROM backup2a WITH NORECOVERY  
+   RESTORE LOG demodb FROM backup3 WITH NORECOVERY  
+   RESTORE LOG demodb FROM backup4 WITH NORECOVERY  
+   RESTORE LOG demodb FROM backup5 WITH NORECOVERY  
+   RESTORE LOG demodb FROM tailLogBackup WITH RECOVERY  
+   
+   C- Online restore of read only filegroup B. (backup of filegroup B was taken after the filegroup became read-only; )
+   RESTORE DATABASE demodb FILEGROUP='B' FROM backup2b WITH RECOVERY   
+   no need to be rolled forward during recovery                                                                                                                                                                                                                                                                                                           
+-----------------------------------------                                                                                                                                                                                                                                                                     
+ II --- RESTORE FILEGROUP                                                                                                                                                                                                                                                                                     
+-----------------------------------------                                                                                                                                                                                                                                                                     
+A- Restore  at database level                                                                                                                                                                                                                                                                                 
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+USE master;                                                                                                                                                                                                                                                                                                   
+GO                                                                                                                                                                                                                                                                                                            
+-- Restore the files and filesgroups for MyDatabase.  (all read write FGs otherwise data will be defunct                                                                                                                                                                                                                                                          
+RESTORE DATABASE [DemoDB] FILE = N'DemoDB_data2',FILE=N'DemoDB_data2' FROM  DISK = N'E:\MSSQL_backup\Backup\Demodb_Full.bak' WITH  FILE = 1,  NORECOVERY,  NOUNLOAD,  REPLACE,  STATS = 10                                                                                                                    
+GO                                                                                                                                                                                                                                                                                                            
+RESTORE DATABASE [DemoDB] FILE = N'DemoDB_data2',FILE=N FROM  DISK = N'E:\MSSQL_backup\Backup\Demodb_Diff.bak' WITH  FILE = 1,  NORECOVERY,  NOUNLOAD,  REPLACE,  STATS = 10                                                                                                                                  
+go                                                                                                                                                                                                                                                                                                            
+RESTORE LOG [DemoDB] FROM  DISK = N'E:\MSSQL_backup\Backup\Demodb_Log.trn' WITH  FILE = 1,  NORECOVERY,  NOUNLOAD,  STATS = 10                                                                                                                                                                                
+GO                                                                                                                                                                                                                                                                                                            
+RESTORE LOG [DemoDB] FROM  DISK = N'E:\MSSQL_backup\Backup\DemoDB_LogBackup_2016-08-09_12-00-45.bak' WITH  FILE = 1,  NOUNLOAD,  STATS = 10                                                                                                                                                                   
+GO                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                                              
+------put a damaged file offline.no going backward                                                                                                                                                                                                                                                            
+ALTER DATABASE userDB MODIFY FILE (NAME=’damagedFile’, OFFLINE)                                                                                                                                                                                                                                               
+USE master;                                                                                                                                                                                                                                                                                                   
+GO                                                                                                                                                                                                                                                                                                            
+ALTER DATABASE DemoDb REMOVE FILE 'DemoDB-OldData' ;                                                                                                                                                                                                                                                          
+GO                                                                                                                                                                                                                                                                                                            
+--Msg 5056, Level 16, State 2, Line 1  --Cannot add, remove, or modify a file in filegroup 'TestFG' because the filegroup is not online.                                                                                                                                                                                                             
+ALTER DATABASE DemoDB  REMOVE FILEGROUP Olddata ;                                                                                                                                                                                                                                                             
+GO                                                                                                                                                                                                                                                                                                            
+--Msg 5042, Level 16, State 8, Server MCR-ORA-T05\MTLDB, Line 1  --The filegroup 'OldData' cannot be removed because it is not empty.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+Solution                                                                                                                                                                                                                                                                                                      
+----------                                                                                                                                                                                                                                                                                                    
+BACKUP DATABASE [DemoDB] FILEGROUP = N'PRIMARY',  FILEGROUP = N'Data',FILEGROUP = N'index', FILEGROUP = N'Data2' TO DISK ='E:\MSSQL_backup\Backup\Demodb_FULL_Readwrite.bak' WITH DESCRIPTION = N'backup after defunct filegroup',NOFORMAT, INIT,  NAME = N'DemoDB-Full Filegroup Backup', SKIP,STATS = 10 
+or just never restore a partial backup without all read write Filegroups
+                                 
+B- Restore at filegroup level    
+------------------------------   
+
+ 
+USE [DemoDb]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+GO                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+CREATE TABLE dbo.MainData( ID INT NOT NULL IDENTITY(1, 1) ,Message NVARCHAR(50) NOT NULL)  ON  [Data]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+Go                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+ INSERT  INTO dbo.MainData VALUES  ( 'Data for initial database load: Data 1' ); 
+ INSERT  INTO dbo.MainData   VALUES  ( 'Data for initial database load: Data 3'); 
+ INSERT  INTO dbo.MainData VALUES  ( 'Data for initial database load: Data 2' )                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+  GO                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+CREATE TABLE dbo.ArchiveData(ID INT NOT NULL ,Message NVARCHAR(50) NOT NULL )                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+ON  [Archive]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+GO                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+INSERT  INTO dbo.ArchiveData SELECT  ID , Message   FROM    MainData                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+Go                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+1- Enable Read onlly archive filegroup
+ ALTER DATABASE Demodb  MODIFY FILEGROUP [Olddata] READONLY ;
+ DELETE  FROM dbo.MainData GO                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+2- Backup full
+BACKUP DATABASE Demodb TO DISK = N'E:\MSSQL_backup\Backup\Demodbackup_FULL.bak';
+go                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+INSERT  INTO Demodb.dbo.MainData  VALUES  ( 'Data for second database load: Data 4' );                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+INSERT  INTO Demodb.dbo.MainData  VALUES  ( 'Data for second database load: Data 5' ); 
+INSERT  INTO Demodb.dbo.MainData     VALUES  ( 'Data for second database load: Data 6' ) 
+go  
+
+3- Backup read write FGs -Full
+BACKUP DATABASE demoDB READ_WRITE_FILEGROUPS TO DISK = N'E:\MSSQL_backup\Backup\DemoDb_PARTIAL_Full.bak'                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+GO
+INSERT  INTO Demodb.dbo.MainData  VALUES  ( 'Data for third database load: Data 7' )  
+INSERT  INTO Demodb.dbo.MainData VALUES  ( 'Data for third database load: Data 8' )   
+INSERT  INTO Demodb.dbo.MainData VALUES  ( 'Data for third database load: Data 9' )   
+GO                                                                                                       
+
+4-  Backup read write FGs - Differntial                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+  BACKUP DATABASE [Demodb] READ_WRITE_FILEGROUPS TO DISK = N'E:\MSSQL_backup\Backup\Demodb_PARTIAL_Diff.bak' WITH DIFFERENTIAL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+GO                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+INSERT  INTO Demodb.dbo.MainData  VALUES  ( 'Data for third database load: Data 10' )  
+INSERT  INTO Demodb.dbo.MainData VALUES  ( 'Data for third database load: Data 11' )   
+INSERT  INTO Demodb.dbo.MainData VALUES  ( 'Data for third database load: Data 12' )   
+GO 
+
+4.1 backup last transaction log after the diff backup
+BACKUP LOG [Demodb] TO DISK =N'E:\MSSQL_backup\Backup\Demodb_RW_Log.trn' WITH NAME ='DemoDB_Transaction Log Backup' 
+Go   
+
+4.2 backup trail log before restore
+BACKUP LOG [DemoDB] TO  DISK = N'E:\MSSQL_backup\Backup\DemoDB_TrailLogBackup_2016-08-15.bak' WITH NOFORMAT, INIT,  NAME = N'DemoDB_trailLogBackup',NO_TRUNCATE, NORECOVERY ,COMPRESSION,  STATS = 5
+BACKUP DATABASE [DemoDB] FILEGROUP='Olddata' TO DISK=N'E:\MSSQL_backup\Backup\Demodb_old_data.bak'   with noformat,init,name='archive data backup',compression,stats=2 --OPTIONAL      
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+5- Restore                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+USE [master]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+GO                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+RESTORE DATABASE [DemoDb] FROM DISK =  N'E:\MSSQL_backup\Backup\Demodbackup_FULL.bak' WITH NORECOVERY   ---TOTAL  RESTORE
+RESTORE DATABASE [DemoDB] FILEGROUP = N'PRIMARY',FILEGROUP = N'index', FILEGROUP = N'Data2' FROM DISK=N'E:\MSSQL_backup\Backup\Demodbackup_FULL.bak' WITH PARTIAL,NORECOVERY;--- PARTIAL RESTORE                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+GO                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+RESTORE DATABASE [DemoDb] FROM DISK =  N'E:\MSSQL_backup\Backup\DemoDb_PARTIAL_Full.bak' WITH NORECOVERY -- TOTAL RESTORE ---RECOVERY if no log backups
+RESTORE DATABASE [DemoDB] FILEGROUP = N'PRIMARY',FILEGROUP = N'index', FILEGROUP = N'Data2' FROM DISK=N'E:\MSSQL_backup\Backup\Demodb_PARTIAL_Full.bak' WITH NORECOVERY; ---PARTIAL RESTORE                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+GO                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+RESTORE DATABASE [Demodb]FROM DISK = N'E:\MSSQL_backup\Backup\Demodb_PARTIAL_Diff.bak' WITH NORECOVERY  ----RECOVERY IF SIMPLE RECOVERY MODEL DB
+RESTORE DATABASE [DemoDB] FILEGROUP = N'PRIMARY',FILEGROUP = N'index', FILEGROUP = N'Data2' FROM DISK=N'E:\MSSQL_backup\Backup\Demodb_PARTIAL_Diff.bak' WITH NORECOVERY;---PARTIAL RESTORE                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+GO    
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+RESTORE LOG Demodb FROM DISK =N'E:\MSSQL_backup\Backup\Demodb_RW_Log.trn' WITH NORECOVERY ; ----------FOR FULL RECOVERY MODEL   
+RESTORE LOG Demodb FROM DISK =N'E:\MSSQL_backup\Backup\DemoDB_TrailLogBackup_2016-08-12.bak' WITH NORECOVERY ;
+RESTORE DATABASE [DemoDB]   with recovery ;    
+
+6- test:
+1> select count(*) from demodb.dbo.employees  (PRIMARY)               select count(*) from demodb.dbo.sales (MISSING DATA filegroup
+2> go                                                                >Msg 8653, Level 16, State 1, Server MCR-ORA-T05\MTLDB, Line 1
+count                                                                 The query processor is unable to produce a plan for the table or view 'sales' because the table resides in a filegroup which is not online.
+-----------
+ 2                                                    
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                GO
+
+7- restore DATA filegroup :
+RESTORE DATABASE [DemoDB]  FILEGROUP = N'Data' FROM DISK=N'E:\MSSQL_backup\Backup\Demodbackup_FULL.bak' WITH norecovery,stats = 2;
+Go
+RESTORE DATABASE [DemoDb]  FILEGROUP = N'Data' FROM DISK =  N'E:\MSSQL_backup\Backup\DemoDb_PARTIAL_Full.bak' WITH NOrecovery,file = 1, stats = 2;
+go
+RESTORE DATABASE [Demodb] FILEGROUP = N'Data' FROM DISK = N'E:\MSSQL_backup\Backup\Demodb_PARTIAL_Diff.bak' WITH NoRecovery ,file = 1, stats = 2;
+go
+RESTORE LOG Demodb FROM DISK =N'E:\MSSQL_backup\Backup\Demodb_RW_Log.trn'  WITH NoRecovery ,file = 1, stats = 2;
+go
+RESTORE LOG Demodb FROM DISK =N'E:\MSSQL_backup\Backup\DemoDB_TrailLogBackup_2016-08-12.bak' WITH file = 1, stats = 2;
+
+TEST:  DATA is now online                                                                     1> select * from DEMODB.dbo.MainData                
+1> select count(*) from demodb.dbo.sales                                                            ID          Message                                 ID          Message                                      
+2> go                                                                                               ----------- --------------------------------------  ----------- --------------------------------------                                                             
+                                                                                                              1 Data for initial database load: Data 1           10 Data for third database load: Data 7 
+-----------                                                                                                   2 Data for initial database load: Data 3           11 Data for third database load: Data 8          
+       1000                                                                                                   3 Data for initial database load: Data 2           12 Data for third database load: Data 9          
+                                                                                                              7 Data for second database load: Data 4            13 Data for third database load: Data 10         
+                                                                                                              8 Data for second database load: Data 5            14 Data for third database load: Data 11         
+8- restore Archive Filegroup                                                                                  9 Data for second database load: Data 6            15 Data for third database load: Data 12         
+1> select * from demodb.dbo.sales_archive;                   
+2> go                                                        
+Msg 8653, Level 16, State 1,The query processor is unable to produce a plan for the table or view 'sales_archive' because the table resides in a filegroup which is not online.
+
+RESTORE DATABASE [DemoDB]  FILEGROUP = N'OldData' FROM DISK=N'E:\MSSQL_backup\Backup\Demodbackup_FULL.bak' WITH recovery,stats = 2;                     
+
+TEST : 
+1> select * from demodb.dbo.sales_archive;
+2> go
+SaleID      PRODUCTID   Quantity SaleAmount         SalesDate
+----------- ----------- -------- ------------------ -----------------------
+          1          81       12            8158.00 2005-07-22 00:00:00.000
+          2          91       10            9098.30 2005-10-29 00:00:00.000
+          3          15        2            8690.20 2003-08-03 00:00:00.000
+          4          91       13             899.60 2008-10-01 00:00:00.000
+          
+8.2- switch filegroup Oldata to read write 
+
+ALTER DATABASE Demodb  MODIFY FILEGROUP [Olddata] READWRITE ;                                                                                                                                                     
+Go                                                         
+----------------------------------                                                                                            
+ALTER DATABASE [DemoDB] SET MULTI_USER                                                                                                                 
+--check data file status 
+select lname, filestate from sys.sysbrickfiles where dbid = db_id('DemoDB') and ßname like 'DemoDb-O%'    --(only with Sa role use SQLCMD -A option)
+SELECT NAME, state, state_desc from sys.master_files where database_id = db_id('DemoDB') and name like'DemoDb-O%'
+SELECT NAME AS FilegroupName ,state_desc  FROM demodb.sys.database_files;
+GO                                                                                                                                                                 
+select * from sys.syspalvalues where class ='DBFS'
+go
+ value       name
+ ----------- ------------------
+        10,0 ONLINE
+     1,2,3,6 OFFLINE
+           4 DEFUNCT
+         5,9 RECOVERY_PENDING
+      7,8,11 RESTORING
+          12 SUSPECT 
+begin 
+try 
+RESTORE DATABASE [DemoDB] Filegroup ='OldData' WITH RECOVERY; --online
+End try
+BEGIN CATCH
+SELECT  
+        ERROR_NUMBER() AS ErrorNumber,  
+        ERROR_SEVERITY() AS ErrorSeverity,  
+        ERROR_STATE() AS ErrorState,  
+        ERROR_PROCEDURE() AS ErrorProcedure,  
+        ERROR_LINE() AS ErrorLine,  
+        ERROR_MESSAGE() AS ErrorMessage;  
+END CATCH;  
+GO
+
+-----------------------------------------
+ II --- RESTORE PAGE 
+----------------------------------------- 
+
+-- [check database Pages Corruption]   
+
+DBCC CHECKDB (demodb)
+-- Select nonspecific 824, bad checksum 2, and torn 3 page  errors.  
+SELECT * FROM msdb..suspect_pages  
+   WHERE (event_type = 1 OR event_type = 2 OR event_type = 3);  
+GO  
+
+-- Delete restored 4, repaired 5, or deallocated 7 pages.  
+DELETE FROM msdb..suspect_pages  
+   WHERE (event_type = 4 OR event_type = 5 OR event_type = 7);  
+GO  
+  
+
+db tasks >restore> page
+database 
+
+File_id Page_id 
+------- -------
+           
+#Backup file : Choose backup file  --> Click OK
+
+RESTORE DATABASE <database> PAGE='1:57, 1:202, 1:916, 1:1016'  
+   FROM <file_backup_of_file_B>   
+   WITH NORECOVERY;  
+RESTORE LOG <database> FROM <log_backup>   
+   WITH NORECOVERY;  
+RESTORE LOG <database> FROM <log_backup>   
+   WITH NORECOVERY;   
+BACKUP LOG <database> TO <new_log_backup>;   
+RESTORE LOG <database> FROM <new_log_backup> WITH RECOVERY;  
+GO  
+
+Alter database to modify the log file, and create the new one, the command are
+ALTER DATABASE 'nameOfDatabase' REBUILD LOG ON (NAME='LogicalName', FILENAME='L:\nameOfPhysicalLogFile.Ldf'
+
+==================================
+INDEX MANAGEMENT
+==================================
+
+Create new table :
+------------------
+Use DemoDB      -- drop table dbo.Sales_archive
+Go
+CREATE TABLE [dbo].[sales_archive]
+([SaleID] int NOT NULL,
+ [PRODUCTID] int NOT NULL,
+ [Quantity] smallint NOT NULL,
+ [SaleAmount] numeric(16, 2) NOT NULL,
+ [SaleDate] datetime NOT NULL,
+ [SaleStatus] bit NOT NULL,
+ Description nvarchar (4000) NULL,
+ TransactionInfo xml NULL ) ON [OldData]
+GO
+
+- Insert 500000 records to sales_archive
+  INSERT INTO DEmoDB.dbo.Sales_Archive
+   SELECT TOP 500000
+   ROW_NUMBER() OVER (ORDER BY a.name) as SaleID,
+  (ABS(CHECKSUM(NEWID()))%100)+1 AS ProductID,
+  (ABS(CHECKSUM(NEWID()))%15)+1 AS Quantity,
+  ABS(cast(cast(NEWID() AS VARBINARY) AS INT) % 100000)*0.1 AS Saleamount,
+  DATEADD(DAY,ABS(CHECKSUM(NEWID())% 3650),'2002-01-01') AS SaleDate,
+  CASE WHEN ROW_NUMBER() OVER (ORDER BY a.name)% 1000 = 0 THEN 1 ELSE 0 END as Salestatus,
+  NULL as Description,
+  NULL as transactionInfo 
+  FROM
+  SYS.ALL_COLUMNS A
+  CROSS JOIN SYS.ALL_COLUMNS B
+  GO   
+ 
+  avoid errors : SET QUOTED_IDENTIFIER ON
+  
+ 1--create Clustered index on Sales_archive
+ CREATE UNIQUE CLUSTERED INDEX CIX_SalesID ON dbo.Sales_archive (SaleID);
+ Go
+ ---Query using clustered Index
+ SELECT * from dbo.Sales_archive WHERE SaleID=250000
+ Go
+ 
+ 2--Non Clustered Index
+ CREATE NONCLUSTERED INDEX IX_ProductID ON dbo.Sales_Archive (ProductId) With FILLFACTOR=50
+  -- Query using non-clustered index 
+ SELECT SaleID FROM dbo.Sales_Archive WHERE ProductID>5 -- uses IX_PRoductID
+ Go
+ 
+ 3-- NON_CLUSTERED index with INCLUDED columns (covering index)
+ CREATE NONCLUSTERED INDEX IX_SalesArchive_covering ON dbo.Sales_archive(productID) INCLUDE(SaleID,Quantity,SaleAmount,SaleDate)  --- cover the select columns
+ Go
+ --Query using covered index
+ SELECT SaleId,Quantity,SaleAmount,SaleDate FROM dbo.Sales_archive Where productID<5 -- Uses --Covering index IX-salesArchive
+ 
+ 4-- FILTERED Index
+ SET QUOTED_IDENTIFIER ON
+ CREATE NONCLUSTERED INDEX IX_SalesArchive_filtered ON dbo.Sales_archive(SaleID) WHERE SaleStatus=1;  --function based on a result
+ Go
+ --using Filted index 
+ SELECT SaleId FROM dbo.Sales_archive Where Salestatus=1;
+ Go
+ 
+ -- Update a few sales with XML data
+UPDATE dbo.Sales_Archive SET TransactionInfo ='<TransInfo SaleID="100000">
+                                                <ShipDate> 10/01/2012</ShipDate>
+                                                <ArrivalDate>10/05/2012</ArrivalDate>
+                                                 <TrackingNumber>34TJ834LDPSC239Q</TrackingNumber>>
+                                                 <PackageDimensions>
+                                                     <Height>2.0 </Height>
+                                                     <width> 15.5</width>
+                                                     <Weight>3.4</Weight>
+                                                 </PackageDimensions>
+                                                 </TransInfo>'
+  Where SaleId=100000  
+  Go    
+ 
+UPDATE dbo.Sales_Archive SET TransactionInfo ='<TransInfo SaleID="200000">
+                                                <ShipDate> 08/21/2012</ShipDate>
+                                                <ArrivalDate>09/01/2012</ArrivalDate>
+                                                 <TrackingNumber>31PS829C43VF201L</TrackingNumber>
+                                                 <PackageDimensions>
+                                                     <Height>1.0 </Height>
+                                                     <width> 3.5</width>
+                                                     <Weight>1.0</Weight>
+                                                 </PackageDimensions>
+                                                 </TransInfo>'
+  Where SaleId=200000  
+  Go  
+                                         
+ UPDATE dbo.Sales_Archive SET TransactionInfo ='<TransInfo SaleID="300000">
+                                                <ShipDate> 02/09/2012</ShipDate>
+                                                <ArrivalDate>09/15/2012</ArrivalDate>
+                                                 <TrackingNumber>PJK829C8D45FD3WM</TrackingNumber>
+                                                 <PackageDimensions>
+                                                     <Height>6.0 </Height>
+                                                     <width> 10.5</width>
+                                                     <Weight>4.0</Weight>
+                                                 </PackageDimensions>
+                                                 </TransInfo>'
+  Where SaleId=300000  
+  Go
+  
+  5-- Create Primary XML index ( requires A primary key index before creation)
+   
+    - Drop clustered index and recreate the PK   
+    Drop index    dbo.Sales_archive.CIX_SalesID
+    --
+    BEGIN TRANSACTION
+    SET QUOTED_IDENTIFIER ON
+    SET ARITHABORT ON
+    SET NUMERIC_ROUNDABORT OFF
+    SET CONCAT_NULL_YIELDS_NULL ON
+    SET ANSI_NULLS ON
+    SET ANSI_PADDING ON
+    SET ANSI_WARNINGS ON
+    COMMIT
+    BEGIN TRANSACTION
+    GO
+    ALTER TABLE dbo.sales_archive ADD CONSTRAINT PK_sales_archive PRIMARY KEY CLUSTERED 
+    	(SaleID) WITH( STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON Olddata
+    GO
+    ALTER TABLE dbo.sales_archive SET (LOCK_ESCALATION = TABLE)
+    GO
+    COMMIT
+    Go
+---------
+CREATION
+---------
+    CREATE PRIMARY XML INDEX PXML_TransInfo On dbo.sales_archive(TransactionInfo) 
+    Go  
+  
+  6--Create XML secondary index for path
+  CREATE XML INDEX XML_Transinfo_Path On dbo.sales_archive(TransactionInfo)  USING XML INDEX PXML_transInFo for PATH
+  Go
+  
+  -- PATH Query using XML index
+  SELECT transactionInfo.query ('/TransInfo/TrackingNumber') From dbo.Sales_archive
+  where TransactionInfo IS NOT NULL;
+  --VALUE Query using XML index 
+     SELECT TransactionInfo.value('(/TransInfo[@SaleID=100000]/TrackingNumber)[1]','varchar(50)')
+  From sales_archive                                                   
+  Where saleID=100000
+  Go
+  
+  7-- Update few sales with character data 
+                                                                                                                                                                                                                     
+  UPDATE dbo.sales_Archive SET Description ='This bike delivers a High-Level of performance on a budjet. it is '                                                                                                                                                     
+  WHERE saleID=60000                                                                                                                                                                                                                                                 
+  Go                                                                                                                                                                                                                                                                       
+  UPDATE dbo.sales_Archive SET Description='This bike riden by race winners .Developed with the Adventure works cycles professional race team,it has extremely light heat-treated aluminum frame ,and steering that allows precision con'                            
+  WHERE SaleID=120000                                                                                                                                                                                                                                                
+  Go                                                                                                                                                                                                                                                                 
+  UPDATE dbo.Sales_Archive SET  Description='Ther LL frame provides a safe comfortable ride, while offering superior  bump absorption in a value-priced aluminum frame.'                                                                                             
+  Where SaleID=260000                                                                                                                                                                                                                                                
+  Go                                                                                                                                                                                                                                                                 
+  UPDATE dbo.Sales_Archive SET  Description='versatile 70 oz hydration pack offers extra storage ,easy-fill.'                                                                                                                                                        
+  where SaleId=320000                                                                                                                                                                                                                                                
+  Go                                                                                                                                                                                                                                                                 
+  UPDATE dbo.Sales_Archive SET  Description=' best bike ever!!'                                                                                                                                                                                                      
+  WHERE SaleID=400000                                                                                                                                                                                                                                                
+  Go
+  
+  --CREATE FULLTEXT-INDEX  8- FULL TEXT indexes
+  
+  USE DemoDb;  
+  GO  
+  CREATE FULLTEXT CATALOG DDBCat ON Filegroup [index] WITH ACCENT_SENSITIVITY=ON AS DEFAULT;                                         /// SELECT fulltext_catalog_id, name FROM sys.fulltext_catalogs
+  CREATE FULLTEXT INDEX ON dbo.Sales_archive(Description)KEY INDEX PK_sales_archive on (DDBcat,Filegroup [index]) -- the primary unique clustered index   
+         WITH STOPLIST = SYSTEM,CHANGE_TRACKING = MANUAL ;  
+  GO  
+  
+  --Query using Full_text index 
+  SELECT * FROM dbo.Sales_archive WHERE CONTAINS (Description,'Bike')
+  
+ 9- COLUMN STORE INDEXES
+   USE AdventureworksDW2012
+   Go
+   --Creation
+   CREATE NONCLUSTERED COLUMNSTORE INDEX [IXCS_FactProductInventory]
+   ON dbo.FactProductInventory(ProductKey,dateKey,UnitCost,UnitsIn,UnitsOut)   -- join key columns + dimension summarry columns
+   Go
+   
+--Query using Columnstore index
+  Use AdventureworksDW2012
+  Go
+  SELECT EnglishProductName,CalendarYear,DayNumberOfMonth,
+  SUM(fpi.unitCost) as TotalUnitCost,
+  SUM(fpi.UnitsIn) as TotalInStock,
+  SUM(fpi.UnitsOut) as TotalOutStock
+  FROM
+  dbo.FactProductInventory fpi
+   JOIN
+  dbo.DimProduct dp On fpi.ProductKey=dp.productKey
+   JOIN
+  dbo.DimDate dd On fpi.DateKey =dd.dateKey
+  Group By EnglishProductName,calendaryear,DaynumberOfmonth
+  Order By 
+  EnglishProductName,CalendarYear,DayNumberOfMonth          
+  
+  WHERE to USE : 
+  - main wait type is IO latch
+  - Tables are very wide (lots of columns)
+  - Report users don't query all of the columns 
+  - They sort different columns all the time
+  - Need groupping aggregations
+  - Only load data in Batches , like overnight
+  - For SQL 2012 , where we can afford to rebuild the index nightly 
+  site:http://www.nikoport.com/columnstore/
+  2016 : nonclusted columnstore index are updatable .can be filtered , can have regular b-tree indexes too, better perf with aggergation function , less memory presure,alwaysOn secondary compatible  
+  
+  
+ --------------------
+ 10- MAINTAIN Indexes
+ -------------------       
+10.1 STATISTICS
+
+sys.dm_db_index_physical_stats ( { database_id | NULL | 0 | DEFAULT },
+                                 { object_id | NULL | 0 | DEFAULT }, { index_id | NULL | 0 | -1 | DEFAULT },
+                                 { partition_number | NULL | 0 | DEFAULT },
+                                 { mode | NULL | DEFAULT }
+)                   
+-- DMV to view Fragmentation
+   USE DemoDB
+   SELECT DB_NAME(ips.database_id) as DBname,OBJECT_SCHEMA_NAME(i.object_id) as schema_name, OBJECT_NAME(i.object_id) as Table_name,i.name,
+   ips.index_type_desc,ips.avg_fragmentation_in_percent,i.has_filter,i.fill_factor,i.is_primary_key,i.is_unique,i.index_id 
+   FROM sys.dm_db_index_physical_stats(DB_ID('DemoDb'),NULL,NULL,NULL,NULL) ips
+   JOIN 
+   sys.indexes i ON ips.OBJECT_ID=i.OBJECT_ID AND ips.index_id=i.index_id
+   order by 1,2
+
+inspect missing index recomandation : return the table columns that are missing an index.
+select db_name(mid.database_id) DB ,mid.statement,migs_adv.index_advantage,equality_columns,inequality_columns,included_columns,
+       migs_adv.avg_total_user_cost,migs_adv.avg_user_impact,
+       migs_adv.unique_compiles,migs_adv.user_seeks,
+       migs_adv.user_scans,migs_adv.last_system_seek,migs_adv.group_handle,mig.index_handle
+ From  (select user_seeks * avg_total_user_cost * (avg_user_impact * 0.01) as index_advantage, migs.* from sys.dm_db_missing_index_group_stats migs) as migs_adv
+ Join sys.dm_db_missing_index_groups as mig on migs_adv.group_handle=mig.index_group_handle
+ Join sys.dm_db_missing_index_details as mid on mig.index_handle=mid.index_handle
+ ORDER BY migs_adv.index_advantage desc
+
+--- check missing indexes : 
+SELECT db_name(mid.database_id) DB_name, substring(statement,dbo.INSTR(statement,'.',1,1)+1,len(statement)) AS table_name,  
+    column_id, column_name, column_usage,mig.*  
+FROM sys.dm_db_missing_index_details AS mid  
+CROSS APPLY sys.dm_db_missing_index_columns (mid.index_handle)  
+INNER JOIN sys.dm_db_missing_index_groups AS mig ON mig.index_handle = mid.index_handle  
+ORDER BY mig.index_group_handle, mig.index_handle, column_id;     
+
+
+SELECT db_name(mid.database_id) as DB,'CREATE INDEX missing_index_' + CONVERT (varchar, mig.index_group_handle) + '_' + CONVERT (varchar, mid.index_handle) 
+  + ' ON ' + mid.statement 
+  + ' (' + ISNULL (mid.equality_columns,'') 
+    + CASE WHEN mid.equality_columns IS NOT NULL AND mid.inequality_columns IS NOT NULL THEN ',' ELSE '' END + ISNULL (mid.inequality_columns, '')
+  + ')' 
+  + ISNULL (' INCLUDE (' + mid.included_columns + ')', '') AS create_index_statement,
+  CONVERT (decimal (28,1), migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) AS improvement_measure, 
+  migs.*,mig.index_group_handle, mid.index_handle, mid.[object_id] ,CONVERT (varchar, getdate(), 126) AS runtime
+FROM sys.dm_db_missing_index_groups mig
+INNER JOIN sys.dm_db_missing_index_group_stats migs ON migs.group_handle = mig.index_group_handle
+INNER JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
+WHERE CONVERT (decimal (28,1), migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) > 10
+ORDER BY migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans) DESC
+PRINT ''
+GO
+------- list the columns and tables missing indexes 
+
+SELECT mig.*, statement AS table_name,  
+    column_id, column_name, column_usage  
+FROM sys.dm_db_missing_index_details AS mid  
+CROSS APPLY sys.dm_db_missing_index_columns (mid.index_handle)  
+INNER JOIN sys.dm_db_missing_index_groups AS mig ON mig.index_handle = mid.index_handle  
+ORDER BY mig.index_group_handle, mig.index_handle, column_id;  
+GO
+
+
+-- REORGANIZE for light fragmentation (leafnodeswith no stats update)
+    ALTER INDEX ALL ON Production.Product REORGANIZE ; --or  syntax  ALTER INDEX Myindex on myschema.mytable REORGANIZE;
+--REBUILD for heavy fragmentation (rebuild +stat update)
+    ALTER INDEX ALL ON Production.product REBUILD  ; 
+    
+    --Manually updating STATISTICS
+    UPDATE STATISTICS Sales.SalesOrderHeader WITH FULLSCAN
+    UPDATE STATISTICS Sales.SalesOrderHeader WITH SAMPLE 50 PERCENT
+    Or check SSMS statistics Tab
+    
+--DMV To view Missing indexes 
+
+   SELECT  DB_NAME(database_id) dbname,statement,equality_columns,OBJECT_NAME(object_id),included_columns,user_seeks,user_scans,avg_total_user_cost,avg_user_impact,last_user_seek  
+   from sys.dm_db_missing_index_group_stats AS igs
+   JOIN sys.dm_db_missing_index_groups as ig ON igs.group_handle=ig.index_group_handle
+   JOIN sys.dm_db_missing_index_details as id ON ig.index_handle=id.index_handle
+   order by statement,avg_total_user_cost desc
+   
+   Use Database tuning advisor based on activity sample (using a trace on day activity) 
+   
+-- DMV   to view unused index
+     select db_name(database_id) Dbname, object_schema_name(i.object_id) schema_name,OBJECT_NAME(i.object_id) [table],
+   name,type_desc,is_unique,is_primary_key,has_filter,user_seeks,user_lookups,user_updates,last_user_scan,last_user_lookup, * from 
+   sys.dm_db_index_usage_stats ius
+   JOIN 
+   sys.indexes i ON ius.object_id=i.object_id AND ius.index_id=i.index_id
+   ORDER BY 1,2,3,ius.user_seeks 
+   
+-- DMV to check indexes are used in a table 
+			SELECT   OBJECT_NAME(S.[OBJECT_ID]) AS [OBJECT NAME], 
+			         I.[NAME] AS [INDEX NAME], 
+			         USER_SEEKS, 
+			         USER_SCANS, 
+			         USER_LOOKUPS, 
+			         USER_UPDATES 
+			FROM     SYS.DM_DB_INDEX_USAGE_STATS AS S 
+			         INNER JOIN SYS.INDEXES AS I 
+			           ON I.[OBJECT_ID] = S.[OBJECT_ID] 
+			              AND I.INDEX_ID = S.INDEX_ID 
+			WHERE   object_name(s.[object_id])='R_EMPLHORAIRE'
+			Go      
+    
+ -- SSMS Reports 
+  FRAGMENTATTION:
+  click Database >Reports>STANDARD REPORTS> INDEX PHYSICAL Stats 
+  table and operation recomandation according to fragmentation 
+  
+  click Database >Reports>STANDARD REPORTS> INDEX USAGE Stats
+  * Index usage statistics
+  * Index Operational statistics
+  
+  how much and how are they are being used 
+  ----------------------
+  EXECUTION PLAN - Scans  
+  ----------------------
+  - Clustered index scan : Every columns on evry rows
+  - Clustered index seek : Every columns on certain rows 
+  - NonClustered index scan : Certain columns on every rows
+  - nonclustered index seek : Certain columns on certain rows --- The best choice (subset of columns on subset of rows)
+  
+  
+ 10.2 --- Mentenance
+ 
+   Mamagement > use maintenance plan wizard
+   
+==================================
+IMPORTING EXPORTING DATA
+==================================   
+ 
+ 
+--Export via bcp command line utility  -S server -T trusted authentication  -c character -n native type   -d database_name 
+/* 
+	bcp "SELECT * FROM DemoDB.dbo.Sales_Archive ORDER BY SaleID" queryout "E:\Components\Dump\sales_archive-bcp.txt"  -S .\MTLDB -T	-c
+*/
+
+
+--Import via bcp command line utility    -q Quoted identifier ON
+/*
+    bcp DemoDB.dbo.Sales_Archive in "E:\Components\Dump\sales_archive-bcp.txt" -S .\MTLDB -T -c -q
+		
+ 
+*/
+
+
+--Generate format file via bcp command line utility : -f file path -x Xml outputfile
+/*
+   bcp DemoDB.dbo.Sales_Archive format nul -f "E:\Components\Dump\sales_archive-format.xml" -x -S .\MTLDB -T -c
+*/
+
+bcp devir73carra.dbo.ffexch format nul -f "C:\Users\kh85124\ffexchImport3.xml" -x  -T -c
+
+
+--BULK INSERT from the above BCP  .txt outputfile
+BULK INSERT DemoDB.dbo.Sales_Archive FROM 'E:\Components\Dump\sales_archive-bcp.txt'
+GO
+
+--OPENROWSET(BULK) from .txt file using format file
+INSERT DemoDB.dbo.Sales_Archive
+       SELECT * FROM OPENROWSET(BULK 'E:\Components\Dump\sales_archive-bcp.txt', FORMATFILE='E:\Components\Dump\sales_archive-format.xml') t
+GO
+
+
+
+2) Guideline to a faster Bulk insert
+--Disable constraints & triggers / switch to BULK_LOGGED recovery model / drop indexes   
+USE master 
+GO
+ALTER DATABASE  DemoDB SET RECOVERY BULK_LOGGED WITH NO_WAIT
+GO
+
+USE  DemoDB
+GO
+ALTER TABLE dbo.Sales_Archive NOCHECK CONSTRAINT ALL
+GO
+DISABLE TRIGGER ALL ON dbo.Sales_Archive
+GO
+DROP INDEX IX_ProductID ON dbo.Sales_Archive
+DROP INDEX IX_SalesArchive_Covering ON dbo.Sales_Archive
+DROP INDEX IX_SalesArchive_Filtered ON dbo.Sales_Archive
+DROP INDEX XML_Transinfo_Path ON dbo.Sales_Archive
+DROP INDEX PXML_TransInfo ON dbo.Sales_Archive
+GO
+
+
+--Enable constraints & triggers / switch to FULL recovery model / drop indexes
+USE master 
+GO
+ALTER DATABASE NuggetDemoDB SET RECOVERY FULL WITH NO_WAIT
+GO
+
+USE  DemoDB 
+GO
+ALTER TABLE dbo.Sales_Archive CHECK CONSTRAINT ALL
+GO
+ENABLE TRIGGER ALL ON dbo.Sales_Archive
+GO
+CREATE NONCLUSTERED INDEX IX_ProductID ON dbo.Sales_Archive (ProductID)
+WITH FILLFACTOR = 100
+GO
+CREATE NONCLUSTERED INDEX IX_SalesArchive_Covering ON dbo.Sales_Archive (ProductID)  INCLUDE (SaleID, Quantity, SaleAmount, SaleDate)
+GO
+CREATE NONCLUSTERED INDEX IX_SalesArchive_Filtered ON dbo.Sales_Archive (SaleID) WHERE SaleStatus = 1
+GO
+CREATE PRIMARY XML INDEX PXML_TransInfo  ON dbo.Sales_Archive(TransactionInfo)
+GO
+CREATE XML INDEX IXML_TransInfo_PATH  ON dbo.Sales_Archive(TransactionInfo) USING XML INDEX PXML_TransInfo FOR PATH
+GO   
+  
+============================= 
+MANAGING LOGIN & SERVER ROLE
+=============================  
+  
+  
+USE [master]
+
+CREATE LOGIN [REG04\CIUSSS04GR-DRI_DEV_BD] FROM WINDOWS WITH DEFAULT_DATABASE=[Medipay_PROD]; 
+ALTER SERVER ROLE sysadmin ADD MEMBER [REG04\CIUSSS04GR-DRI_DEV_BD] ; 
+GO
+
+--Windows-authenticated login - user account
+CREATE LOGIN [MCR-ORA-T05\SeniorDevelopper] FROM WINDOWS WITH DEFAULT_DATABASE=[master]
+GO
+
+ALTER SERVER ROLE [sysadmin] ADD MEMBER [JuniorDBA]
+--Windows-authenticated login - local group
+CREATE LOGIN [MCR-ORA-T05\Developpers] FROM WINDOWS WITH DEFAULT_DATABASE=[DemoDB]
+GO
+
+--SQL Server-authenticated login
+CREATE LOGIN [JuniorDBA] WITH PASSWORD='-p@ssw0rd-' , CHECK_EXPIRATION=OFF, CHECK_POLICY=OFF, DEFAULT_DATABASE=[DemoDB] --MUST_CHANGE
+GO
+
+--Certificate-based login 
+CREATE LOGIN [CertUser] FROM CERTIFICATE [ServCert]
+GO
+
+--Credential mapped to user with privelages outside of SQL Server
+GO
+CREATE CREDENTIAL [FileShareCredentials] WITH IDENTITY = N'MCR-ORA-T05\FileshareUser', SECRET = N'password'
+GO
+
+--ReportUser assigned to credential
+ALTER LOGIN [ReportUser] ADD CREDENTIAL [NuggetlabEmail]
+GO
+
+--SQL-authenticated login assigned to credential
+ALTER LOGIN [JuniorDBA] ADD CREDENTIAL [FileShareCredentials]
+GO
+ALTER LOGIN [JuniorDba] WITH  PASSWORD='-p@ssw0rd-' UNLOCK ;
+GO
+
+
+-------------
+SERVER ROLES
+------------
+
+sysadmin:DBA   -serveradmin:instance Configuration  -setupadmin:linkedservers  -securityAdmin:manages users logins  -process:troubleshooting tasks/process -diskadmin:storage admin diks log files -dbcreator: CREATE/ALTER/DROP  -BULKADMIN: manage bulkadmin
+--View server role permissions
+sp_srvrolepermission
+
+---
+sp_helpsrvrole
+sp_srvrolepermission
+sp_helpsrvrolemember  @srvrolename ='sysadmin'
+SELECT IS_SRVROLEMEMBER('diskadmin', 'Contoso\kim_akers'); 
+select * from sys.server_role_members 
+
+
+--Add Login to dbcreator server role
+ALTER SERVER ROLE [dbcreator] ADD MEMBER [JuniorDBA]
+GO
+--Remove ability for sql login to drop databases
+DENY ALTER ANY DATABASE TO [JuniorDBA]   ---Grant view any database to public;
+GO
+--Remove ability for windows login to drop databases
+DENY ALTER ANY DATABASE TO [MCR-ORA-T05\SeniorDevelopper]
+GO
+
+DENY CREATE ANY DATABASE TO [MCR-ORA-T05\SeniorDevelopper]  --
+GO
+--Remove ability to see databases from public server role
+DENY VIEW ANY DATABASE TO [public]
+GO
+
+--Create user-defined server role
+CREATE SERVER ROLE [devs] AUTHORIZATION [sysadmin]
+GO
+--GRANT permissions to server role
+GRANT CREATE ANY DATABASE TO [devs]
+GO
+GRANT VIEW ANY DATABASE TO [devs]
+GO
+
+GRANT VIEW ANY DEFINITION TO [devs]
+GO
+
+GRANT ADMINISTER BULK OPERATIONS TO [devs]
+GO
+
+GRANT CREATE DDL EVENT NOTIFICATION TO [devs] WITH GRANT OPTION 
+GO
+
+GRANT VIEW SERVER STATE TO [devs]
+GO
+
+--Add Login to server role
+ALTER SERVER ROLE [devs] ADD MEMBER [MCR-ORA-T05\Developpers]
+GO
+
+
+=============================== 
+MANAGING USERS & DATABASE ROLES
+===============================  
+
+-----
+Users
+-----
+
+USE DemoDB
+GO
+
+--Create user in DemoDB database using same name as the mapped login [Group]
+CREATE USER [MCR-ORA-T05\Developpers] FOR LOGIN [MCR-ORA-T05\Developpers]
+GO
+--Create user in NuggetDemoDB database using different name as the mapped login
+CREATE USER [JuniorDBA] FOR LOGIN [JuniorDBA]
+GO
+
+
+--Create contained SQL-authenticated user : Only in Contained databases and not on normal DBS
+CREATE USER [containeduser3] WITH PASSWORD = 'myP@55w0rd'
+GO
+--Create contained Windows-authenticated user
+CREATE USER [MCR-ORA-T05\SeniorDevelopper]
+GO
+
+--Drop login from database to create orphaned user : THE Login must not be an owner of any database 
+USE [master]
+DROP LOGIN [JuniorDBA]
+GO
+
+
+--Reassign orphaned user to new login
+ALTER USER JuniorDBA WITH LOGIN = JuniorDBA
+GO
+
+--Create database user without an associated login -like default schema with specific permissions with no password --give select update on DB tables
+CREATE USER app_user WITHOUT LOGIN
+GO
+
+--Run T-SQL as user (impersonate)
+EXECUTE AS USER = 'app_user'       
+SELECT USER_NAME()
+GO
+REVERT
+GO
+SELECT USER_NAME()
+GO
+
+-------- 
+app_user
+then
+------- 
+dbo
+--Run stored procedure as user (impersonate)
+CREATE PROCEDURE GetCurrentUser  WITH EXECUTE AS 'app_user'
+AS
+  SELECT USER_NAME()
+GO
+EXEC GetCurrentUser
+GO
+
+--------------
+Database Roles
+--------------
+
+USE DemoDB
+GO
+--Add windows group to database role
+EXEC sp_addrolemember 'db_ddladmin', [MCR-ORA-T05\Developpers]
+GO
+
+--Add sql user to database role
+EXEC sp_addrolemember 'db_backupoperator', [JuniorDBA]
+GO
+
+--Create flexible database role
+CREATE ROLE [db_devs]
+GO
+
+--Add database user(s) to role
+ALTER ROLE [db_devs] ADD MEMBER [MCR-ORA-T05\Developpers]
+GO
+
+--Grant permission to view and change table definitions
+GRANT ALTER ON [dbo].[Sales_Archive] TO [db_devs]
+GRANT VIEW DEFINITION ON [dbo].[Sales_Archive] TO [db_devs]
+GRANT ALTER ON [dbo].[Employees] TO [db_devs]
+GRANT VIEW DEFINITION ON [dbo].[Employees] TO [db_devs]
+GRANT ALTER ON [dbo].[Sales] TO [db_devs]
+GRANT VIEW DEFINITION ON [dbo].[Sales] TO [db_devs]
+GO
+
+--Create user-defined database role
+CREATE ROLE [db_humanresources]
+GO
+
+GRANT INSERT ON [dbo].[Employees] TO [db_humanresources]
+GRANT SELECT ON [dbo].[Employees] TO [db_humanresources]
+GRANT UPDATE ON [dbo].[Employees] TO [db_humanresources]
+GO
+-------------------
+Application roles
+--------------------
+
+USE DemoDB
+GO
+--Create application role with password
+CREATE APPLICATION ROLE [web_app] WITH PASSWORD = '-p@ssw0rd-'
+GO
+
+--Assign permissions to application role
+GRANT SELECT ON [dbo].[Employees] TO [web_app]
+GRANT INSERT ON [dbo].[Employees] TO [web_app]
+GRANT UPDATE ON [dbo].[Employees] TO [web_app]
+DENY DELETE ON [dbo].[Employees] TO [web_app]
+GO
+
+DECLARE @cookie varbinary(8000);  
+--Activate application role
+EXEC sp_setapprole 'web_app', '-p@ssw0rd-', @fCreateCookie = true, @cookie = @cookie OUTPUT;  
+-- The application role is now active. 
+SELECT USER_NAME()
+-- This will return the name of the application role, Sales11.  
+EXEC sp_unsetapprole @cookie
+-- The application role is no longer active.  
+-- The original context has now been restored. 
+SELECT USER_NAME();  
+-- This will return the name of the original user.   
+GO
+
+=================================== 
+MANAGING & TROUBELSHOOTING SECURITY
+===================================  
+
+-----------
+Permissions
+-----------
+
+USE [master]
+GO
+--Instance level access using Windows-authenticated logins
+CREATE LOGIN [MCR-ORA-T05\HRManagers] FROM WINDOWS
+GO
+CREATE LOGIN [MCR-ORA-T05\HRStaff] FROM WINDOWS
+GO
+
+USE [DemoDB]
+GO
+--Database level users mapped to login counterparts
+CREATE USER [MCR-ORA-T05\HRManagers] FOR LOGIN [MCR-ORA-T05\HRManagers]
+GO
+CREATE USER [MCR-ORA-T05\HRStaff] FOR LOGIN [MCR-ORA-T05\HRStaff]
+GO
+
+--Create staff database role
+CREATE ROLE [hr_staff]
+GO
+
+--Add staff user to database role
+ALTER ROLE [hr_staff] ADD MEMBER [MCR-ORA-T05\HRStaff]
+GO
+
+--Grant only permissions role needs (least privelage)
+GRANT SELECT, UPDATE ON [dbo].[Employees] ([EmployeeID]) TO [hr_staff]
+GRANT SELECT, UPDATE ON [dbo].[Employees] ([FirstName]) TO [hr_staff]
+GRANT SELECT, UPDATE ON [dbo].[Employees] ([LastName]) TO [hr_staff]
+GRANT SELECT, UPDATE ON [dbo].[Employees] ([EmailAddress]) TO [hr_staff]
+GRANT SELECT, UPDATE ON [dbo].[Employees] ([Title]) TO [hr_staff]
+GRANT SELECT, UPDATE ON [dbo].[Employees] ([HireDate]) TO [hr_staff]
+GRANT SELECT, UPDATE ON [dbo].[Employees] ([VacationHours]) TO [hr_staff]
+GO
+
+--Create database role
+CREATE ROLE [hr_managers]
+GO
+
+--Add HR user to role
+ALTER ROLE [hr_managers] ADD MEMBER [MCR-ORA-T05\HRManagers]
+GO
+
+--Grant only permissions role needs (least privelage)
+GRANT SELECT ON [dbo].[Employees] TO [hr_managers]
+GRANT DELETE ON [dbo].[Employees] TO [hr_managers]
+GRANT INSERT ON [dbo].[Employees] TO [hr_managers]
+GRANT UPDATE ON [dbo].[Employees] TO [hr_managers]
+GO
+
+---------
+SCHEMAS
+---------
+USE [master]
+GO
+--Instance level access via Windows-authenticated login                                                                                    
+CREATE LOGIN [MCR-ORA-T05\Developpers] FROM WINDOWS                          --- REVOKE CONNECT SQL TO [MCR-ORA-T05\SeniorDevelopper] AS [sa]
+GO                                                                               GO                                                          
+
+USE [DemoDB]
+GO
+--Database level user mapped to login                                              
+CREATE USER [MCR-ORA-T05\Developpers] FOR LOGIN [MCR-ORA-T05\Developpers]   ---
+GO                                                                             
+                                                                               
+--Create database role for developers  for users 
+CREATE ROLE [db_devs] AUTHORIZATION [dbo]     -- OR ALTER AUTHORIZATION ON ROLE::[db_devs] TO [dbo] if it was owned by Role_x/User_x
+GO                                                  GO                                                  
+                                                                                            
+--Create schema for developers     for content                                                         
+CREATE SCHEMA [dev] AUTHORIZATION [Mcr-Ora-t05\Developpers]     -- CREATE SCHEMA Koss;  CREATE TABLE koss.NineProngs (source int, cost int, partnumber int)  
+GO                                                                GO                   Go  
+                                                               GRANT SELECT ON SCHEMA::koss TO JuniorDBA  
+                                                               Go
+
+--Grant role permissions to dbo schema
+GRANT SELECT ON SCHEMA::[dbo] TO [db_devs]
+GRANT INSERT ON SCHEMA::[dbo] TO [db_devs]
+GRANT UPDATE ON SCHEMA::[dbo] TO [db_devs]
+GRANT DELETE ON SCHEMA::[dbo] TO [db_devs]
+GRANT REFERENCES ON SCHEMA::[dbo] TO [db_devs]
+GO
+
+--Add user to database role
+ALTER ROLE [db_devs] ADD MEMBER [MCR-ORA-T05\Developpers]
+GO
+
+--Grant permissions to role
+GRANT CREATE TABLE TO [db_devs]
+GRANT CREATE FUNCTION TO [db_devs]
+GRANT CREATE PROCEDURE TO [db_devs]
+GO
+
+--Alter owner on existing sproc to schema (Move Object from dbo to dev)
+ALTER SCHEMA [dev] TRANSFER dbo.GetCurrentUser
+GO
+
+---------------
+Troubleshooting
+---------------
+
+--** Authentication Troubleshooting **--
+--Invalid user (has access? account disabled?)
+--Invalid password (reset)
+--Ensure mixed mode is enabled (SQL Server  & Windows authentication)
+--Ensure SQL Browser service is running
+--Ensure proper client protocols enabled
+
+
+--** Endpoint Troubleshooting **--
+--Ensure configuration is accurate
+--Ensure endpoint is started
+--Ensure Authentication & Encryption settings are properly configured
+
+--Instance 1 --PRIMRY (endPoint setup ...load balancing)
+CREATE ENDPOINT mirroring_ep
+	STATE = STARTED
+	AS TCP 
+		(LISTENER_PORT = 1337)
+	FOR DATABASE_MIRRORING
+		(ROLE= PARTNER, 
+		 AUTHENTICATION = WINDOWS NEGOTIATE,
+		 ENCRYPTION = SUPPORTED)
+GO
+
+--Instance 2 --STANDBY
+CREATE ENDPOINT mirroring_ep
+	STATE = STARTED
+	AS TCP 
+		(LISTENER_PORT = 1337)
+	FOR DATABASE_MIRRORING
+		(ROLE= PARTNER,
+		 AUTHENTICATION = WINDOWS NEGOTIATE,
+		 ENCRYPTION = SUPPORTED)
+GO
+
+--Instance 3
+CREATE ENDPOINT mirroring_ep
+	STATE = STARTED
+	AS TCP 
+		(LISTENER_PORT = 1337)
+	FOR DATABASE_MIRRORING
+		(ROLE= WITNESS,
+		 AUTHENTICATION = WINDOWS NEGOTIATE,
+		 ENCRYPTION = SUPPORTED)
+GO
+
+
+--** Certificate & Key Troubleshooting **--
+--Be aware of expiration dates on certificates
+--Backup certificates & keys to avoid data loss
+
+select * from sys.certificates
+select * from sys.symmetric_keys
+select * from sys.asymmetric_keys
+
+USEDemoDB
+GO
+CREATE MASTER KEY ENCRYPTION BY PASSWORD = '-supercalifragilisticexpialidoci0us-'
+GO
+
+CREATE CERTIFICATE dataencryptCert                        --- make sure to backup the certificates and symetric keys
+       WITH SUBJECT = 'Used for data encryption',
+       EXPIRY_DATE = '1/1/2019'
+GO
+
+CREATE SYMMETRIC KEY dataencryptKey WITH ALGORITHM = AES_256  ENCRYPTION BY CERTIFICATE dataencryptCert
+GO
+--- create encrypted column 
+ALTER TABLE Employees ADD [SS#] varbinary(255)
+GO
+
+-- Update the Encrypted column 
+OPEN SYMMETRIC KEY dataencryptKey DECRYPTION BY CERTIFICATE dataencryptCert
+GO
+
+UPDATE Employees SET [SS#] = ENCRYPTBYKEY(KEY_GUID('dataencryptKey'), '123-45-6789')
+WHERE	EmployeeID = 1
+GO
+SELECT * FROM Employees
+GO
+
+-- Read encrypted column in clear text
+OPEN SYMMETRIC KEY dataencryptKey DECRYPTION BY CERTIFICATE dataencryptCert
+GO
+
+SELECT [SS#],CONVERT(varchar(20), DECRYPTBYKEY([SS#])) as [DecryptedSS#]
+FROM  Employees
+
+
+--backup database master key 
+
+Use demodb
+OPEN MASTER KEY DECRYPTION BY PASSWORD = '-supercalifragilisticexpialidoci0us-';   
+BACKUP MASTER KEY TO FILE = 'E:\Program Files\Microsoft SQL Server\MSSQL11.MTLDB\MSSQL\DATA\exportedmasterkey'   
+    ENCRYPTION BY PASSWORD = 'sd092735kjn$&adsg';   
+GO   
+Use demodb
+BACKUP CERTIFICATE dataencryptCert to file=' Data Encrypt CERT'
+    With private key (FILE='PrivateKeyfile2',ENCRYPTION BY PASSWORD='\o/_P@55w0rd\o/')
+Go     
+
+=================================== 
+ALWAYS ON AVAILABILITY GROUP 
+===================================  
+
+
+1-CREATION:
+-Open windows server failover cluster Manager :
+  Create New cluster ->
+ #Server list (node1,node2...) /                       #Access Points:->Clustername: SQLAG_cluster ->IP address->   
+- Install sql server + Create SQLservice domain account sql.srv(allow automatic endpoints config)/ on all nodes 
+- Turn On always On Availability Group Option [in SQL-S configuration Manager->SQL instance Service->properties->AlwaysOn Availability] 
+- Create a shared Folder and store the selected Primary databases backups 
+- Create Availability group On SSMS ->Always-On-Availability>New Availability Group
+                                      #Name:cluster-AG #databases:(full backup required)
+                                     -> specify replicas-> #server - #InitialRole - #AutoFailover(up-2) - #Synch Commit (up-3) - #Readable secondary
+                                                           Node       Prim/sec      yes/no                Yes/No                  No/Read intent Only
+                                    -> Configure endpoints:( Using sql.srv service account)#server #Endpoint              #Endpointname   #SQLserviceAccount                       
+                                                                                           Node    :tcp://node1.net:5022   Hadr            Medisol/sql.srv
+                                    -> Backup preference : Secondary (primary if impossible) /secondary Only / Primary (Only)/ Any replicas (ny available
+                                    -> Exclude instance /set Priority
+                                    ->Listener : #Name:MTL-AGL #Network mode:static IP/ add IP
+                                    -> INITIAL Data synchronization: #Full(select shared bkp folder location/ #Join Only(restored already)/ #Skip
+                         Warning : make sure mdf/ndf locations are similar in all replicas.+ quorum voting warning is not a clocking error if node only quorum is on .
+
+Connection string to  read Only replica :                                                                         
+    Applications or SSMS connection option may add the below detail to specify which replica to be accessed :
+     Target exemple: ReadOnly Replica
+    Datasource=AGListener;Initial catalog=Adventureworks2012;ApplicationIntent=readOnly                                
+
+Prerequisite:
+Use master
+--add read-only routing URLs
+ALTER AVAILABILITY GROUP NuggetAG
+MODIFY REPLICA ON N'SQLNUGGET1' WITH (SECONDARY_ROLE(READ_ONLY_ROUTING_URL=N'tcp:sqlnugget1.nuggetlab.com:1433'))
+GO
+ALTER AVAILABILITY GROUP NuggetAG
+MODIFY REPLICA ON N'SQLNUGGET2' WITH (SECONDARY_ROLE(READ_ONLY_ROUTING_URL=N'tcp:sqlnugget2.nuggetlab.com:1433'))
+GO
+ALTER AVAILABILITY GROUP NuggetAG
+MODIFY REPLICA ON N'SQLNUGGET2' WITH (SECONDARY_ROLE(READ_ONLY_ROUTING_URL=N'tcp:sqlnugget3.nuggetlab.com:1433'))
+GO
+
+
+-- Configure Read-Only routing lists when Primaries
+ALTER AVAILABILITY GROUP NuggetAG
+MODIFY REPLICA ON N'SQLNUGGET1' WITH (PRIMARY_ROLE(READ_ONLY_ROUTING_LIST=(N'SQLNUGGET3')))
+GO 
+ALTER AVAILABILITY GROUP NuggetAG
+MODIFY REPLICA ON N'SQLNUGGET2' WITH (PRIMARY_ROLE(READ_ONLY_ROUTING_LIST=(N'SQLNUGGET3')))
+GO 
+
+----------------
+MANUAL FAILOVER 
+----------------
+manually fails over  availability group to secondary replica.
+ALTER AVAILABILITY GROUP MTL-Ag FAILOVER;                                                                        pwershell: Switch-SqlAvailabilityGroup -Path SQLSERVER:\Sql\SecondaryServer\InstanceName\AvailabilityGroups\MyAg  
+ Force FAILOVER : 
+ALTER AVAILABILITY GROUP MTL-Ag FORCE_FAILOVER_ALLOW_DATA_LOSS;  
+
+DMV's For troubleshooting
+-------------------------
+Select * from sys.availability_groups
+Select * from sys.availability_replicas
+Select * from sys.availability_groups_listeners
+Select * from sys.availability_readonly_routing_lists
+----to check failover readyness of a Replicas
+ Select is_failover_ready from sys.dm_hadr_database_cluster_states
+
+==================================
+DATABASE MIRRORING
+==================================
+
+ALTER DATABASE database mirroring options are not available for a contained database.
+
+ENdpoints:
+----------
+USE master
+GO
+
+--INST instance endpoint (partner)  -PINCIPAL
+CREATE ENDPOINT [Mirroring_ep] 
+	STATE=STARTED
+	AS TCP
+		(LISTENER_PORT = 5022, LISTENER_IP = ALL)
+	FOR DATABASE_MIRRORING 
+		(ROLE = ALL,     --- if dula purpose instance witness/mirror use role=All otherwise Partner
+		 AUTHENTICATION = CERTIFICATE cert_name, 
+		 ENCRYPTION = REQUIRED ALGORITHM RC4)
+GO
+
+--INST2 instance endpoint (partner) 
+CREATE ENDPOINT [Mirroring_ep] 
+	STATE=STARTED
+	AS TCP
+		(LISTENER_PORT = 5023, LISTENER_IP = ALL)
+	FOR DATABASE_MIRRORING 
+		(ROLE = PARTNER, 
+		 AUTHENTICATION = WINDOWS NEGOTIATE, 
+		 ENCRYPTION = REQUIRED ALGORITHM RC4)
+GO
+
+--EVAL3 instance endpoint (witness)
+CREATE ENDPOINT [Mirroring_ep] 
+	STATE=STARTED
+	AS TCP
+		(LISTENER_PORT = 5024, LISTENER_IP = ALL)
+	FOR DATABASE_MIRRORING 
+		(ROLE = WITNESS, 
+		 AUTHENTICATION = WINDOWS NEGOTIATE, 
+		 ENCRYPTION = REQUIRED ALGORITHM RC4)
+GO
+
+All endpoints Must be started :
+SELECT role_desc, state_desc FROM sys.database_mirroring_endpoints ;
+
+3. On the principal server instance 
+BACKUP DATABASE AdventureWorks TO DISK = 'C:\AdvWorks_dbmirror.bak'    WITH FORMAT  
+GO  
+4. On the mirror server instance (on PARTNERHOST5), restore the database:
+RESTORE DATABASE AdventureWorks   
+    FROM DISK = 'Z:\AdvWorks_dbmirror.bak'   
+    WITH NORECOVERY  
+GO  
+5. After full database backup, create a log backup on the principal database.
+BACKUP LOG AdventureWorks TO DISK = 'C:\AdventureWorks.bak'   
+GO  
+6. Restore log backup in the mirror Database
+RESTORE LOG AdventureWorks   
+    FROM DISK = 'C:\ AdventureWorks.bak'   
+    WITH FILE=1, NORECOVERY  
+GO  
+
+7. On the mirror server instance
+USE master;  
+ALTER DATABASE AdventureWorks SET PARTNER ='TCP://PARTNERHOST1:5022'  
+GO  
+
+8. On the principal server instance, set the server instance on PARTNERHOST5 as the partner (making it the initial mirror server):
+USE master;  
+ALTER DATABASE AdventureWorks  SET PARTNER = 'TCP://PARTNERHOST5:5022'  
+GO  
+
+SETTING:
+Connect to principal server : set it as partner on the mirror database :
+ALTER DATABASE AdventureWorks  SET PARTNER = 'TCP://DBSERVER1:5022';
+Connect to principal server : set mirror server as partner on the principal database: 
+ALTER DATABASE AdventureWorks SET PARTNER = 'TCP://DBSERVER2:5022';
+
+--------------
+Mirroring test
+--------------
+
+Update rows in the principal Instance and check synchronisation in the Mirror:
+USE AdventureWorksDW2012
+GO
+CREATE TABLE MirrorTest
+([ID] int,[Data] nvarchar(255))
+GO
+INSERT MirrorTest SELECT 1, 'data1'
+INSERT MirrorTest SELECT 2, 'data2'
+INSERT MirrorTest SELECT 3, 'data3'
+INSERT MirrorTest SELECT 4, 'data4'
+INSERT MirrorTest SELECT 5, 'data5'
+GO
+
+Go to SSMS check Mirror database label display: , or check principal database properties/mirroring/ status (fully synchronized), 
+Or database>tasks>launch the database mirroring monitor
+Status  Current Role  Mirroring state witnessConnection History: 
+------- ------------- --------------- ----------------- -----------------------
+Inst1/2  Princ/Mirror  Synchronized    Connected        UsentLog/last Unsentlog  transaction sending log
+
+3- Failover : 
+Automatic failover on Hight safety Mode (synchronous) with a witness ..for disaster situation  : if the principal is shut down then the mirror take over as principal, and when it starts back it will switch to a mirror role.
+Manual failover :
+When mirrored DB is in SYNCHRONIZED state, the DB owner can initiate manual failover to the mirror server only from the principal server.
+Use master 
+ALTER DATABASE Advantureworks2012 SET PARTNER FAILOVER;      --- where dbname is the mirrored database.
+Go 
+-- This initiates an immediate transition of the mirror server to the principal role.
+Check :
+SELECT db.name, m.mirroring_role_desc 
+       FROM sys.database_mirroring m   
+       JOIN sys.databases db  ON db.database_id = m.database_id  
+       WHERE db.name = N'AdventureWorks2012';   
+GO  
+
+Switch Operating Mode : 
+A- SYNCHRONOUS (high safety):
+ALTER DATABASE <database> SET PARTNER SAFETY FULL;  
+
+B- ASYNCHRONOUS (High perf):
+ALTER DATABASE <database> SET PARTNER SAFETY OFF;
+
+ 
+==================================
+DATABASE REPLICATION
+==================================
+
+USE AdventureWorks2012
+GO
+
+
+CREATE TABLE dbo.ReplicationTest
+(
+	ID int IDENTITY(1,1) PRIMARY KEY,
+	SomeData uniqueidentifier DEFAULT NEWID()
+)
+GO
+
+INSERT dbo.ReplicationTest DEFAULT VALUES
+GO 1000
+
+
+ERROR :
+The concurrent snapshot for publication 'ReplicationTestTransactional' is not available because it has not been fully generated or the Log Reader Agent is not running to activate it. 
+If generation of the concurrent snapshot was interrupted, the Snapshot A
+
+This can also be caused by the fact that the subscriber does not have rights to read the snapshot share. 
+- Change the distribution agent to use the publisher sa account for publisherlogin and distirbutorlogin 
+-Ensure that the account the distribution agent runs under (lke the sql server agent account on the publisher or subscriber) has rights to read the snapshot share?
+
+========== 70-461 
+
+1- check top queries 
+--Use DMVs (Data Managment Views) to find poor or long running queries
+---Return top 10 longest running queries
+SELECT TOP (10)
+	 qs.total_elapsed_time / qs.execution_count / 1000000.0 AS AverageSeconds
+	,qs.total_elapsed_time / 1000000.0 AS TotalSeconds
+	,qt.text AS Query
+	,o.name AS ObjectName
+	,DB_NAME (qt.dbid) AS DatabaseName
+FROM
+	sys.dm_exec_query_stats qs
+		CROSS APPLY
+	sys.dm_exec_sql_text(qs.sql_handle) AS qt
+		LEFT OUTER JOIN
+	sys.objects AS o ON qt.objectid=o.object_id
+ORDER BY
+	AverageSeconds DESC
+
+---Return top 10 most expensive queries
+SELECT TOP 10
+	 (total_logical_reads + total_logical_writes) / qs.execution_count AS AverageIO
+	,(total_logical_reads + total_logical_writes) AS TotalID
+	,qt.text AS Query
+	,o.name AS ObjectName
+	,DB_NAME(qt.dbid) AS DatabaseName
+FROM
+	sys.dm_exec_query_stats AS qs
+		CROSS APPLY
+	sys.dm_exec_sql_text(qs.sql_handle) AS qt
+		LEFT OUTER JOIN
+	sys.objects AS o ON qt.objectid = o.object_id
+ORDER BY 
+	AverageIO DESC
+--Text Exection Plan
+SET SHOWPLAN_ALL Off --OFF
+choose of the bellow
+SET SHOWPLAN_TEXT ON   -- Displays a basic text based estimated execution plan, without executing the query
+SET SHOWPLAN_ALL ON    -- Displays a text based estimated execution plan with cost estimations, without executing the query
+SET SHOWPLAN_XML ON    -- Displays an XML based estimated execution plan with cost estimations, without executing the query. 
+SET STATISTICS PROFILE ON -- Executes the query and displays a text based actual execution plan.
+SET STATISTICS XML ON -- Executes the query and displays an XML based actual execution plan. Recommended option to use
+SET STATISTICS TIME     --- CPU stat onlyz
+SET STATISTICS IO       --- IO stat only
+
+--explain plan DMVs 
+system info : sys.dm_os_performance_counters and sys.os_wait_stats
+
+----clean cache // tempdb
+--- Script 
+DBCC DROPCLEANBUFFERS           ---- flush cached indexes and data pages
+DBCC FREEPROCCACHE ('ALL');     ----- flush procedure cache
+DBCC FREESYSTEMCACHE  ('ALL');  ----- flush system procedure cache
+DBCC FLUSHPROCInDB (DbID);
+DBCC SHRINKFILE (ton-tempFile, 4096);   --- New file size in MB
+GO
+ 
+extract ===
+	CREATE FUNCTION ScanInCacheFromDatabase 
+		(     
+		      -- Add the parameters for the function here
+		      @DatabaseName varchar(50)
+		)
+		RETURNS TABLE 
+		AS
+		RETURN 
+		(
+		with XMLNAMESPACES
+		(default 'http://schemas.microsoft.com/sqlserver/2004/07/showplan')
+		select qp.query_plan,qt.text, 
+		statement_start_offset, statement_end_offset,
+		creation_time, last_execution_time,
+		execution_count, total_worker_time,
+		last_worker_time, min_worker_time,
+		max_worker_time, total_physical_reads,
+		last_physical_reads, min_physical_reads,
+		max_physical_reads, total_logical_writes,
+		last_logical_writes, min_logical_writes,
+		max_logical_writes, total_logical_reads,
+		last_logical_reads, min_logical_reads,
+		max_logical_reads, total_elapsed_time,
+		last_elapsed_time, min_elapsed_time,
+		max_elapsed_time, total_rows,
+		last_rows, min_rows,
+		max_rows from sys.dm_exec_query_stats
+		CROSS APPLY sys.dm_exec_sql_text(sql_handle) qt
+		CROSS APPLY sys.dm_exec_query_plan(plan_handle) qp
+		where 
+		qp.query_plan.exist('//RelOp[@LogicalOp="Index Scan"
+		            or @LogicalOp="Clustered Index Scan"
+		            or @LogicalOp="Table Scan"]')=1
+		and 
+		qp.query_plan.exist('//ColumnReference[fn:lower-case(@Database)=fn:lower-case(sql:variable("@DatabaseName"))]')=1
+		)
+		GO
+		====Run few queries
+		==== extract the execution plans from each query in the cache  
+			select query_plan,[text],total_worker_time 
+		from dbo.ScanInCacheFromDatabase('[AdventureWorks2012]')
+		order by [total_worker_time] desc	
+
+
+
+
+
+--Statistics
+sp_helpstats 'Sales', 'ALL'
+DBCC SHOW_STATISTICS ('Sales','PK_SalesID')
+
+DBCC SHOW_STATISTICS ('Sales','IX_ProductSearch')
+
+

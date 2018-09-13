@@ -1,0 +1,333 @@
+* Transact-SQL references to the name of a database object can be a four-part name in the following form:
+server_name .[database_name].[schema_name].object_name
+| database_name.[schema_name].object_name
+| schema_name.object_name
+| object_name
+
+* This will list all the sql servers installed on your network
+----
+1> SQLCMD -L  OR OSQL -L
+
+There are configuration options you can set to prevent a SQL Server from showing in the list. To do this...  C:\> svrnetcn (In the enabled protocols list, select 'TCP/IP', then click properties. There is a check box for 'Hide server'.)
+ 
+1- allow a user with only the public role to view all users in the master.dbo.syslogin view?
+You have two options:
+
+1. GRANT VIEW ANY DEFINITION (not recommended)
+
+2. GRANT VIEW DEFINITION ON LOGIN::User1 TO User2
+
+User1 will be the user you want to view the metadata of and User2 is the user who should have access to view the data.
+
+1- select CAST(name AS varchar(10))name,CAST(dbname AS varchar(10))dbname,CAST(sysadmin AS int)sysadmin,CAST(loginname AS varchar(10))loginname from syslogins where name='kh85124';
+================
+sys.syslogins
+================
+
+Column  Data type	Description
+------- --------------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+sid	    varbinary(85)	Security identifier.
+status	    smallint	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+createdate  datetime	Date the login was added.
+updatedate  datetime	Date the login was updated.
+accdate	    datetime	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+totcpu	     int	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+totio	     int	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+spacelimit   int	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+timelimit    int	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+resultlimit  int	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+name	    sysname	Login name of the user.
+dbname	    sysname	Name of the default database of the user when a connection is established.
+password    nvarchar(128) Returns NULL.
+language    sysname	    Default language of the user.
+denylogin      int	1 = Login is a Microsoft Windows user or group and has been denied access.
+hasaccess      int	1 = Login has been granted access to the server.
+isntname       int	1 = Login is a Windows user or group. 0 = Login is a SQL Server login.
+isntgroup	int	1 = Login is a Windows group.
+isntuser	int	1 = Login is a Windows user.
+sysadmin	int	1 = Login is a member of the sysadmin server role.
+securityadmin	int	1 = Login is a member of the securityadmin server role.
+serveradmin	int	1 = Login is a member of the serveradmin fixed server role.
+setupadmin	int	1 = Login is a member of the setupadmin fixed server role.
+processadmin	int	1 = Login is a member of the processadmin fixed server role.
+diskadmin	int	1 = Login is a member of the diskadmin fixed server role.
+dbcreator	int	1 = Login is a member of the dbcreator fixed server role.
+bulkadmin	int	1 = Login is a member of the bulkadmin fixed server role.
+loginname   nvarchar(128) Login name of the user. Provided for backward compatibility.
+
+
+2-select CAST(name AS varchar(10))name,CAST(uid AS int) uid,CAST(sid AS int)sid,CAST(roles as varchar(15))roles,CAST(altuid AS int)altuid,Case when isntuser>issqluser then 'WINDOWS USER' else 'SQL USER' END USER_TYPE  from sysusers where name='kh85124';
+================
+sys.sysusers
+===============
+
+Column  Data type	Description
+------- --------------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+uid	smallint	User ID, unique in this database. 1 = Database owner Overflows or returns NULL if the number of users and roles exceeds 32,767.
+status	smallint	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+name	sysname	        User name or group name, unique in this database.
+sid	 varbinary(85)	Security identifier for this entry.
+roles	  varbinary(2048)	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+createdated datetime	Date the account was added.
+updatedate  datetime	Date the account was last changed.
+altuid	  smallint	Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.Overflows or returns NULL if exeeds users roles 32,767.
+password  varbinary(256) Identified for informational purposes only. Not supported. Future compatibility is not guaranteed.
+gid	smallint	Group ID to which this user belongs. If uid is the same as gid, this entry defines a group. Overflows or returns NULL if the combined number of groups and users exceeds 32,767.
+environ	varchar(255)	Reserved.
+hasdbaccess	int	1 = Account has database access.
+islogin	        int	1 = Account is a Windows group, Windows user, or SQL Server user with a login account.
+isntname	int	1 = Account is a Windows group or Windows user.
+isntgroup	int	1 = Account is a Windows group.
+isntuser	int	1 = Account is a Windows user.
+issqluser	int	1 = Account is a SQL Server user.
+isaliased	int	1 = Account is aliased to another user.
+issqlrole	int	1 = Account is a SQL Server role.
+isapprole	int	1 = Account is an application role.
+
+ ===================
+ sys.dm_exec_sessions 
+ ===================
+ 
+ Column name	Data type	Description
+session_id	smallint	Identifies the session associated with each active primary connection. Is not nullable.
+login_time	datetime	Time when session was established. Is not nullable.
+host_name	nvarchar(128)	Name of the client workstation that is specific to a session. The value is NULL for internal sessions. Is nullable.
+
+ Security Note: The client application provides the workstation name and can provide inaccurate data. Do not rely upon HOST_NAME as a security feature.
+program_name	nvarchar(128)	Name of client program that initiated the session. The value is NULL for internal sessions. Is nullable.
+host_process_id	int	Process ID of the client program that initiated the session. The value is NULL for internal sessions. Is nullable.
+client_version	int	TDS protocol version of the interface that is used by the client to connect to the server. The value is NULL for internal sessions. Is nullable.
+client_interface_name	nvarchar(32)	Protocol name that is used by the client to connect to the server. The value is NULL for internal sessions. Is nullable.
+security_id	varbinary(85)	Microsoft Windows security ID associated with the login. Is not nullable.
+login_name	nvarchar(128)	SQL Server login name under which the session is currently executing. For the original login name that created the session, see original_login_name. Can be a SQL Server authenticated login name or a Windows authenticated domain user name. Is not nullable.
+nt_domain	nvarchar(128)	Applies to: SQL Server 2008 through SQL Server 2016.
+
+Windows domain for the client if the session is using Windows Authentication or a trusted connection. This value is NULL for internal sessions and non-domain users. Is nullable.
+nt_user_name	nvarchar(128)	Applies to: SQL Server 2008 through SQL Server 2016.
+
+Windows user name for the client if the session is using Windows Authentication or a trusted connection. This value is NULL for internal sessions and non-domain users. Is nullable.
+status	nvarchar(30)	Status of the session. Possible values:
+
+ Running - Currently running one or more requests
+
+ Sleeping - Currently running no requests
+
+ Dormant – Session has been reset because of connection pooling and is now in prelogin state.
+
+ Preconnect - Session is in the Resource Governor classifier.
+
+Is not nullable.
+context_info	varbinary(128)	CONTEXT_INFO value for the session. The context information is set by the user by using the SET CONTEXT_INFO statement. Is nullable.
+cpu_time	int	CPU time, in milliseconds, that was used by this session. Is not nullable.
+memory_usage	int	Number of 8-KB pages of memory used by this session. Is not nullable.
+total_scheduled_time	int	Total time, in milliseconds, for which the session (requests within) were scheduled for execution. Is not nullable.
+total_elapsed_time	int	Time, in milliseconds, since the session was established. Is not nullable.
+endpoint_id	int	ID of the Endpoint associated with the session. Is not nullable.
+last_request_start_time	datetime	Time at which the last request on the session began. This includes the currently executing request. Is not nullable.
+last_request_end_time	datetime	Time of the last completion of a request on the session. Is nullable.
+reads	bigint	Number of reads performed, by requests in this session, during this session. Is not nullable.
+writes	bigint	Number of writes performed, by requests in this session, during this session. Is not nullable.
+logical_reads	bigint	Number of logical reads that have been performed on the session. Is not nullable.
+is_user_process	bit	0 if the session is a system session. Otherwise, it is 1. Is not nullable.
+text_size	int	TEXTSIZE setting for the session. Is not nullable.
+language	nvarchar(128)	LANGUAGE setting for the session. Is nullable.
+date_format	nvarchar(3)	DATEFORMAT setting for the session. Is nullable.
+date_first	smallint	DATEFIRST setting for the session. Is not nullable.
+quoted_identifier	bit	QUOTED_IDENTIFIER setting for the session. Is not nullable.
+arithabort	bit	ARITHABORT setting for the session. Is not nullable.
+ansi_null_dflt_on	bit	ANSI_NULL_DFLT_ON setting for the session. Is not nullable.
+ansi_defaults	bit	ANSI_DEFAULTS setting for the session. Is not nullable.
+ansi_warnings	bit	ANSI_WARNINGS setting for the session. Is not nullable.
+ansi_padding	bit	ANSI_PADDING setting for the session. Is not nullable.
+ansi_nulls	bit	ANSI_NULLS setting for the session. Is not nullable.
+concat_null_yields_null	bit	CONCAT_NULL_YIELDS_NULL setting for the session. Is not nullable.
+transaction_isolation_level	smallint	Transaction isolation level of the session.
+
+0 = Unspecified
+
+1 = ReadUncomitted
+
+2 = ReadCommitted
+
+3 = Repeatable
+
+4 = Serializable
+
+5 = Snapshot
+
+Is not nullable.
+lock_timeout	int	LOCK_TIMEOUT setting for the session. The value is in milliseconds. Is not nullable.
+deadlock_priority	int	DEADLOCK_PRIORITY setting for the session. Is not nullable.
+row_count	bigint	Number of rows returned on the session up to this point. Is not nullable.
+prev_error	int	ID of the last error returned on the session. Is not nullable.
+original_security_id	varbinary(85)	Microsoft Windows security ID that is associated with the original_login_name. Is not nullable.
+original_login_name	nvarchar(128)	SQL Server login name that the client used to create this session. Can be a SQL Server authenticated login name, a Windows authenticated domain user name, or a contained database user. Note that the session could have gone through many implicit or explicit context switches after the initial connection. For example, if EXECUTE AS is used. Is not nullable.
+last_successful_logon	datetime	Applies to: SQL Server 2008 through SQL Server 2016.
+
+Time of the last successful logon for the original_login_name before the current session started.
+last_unsuccessful_logon	datetime	Applies to: SQL Server 2008 through SQL Server 2016.
+
+Time of the last unsuccessful logon attempt for the original_login_name before the current session started.
+unsuccessful_logons	bigint	Applies to: SQL Server 2008 through SQL Server 2016.
+
+Number of unsuccessful logon attempts for the original_login_name between the last_successful_logon and login_time.
+group_id	int	ID of the workload group to which this session belongs. Is not nullable.
+database_id	smallint	Applies to: SQL Server 2012 through SQL Server 2016.
+
+ID of the current database for each session.
+authenticating_database_id	int	Applies to: SQL Server 2012 through SQL Server 2016.
+
+ID of the database authenticating the principal. For Logins, the value will be 0. For contained database users, the value will be the database ID of the contained database.
+open_transaction_count	int	Applies to: SQL Server 2012 through SQL Server 2016.
+
+Number of open transactions per session.
+pdw_node_id	int	Applies to: Azure SQL Data Warehouse, Parallel Data Warehouse
+
+The identifier for the node that this distribution is on.
+
+ 
+ 
+ 
+sqlcmd -h -1 -s "," -W [...]
+Where :
+-h -1 gets rid of header
+-s "," set the comma as column separator
+-W is needed to remove trailing space
+[...] is the remaining of your sqlcmd 
+
+ 
+ ===============================
+     Sqlcmd Scripting Variables
+ ================================
+Vriables that are defined by sqlcmd are known as scripting variables. The following table lists sqlcmd scripting variables.
+ 
+Vriable	Related option	R/W	Default
+--------------- ------------- ------ --------------
+SQLCMDUSER*	        -U	R	""
+SQLCMDPASSWORD*	        -P	--	""
+SLCMDSERVER*	        -S	R	"DefaultLocalInstance"
+SQLCMDWORKSTATION	-H	R	"ComputerName"
+SQLCMDDBNAME	        -d	R	""
+SLCMDLOGINTIMEOUT	-l	R/W	"8" (seconds)
+SQLCMDSTATTIMEOUT	-t	R/W	"0" = wait indefinitely
+SQLCMDHEADERS	        -h	R/W	"0"
+SQLCMDCOLSEP	        -s	R/W	" "
+SQLCMDCOLWIDTH	        -w	R/W	"0"
+SQLCMDPACKETSIZE	-a	R	"4096"
+SQLCMDERRORLEVEL	-m	R/W	"0"
+SQLCMDMAXVARTYPEWIDTH	-y	R/W	"256"
+SQLCMDMAXFIXEDTYPEWIDTH	-Y	R/W	"0" = unlimited
+SQLCMDEDITOR		        R/W	"edit.com"
+SQLCMDINI		        R	""              
+ 
+EAMPLES:
+--------
+:setvar SQLCMDLOGINTIMEOUT 60
+:setvar server "testserver"                
+:connect $(server) -l $(SQLCMDLOGINTIMEOUT)
+ USE AdventureWorks2012;                    
+ SLECT FirstName, LastName FOM Person.Person;                        
+ 
+-The script is then called by using sqlcmd: 
+         sqlcmd -i c:\test.sql   
+ 
+-----------------------------------
+B Using the setvar command interactively
+----------------------------------                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+Te following example shows how to set a scripting variable interactively by using the setvar command.
+slcmd
+:etvar MYDATABASE AdventureWorks2012
+UE $(MYDATABASE);
+G
+Hre is the result set.
+Canged database context to 'AdventureWorks2012'
+1       >
+ 
+------------------------------------------------------------    
+C. Using command prompt environment variables within sqlcmd
+------------------------------------------------------------    
+In the following example, four environment variables are set and then called from sqlcmd.
+C:\>SET tablename=Person.Person
+C:\>SET col1=FirstName
+C:\>SET col2=LastName
+C:\>SET title=Ms.
+C:\>sqlcmd -S mcr-ora-t05\MTLDB -d AdventureWorks2012 -l 60
+1> SELECT TOP 5 $(col1) + ' ' + $(col2) AS Name
+2> FROM $(tablename)
+3> WHERE Title ='$(title)'
+4> GO
+--------------------------------------------------------
+D Using user-level environment variables within sqlcmd
+-------------------------------------------------------
+I the following example the user-level environmental variable %Temp% is set at the command prompt and passed to the sqlcmd input file. To obtain the user-level windows environment variable.
+ 
+iput file c:\testscript.txt:
+:UT $(MyTempDirectory)
+USE AdventureWorks2012;
+SELECT FirstName
+FROM AdventureWorks2012.Person.Person
+WHERE BusinessEntityID < 5;
+ 
+command prompt:
+C\ >SET MyTempDirectory=%Temp%\output.txt
+C:\ >sqlcmd -i C:\testscript.txt
+following result is sent to output file C:\Documents and Settings\<user>\Local Settings\Temp\output.txt.
+ 
+Canged database context to 'AdventureWorks2012'.
+FirstName
+--------------------------------------------------
+Gstavo
+Catherine
+Kim
+Hmberto
+ 
+----------------------------------------------------------
+E Using a startup script
+-----------------------------------------------------------
+A sqlcmd startup script is executed when sqlcmd is started. 
+following example sets the environment variable SQLCMDINI. 
+- The Contents of init.sql.
+SET NOCOUNT ON
+GO
+DECLARE @nt_username nvarchar(128)
+SET @nt_username = (SELECT rtrim(convert(nvarchar(128), nt_username)) FROM sys.dm_exec_sessions WHERE sessions_id= @@SPID)
+SELECT @nt_username + ' is connected to ' +rtrim(CONVERT(nvarchar(20), SERVERPROPERTY('servername'))) +' (' +rtrim(CONVERT(nvarchar(20), SERVERPROPERTY('productversion'))) +')'
+:setvar SQLCMDMAXFIXEDTYPEWIDTH 100
+SET NOCOUNT OFF
+GO
+:setvar SQLCMDMAXFIXEDTYPEWIDTH
+
+This calls the init.sql file when sqlcmd is started.
+C:\> SET sqlcmdini=c:\init.sql
+>1 Sqlcmd
+
+
+
+This is the output.
+>1 < user > is connected to < server > (9.00.2047.00)  
+
+
+
+sp_MSforeachtable - allows you to process some code against each and every table in a single database.Its present in the master database. 
+This is used to process a single command or multiple commands against tables in sinlge database.
+
+Below is the syntax for calling the sp_MSforeachtable Stored procedure:
+exec @RETURN_VALUE=sp_MSforeachtable @command1, @replacechar, @command2, @command3, @whereand, @precommand, @postcommand
+Where:
+@RETURN_VALUE - the return value which will be set by "sp_MSforeachtable"
+@command1 - first command to be executed by "sp_MSforeachtable" and is defined as a nvarchar(2000)
+@replacechar - character in the command string that will be replaced with the table name being processed (default replacechar is a "?")
+@command2 and @command3 are two additional commands that can be run for each table, where @command2 runs after @command1, and @command3 will be run after @command2
+@whereand - can be used to add additional constraints to help identify the rows in the sysobjects table that will be selected, this parameter is also a nvarchar(2000)
+@precommand - nvarchar(2000) parameter and specifies a command to be run prior to processing any table
+@postcommand - nvarchar(2000) field used to identify a command to be run after all commands have been processed against all tables 
+  EXAMPLES: 
+                                                                                                                                
+EXEC sp_MSforeachdb @command1='use ?; exec sp_changedbowner ''sa''' -- Change all DBs to "sa" owner
+
+EXEC sp_MSforeachdb @command1='ALTER DATABASE ? SET PAGE_VERIFY CHECKSUM' -- SQL 2005 Best Practice
+
+EXEC sp_MSforeachdb @command1='?.dbo.sp_change_users_login ''Report''' -- Check for Orphans                                                                                                                              
+
+to run sqcmd  from SSMS 
+!!sqlcmd                                                                                                                                                                                                                                                                                                                                                         
