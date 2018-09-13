@@ -45,7 +45,7 @@ select * from (
      -- FROM dba_hist_active_sess_history    -- 10 seconds samples
      Where  sample_time between trunc(sysdate -&&num_days)+&&begin_H/24+&&begin_m/1440 and trunc(sysdate -&&num_days)+&&end_H/24+&&end_m/1440
      and v$active_session_history.user_id>0  and WAIT_CLASS != 'Idle' and  SESSION_STATE = 'WAITING' and event != 'null event' and dba_users.user_id=v$active_session_history.user_id
-      Group by WAIT_CLASS,event, sql_id,session_id,dba_users.username
+      Group by WAIT_CLASS,event, sql_id,session_id,session_serial#,dba_users.username
       Order by 8 desc
       ) subl 
       where 
