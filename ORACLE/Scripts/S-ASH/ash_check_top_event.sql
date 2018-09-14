@@ -1,4 +1,5 @@
 -- Copyright 2018 Kosseila hd. All rights reserved.  
+/* Note that on multi-CPU systems the CPU usage may be skewed high and the need may exist to divide by the number of CPUs to get a useful number for the current CPU used by a session*/
 undefine begin_H end_H num_days begin_m end_m
 set feed off 
 column BEGIN_HOUR format a16
