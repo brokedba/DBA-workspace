@@ -35,7 +35,7 @@ FROM (
       , TO_CHAR(MIN(sample_time), 'YYYY-MM-DD HH24:MI:SS') first_seen
       , TO_CHAR(MAX(sample_time), 'YYYY-MM-DD HH24:MI:SS') last_seen
     FROM 
-        v$active_session_history 
+        gv$active_session_history 
     WHERE 
         regexp_like(event, '&1') 
     AND &2
