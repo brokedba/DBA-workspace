@@ -10,7 +10,7 @@
 -- Author:      Tanel Poder
 -- Copyright:   (c) http://blog.tanelpoder.com
 -- updated by    :(c) Kosseila Hd   
--- v1.2 Changes: 1-commented the time_model_name column section (column not available ins_ash). 
+-- v1.2 Changes: 1-commented the time_model_name column section (column not available in s_ash). 
 --               2- Replaced dba_objects by SASH_OBJS 
 --               3- Removed subobject_name (not available in S-ASH)
 --               4- Added dbid join between the tables in case many target DBs are configured (Mak sure you select the right dbid first using switchdb.sql -- all target DBs info are in sash_targets)                 
