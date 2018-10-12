@@ -110,7 +110,7 @@ SELECT * FROM (
         FROM v$active_session_history a) a
       , dba_users u
       , (SELECT
-             object_id,owner,object_name,subobject_name,object_type
+             object_id,owner,object_name,subobject_name,object_type,dbid
            , owner||'.'||object_name obj
            , owner||'.'||object_name||' ['||object_type||']' objt
          FROM SASH_OBJS) o
