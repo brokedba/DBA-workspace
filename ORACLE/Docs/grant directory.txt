@@ -1,1 +1,0 @@
-grant read on directory CON_FF_INS_DNA_IN_STORE_STG to STGINS_RO;

@@ -1,6 +1,0 @@
-select table_name,row_movement from dba_tables where owner='FTP';
-select 'alter table ' || owner || '.' || table_name || ' enable row movement;' from dba_tables where owner='FTP';
-select 'alter table ' || owner || '.' || table_name || ' shrink space cascade;' from dba_tables where owner='FTP';
-
-
-----alter index "STO_MDPIDS1"."V_AR_ALT_IDENT_LKP_NI_UNQ" modify partition "P_MAXVALUE" shrink space

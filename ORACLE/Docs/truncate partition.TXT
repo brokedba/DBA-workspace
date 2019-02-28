@@ -1,4 +1,0 @@
-ALTER TABLE AHS.TRANSACTION_ACCOUNTS TRUNCATE PARTITION AHS3
-select s.username,t.xidusn,t.ubafil,t.ubablk,t.used_ublk 
-  2  from v$session s,v$transaction t
-  3  where s.saddr=t.ses_addr;
